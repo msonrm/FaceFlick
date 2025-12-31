@@ -106,14 +106,7 @@
     window.isMediaPipeReady = isReady;
   </script>
 
-  {{flutter_js}}
-  <script>
-    _flutter.loader.load({
-      serviceWorkerSettings: {
-        serviceWorkerVersion: {{flutter_service_worker_version}},
-      },
-    });
-  </script>
+  <script src="flutter_bootstrap.js" async></script>
 </head>
 <body>
 </body>
