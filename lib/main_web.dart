@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:js_util' as js_util;
 import 'dart:ui_web' as ui_web;
@@ -106,11 +107,40 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
 
   Timer? _processingTimer;
 
+  static const String _calibrationStorageKey = 'faceflick_calibration';
+
   @override
   void initState() {
     super.initState();
+    _loadCalibration();
     _setupListeners();
     _initialize();
+  }
+
+  /// localStorageからキャリブレーションデータを読み込む
+  void _loadCalibration() {
+    try {
+      final stored = html.window.localStorage[_calibrationStorageKey];
+      if (stored != null && stored.isNotEmpty) {
+        final json = jsonDecode(stored) as Map<String, dynamic>;
+        _calibration = CalibrationData.fromJson(json);
+        _isCalibrated = true;
+        print('Calibration loaded from storage: $_calibration');
+      }
+    } catch (e) {
+      print('Failed to load calibration: $e');
+    }
+  }
+
+  /// localStorageにキャリブレーションデータを保存する
+  void _saveCalibration() {
+    try {
+      final json = jsonEncode(_calibration.toJson());
+      html.window.localStorage[_calibrationStorageKey] = json;
+      print('Calibration saved to storage');
+    } catch (e) {
+      print('Failed to save calibration: $e');
+    }
   }
 
   void _setupListeners() {
@@ -162,8 +192,13 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
       if (cameraResult == true) {
         setState(() {
           _isInitialized = true;
-          _statusMessage = 'キャリブレーションしてください';
-          _showCalibration = true; // 初回はキャリブレーションを表示
+          if (_isCalibrated) {
+            _statusMessage = '準備完了';
+            _showCalibration = false;
+          } else {
+            _statusMessage = 'キャリブレーションしてください';
+            _showCalibration = true;
+          }
         });
 
         // 顔検出結果のポーリングを開始
@@ -269,6 +304,7 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
       _showCalibration = false;
       _statusMessage = '準備完了';
     });
+    _saveCalibration();
     print('Calibration complete: $calibration');
   }
 

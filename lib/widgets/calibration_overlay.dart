@@ -178,11 +178,15 @@ class _CalibrationOverlayState extends State<CalibrationOverlay> {
   void _completeCalibration() {
     final mouthThreshold = (_maxMouth * 0.4).clamp(0.1, 0.7);
 
+    // 軸の対応:
+    // - centerX/rangeX は normalizeX(rotY) で使用 → rotY（左右）のデータを格納
+    // - centerY/rangeY は normalizeY(rotX) で使用 → rotX（上下）のデータを格納
+    // _centerY は rotY の平均、_centerX は rotX の平均なのでスワップが必要
     final calibration = CalibrationData(
-      centerX: _centerX,
-      centerY: _centerY,
-      rangeX: _rangeX,
-      rangeY: _rangeY,
+      centerX: _centerY,  // rotY（左右）の中央値
+      centerY: _centerX,  // rotX（上下）の中央値
+      rangeX: _rangeY,    // 左右の範囲
+      rangeY: _rangeX,    // 上下の範囲
       mouthThreshold: mouthThreshold,
     );
 
