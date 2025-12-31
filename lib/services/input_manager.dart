@@ -6,6 +6,7 @@ import '../models/flick_key.dart';
 class InputManager {
   InputState _state = const InputState();
   FaceState? _lastFaceState;
+  (int, int)? _lastGridPosition;
 
   final _inputController = StreamController<String>.broadcast();
   final _stateController = StreamController<InputState>.broadcast();
@@ -15,10 +16,13 @@ class InputManager {
 
   InputState get currentState => _state;
 
-  /// 顔の状態を更新
-  void updateFaceState(FaceState faceState) {
+  /// 顔の状態を更新（グリッド位置はキャリブレーション済みの値を外部から渡す）
+  void updateFaceState(FaceState faceState, {(int, int)? gridPosition}) {
     final previousMouthOpen = _lastFaceState?.isMouthOpen ?? false;
     final currentMouthOpen = faceState.isMouthOpen;
+
+    // グリッド位置を保存
+    _lastGridPosition = gridPosition ?? faceState.getGridPosition();
 
     switch (_state.phase) {
       case InputPhase.idle:
@@ -39,7 +43,7 @@ class InputManager {
   void _handleIdlePhase(FaceState faceState, bool prevMouth, bool currMouth) {
     // 口が開いた瞬間 -> 選択開始
     if (!prevMouth && currMouth) {
-      final gridPos = faceState.getGridPosition();
+      final gridPos = _lastGridPosition;
       if (gridPos != null) {
         _updateState(_state.copyWith(
           phase: InputPhase.selecting,
@@ -110,11 +114,6 @@ class InputManager {
   void _updateState(InputState newState) {
     _state = newState;
     _stateController.add(_state);
-  }
-
-  /// グリッド位置を取得（外部からの参照用）
-  (int, int)? getGridPosition(FaceState faceState) {
-    return faceState.getGridPosition();
   }
 
   /// リソースを解放
