@@ -5,9 +5,11 @@ import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
 
+import 'models/calibration.dart';
 import 'models/face_state.dart';
 import 'models/flick_key.dart';
 import 'services/input_manager.dart';
+import 'widgets/calibration_overlay.dart';
 import 'widgets/flick_keyboard.dart';
 
 void main() {
@@ -90,7 +92,17 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
   InputState _inputState = const InputState();
   bool _isInitialized = false;
   bool _showDebug = true;
+  bool _showCalibration = false;
   String _statusMessage = '初期化中...';
+
+  // キャリブレーションデータ
+  CalibrationData _calibration = const CalibrationData();
+  bool _isCalibrated = false;
+
+  // 生の顔データ（キャリブレーション用）
+  double _rawFaceX = 0;
+  double _rawFaceY = 0;
+  double _rawMouth = 0;
 
   Timer? _processingTimer;
 
@@ -150,7 +162,8 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
       if (cameraResult == true) {
         setState(() {
           _isInitialized = true;
-          _statusMessage = '顔を検出中...';
+          _statusMessage = 'キャリブレーションしてください';
+          _showCalibration = true; // 初回はキャリブレーションを表示
         });
 
         // 顔検出結果のポーリングを開始
@@ -183,35 +196,94 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
       if (result != null) {
         final detected = js_util.getProperty(result, 'detected') as bool? ?? false;
 
-        FaceState faceState;
         if (detected) {
-          final rotX = js_util.getProperty(result, 'headRotationX');
-          final rotY = js_util.getProperty(result, 'headRotationY');
-          final mouth = js_util.getProperty(result, 'mouthOpenRatio');
+          final rotX = (js_util.getProperty(result, 'headRotationX') as num?)?.toDouble() ?? 0.0;
+          final rotY = (js_util.getProperty(result, 'headRotationY') as num?)?.toDouble() ?? 0.0;
+          final mouth = (js_util.getProperty(result, 'mouthOpenRatio') as num?)?.toDouble() ?? 0.0;
 
-          faceState = FaceState(
-            headRotationX: (rotX as num?)?.toDouble() ?? 0.0,
-            headRotationY: (rotY as num?)?.toDouble() ?? 0.0,
-            headRotationZ: 0.0,
-            mouthOpenRatio: (mouth as num?)?.toDouble() ?? 0.0,
-            isFaceDetected: true,
-          );
+          // 生データを保存（キャリブレーション用）
+          _rawFaceX = rotX;
+          _rawFaceY = rotY;
+          _rawMouth = mouth;
+
+          // キャリブレーション済みの場合は正規化
+          FaceState faceState;
+          if (_isCalibrated) {
+            final normalizedX = _calibration.normalizeX(rotY); // Y軸（左右）
+            final normalizedY = _calibration.normalizeY(rotX); // X軸（上下）
+            final gridPos = _calibration.getGridPosition(normalizedX, normalizedY);
+            final isMouthOpen = _calibration.isMouthOpen(mouth);
+
+            faceState = FaceState(
+              headRotationX: normalizedY * 45,
+              headRotationY: normalizedX * 45,
+              headRotationZ: 0.0,
+              mouthOpenRatio: isMouthOpen ? 0.5 : 0.0,
+              isFaceDetected: true,
+            );
+          } else {
+            faceState = FaceState(
+              headRotationX: rotX,
+              headRotationY: rotY,
+              headRotationZ: 0.0,
+              mouthOpenRatio: mouth,
+              isFaceDetected: true,
+            );
+          }
+
+          if (mounted) {
+            setState(() {
+              _currentFaceState = faceState;
+              if (!_showCalibration) {
+                _statusMessage = '顔を検出しました';
+              }
+            });
+          }
+
+          if (!_showCalibration) {
+            _inputManager.updateFaceState(faceState);
+          }
         } else {
-          faceState = const FaceState(isFaceDetected: false);
+          if (mounted) {
+            setState(() {
+              _currentFaceState = const FaceState(isFaceDetected: false);
+              if (!_showCalibration) {
+                _statusMessage = '顔を検出中...';
+              }
+            });
+          }
         }
-
-        if (mounted) {
-          setState(() {
-            _currentFaceState = faceState;
-            _statusMessage = faceState.isFaceDetected ? '顔を検出しました' : '顔を検出中...';
-          });
-        }
-
-        _inputManager.updateFaceState(faceState);
       }
     } catch (e) {
       // エラーは無視
     }
+  }
+
+  void _onCalibrationComplete(CalibrationData calibration) {
+    setState(() {
+      _calibration = calibration;
+      _isCalibrated = true;
+      _showCalibration = false;
+      _statusMessage = '準備完了';
+    });
+    print('Calibration complete: $calibration');
+  }
+
+  void _onCalibrationCancel() {
+    setState(() {
+      _showCalibration = false;
+      if (!_isCalibrated) {
+        // デフォルトのキャリブレーションを使用
+        _calibration = CalibrationData(
+          centerX: _rawFaceX,
+          centerY: _rawFaceY,
+          rangeX: 25.0,
+          rangeY: 30.0,
+          mouthThreshold: 0.25,
+        );
+        _isCalibrated = true;
+      }
+    });
   }
 
   @override
@@ -229,6 +301,12 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          // キャリブレーションボタン
+          IconButton(
+            icon: const Icon(Icons.tune),
+            onPressed: () => setState(() => _showCalibration = true),
+            tooltip: 'キャリブレーション',
+          ),
           IconButton(
             icon: Icon(_showDebug ? Icons.bug_report : Icons.bug_report_outlined),
             onPressed: () => setState(() => _showDebug = !_showDebug),
@@ -239,18 +317,33 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth > 800;
+      body: Stack(
+        children: [
+          // メインコンテンツ
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth > 800;
 
-            if (isWide) {
-              return _buildWideLayout();
-            } else {
-              return _buildNarrowLayout();
-            }
-          },
-        ),
+                if (isWide) {
+                  return _buildWideLayout();
+                } else {
+                  return _buildNarrowLayout();
+                }
+              },
+            ),
+          ),
+          // キャリブレーションオーバーレイ
+          if (_showCalibration)
+            CalibrationOverlay(
+              currentX: _rawFaceX,
+              currentY: _rawFaceY,
+              currentMouth: _rawMouth,
+              isFaceDetected: _currentFaceState.isFaceDetected,
+              onComplete: _onCalibrationComplete,
+              onCancel: _onCalibrationCancel,
+            ),
+        ],
       ),
     );
   }
@@ -409,12 +502,18 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
         color: Colors.black54,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        '傾きX: ${_currentFaceState.headRotationX.toStringAsFixed(1)}° | '
-        '傾きY: ${_currentFaceState.headRotationY.toStringAsFixed(1)}° | '
-        '口: ${(_currentFaceState.mouthOpenRatio * 100).toStringAsFixed(0)}% | '
-        '状態: ${_inputState.phase.name}',
-        style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+      child: Column(
+        children: [
+          Text(
+            '生データ X: ${_rawFaceX.toStringAsFixed(1)}° Y: ${_rawFaceY.toStringAsFixed(1)}° 口: ${(_rawMouth * 100).toStringAsFixed(0)}%',
+            style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.white70),
+          ),
+          Text(
+            '正規化 X: ${_currentFaceState.headRotationX.toStringAsFixed(1)}° Y: ${_currentFaceState.headRotationY.toStringAsFixed(1)}° | '
+            '状態: ${_inputState.phase.name}',
+            style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
+          ),
+        ],
       ),
     );
   }
@@ -422,6 +521,11 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
   (int, int)? _getSelectedCell() {
     if (_inputState.phase != InputPhase.idle) {
       return _inputState.selectedCell;
+    }
+    if (_isCalibrated && _currentFaceState.isFaceDetected) {
+      final normalizedX = _calibration.normalizeX(_rawFaceY);
+      final normalizedY = _calibration.normalizeY(_rawFaceX);
+      return _calibration.getGridPosition(normalizedX, normalizedY);
     }
     return _currentFaceState.getGridPosition();
   }
