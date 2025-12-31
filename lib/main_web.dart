@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:html' as html;
-import 'dart:js' as js;
+import 'dart:js_util' as js_util;
+import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
 
@@ -11,6 +12,23 @@ import 'widgets/flick_keyboard.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ビデオ要素のビューファクトリを登録
+  ui_web.platformViewRegistry.registerViewFactory(
+    'video-element',
+    (int viewId) {
+      final video = html.VideoElement()
+        ..id = 'faceVideo-$viewId'
+        ..autoplay = true
+        ..setAttribute('playsinline', 'true')
+        ..style.width = '100%'
+        ..style.height = '100%'
+        ..style.objectFit = 'cover'
+        ..style.transform = 'scaleX(-1)';
+      return video;
+    },
+  );
+
   runApp(const FaceFlickWebApp());
 }
 
@@ -53,42 +71,65 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
 
   html.VideoElement? _videoElement;
   Timer? _processingTimer;
+  int? _videoViewId;
 
   @override
   void initState() {
     super.initState();
     _setupListeners();
-    _initializeCamera();
+    _initializeMediaPipe();
   }
 
   void _setupListeners() {
     _inputManager.stateStream.listen((inputState) {
-      setState(() {
-        _inputState = inputState;
-      });
+      if (mounted) {
+        setState(() {
+          _inputState = inputState;
+        });
+      }
     });
 
     _inputManager.inputStream.listen((char) {
-      setState(() {
-        if (char == '⌫') {
-          if (_inputText.isNotEmpty) {
-            _inputText = _inputText.substring(0, _inputText.length - 1);
+      if (mounted) {
+        setState(() {
+          if (char == '⌫') {
+            if (_inputText.isNotEmpty) {
+              _inputText = _inputText.substring(0, _inputText.length - 1);
+            }
+          } else {
+            _inputText += char;
           }
-        } else {
-          _inputText += char;
-        }
-      });
+        });
+      }
     });
+  }
+
+  Future<void> _initializeMediaPipe() async {
+    try {
+      // MediaPipeを初期化
+      final initFunc = js_util.getProperty(html.window, 'initMediaPipe');
+      if (initFunc != null) {
+        await js_util.promiseToFuture(js_util.callMethod(html.window, 'initMediaPipe', []));
+      }
+
+      // 初期化完了を待つ
+      await Future.delayed(const Duration(seconds: 1));
+
+      setState(() {
+        _statusMessage = 'カメラを起動中...';
+      });
+
+      await _initializeCamera();
+    } catch (e) {
+      print('MediaPipe initialization error: $e');
+      setState(() {
+        _statusMessage = 'MediaPipe初期化エラー: $e';
+      });
+    }
   }
 
   Future<void> _initializeCamera() async {
     try {
-      // MediaPipeを初期化
-      js.context.callMethod('initMediaPipe');
-
-      // 少し待機してMediaPipeの初期化完了を待つ
-      await Future.delayed(const Duration(milliseconds: 500));
-
       final mediaStream = await html.window.navigator.mediaDevices?.getUserMedia({
         'video': {
           'facingMode': 'user',
@@ -98,27 +139,31 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
       });
 
       if (mediaStream != null) {
-        _videoElement = html.VideoElement()
-          ..id = 'faceVideo'
-          ..srcObject = mediaStream
-          ..autoplay = true
-          ..setAttribute('playsinline', 'true')
-          ..style.position = 'absolute'
-          ..style.top = '0'
-          ..style.left = '0'
-          ..style.width = '100%'
-          ..style.height = '100%'
-          ..style.objectFit = 'cover'
-          ..style.transform = 'scaleX(-1)'; // ミラー表示
-
-        await _videoElement!.play();
-
         setState(() {
           _isInitialized = true;
           _statusMessage = '顔を検出中...';
         });
 
-        _startProcessing();
+        // 少し待ってからビデオ要素を取得
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // ビデオ要素を取得してストリームを設定
+        _videoElement = html.document.querySelector('video[id^="faceVideo"]') as html.VideoElement?;
+        if (_videoElement != null) {
+          _videoElement!.srcObject = mediaStream;
+          await _videoElement!.play();
+          _startProcessing();
+        } else {
+          // ビデオ要素が見つからない場合は直接作成
+          _videoElement = html.VideoElement()
+            ..srcObject = mediaStream
+            ..autoplay = true
+            ..setAttribute('playsinline', 'true');
+          html.document.body?.append(_videoElement!);
+          _videoElement!.style.display = 'none';
+          await _videoElement!.play();
+          _startProcessing();
+        }
       }
     } catch (e) {
       setState(() {
@@ -129,7 +174,7 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
   }
 
   void _startProcessing() {
-    _processingTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+    _processingTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       _processFrame();
     });
   }
@@ -137,42 +182,49 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
   void _processFrame() {
     if (!_isInitialized || _videoElement == null) return;
 
-    // MediaPipeで処理
-    js.context.callMethod('processVideoFrame', [_videoElement]);
+    try {
+      // MediaPipeで処理
+      js_util.callMethod(html.window, 'processVideoFrame', [_videoElement]);
 
-    // 結果を取得
-    final result = js.context.callMethod('getLastFaceData');
-    if (result != null) {
-      try {
-        final jsResult = result as js.JsObject;
-        final detected = jsResult['detected'] as bool? ?? false;
+      // 結果を取得
+      final result = js_util.callMethod(html.window, 'getLastFaceData', []);
+
+      if (result != null) {
+        final detected = js_util.getProperty(result, 'detected') as bool? ?? false;
 
         FaceState faceState;
         if (detected) {
+          final rotX = js_util.getProperty(result, 'headRotationX');
+          final rotY = js_util.getProperty(result, 'headRotationY');
+          final rotZ = js_util.getProperty(result, 'headRotationZ');
+          final mouth = js_util.getProperty(result, 'mouthOpenRatio');
+
           faceState = FaceState(
-            headRotationX: (jsResult['headRotationX'] as num?)?.toDouble() ?? 0.0,
-            headRotationY: (jsResult['headRotationY'] as num?)?.toDouble() ?? 0.0,
-            headRotationZ: (jsResult['headRotationZ'] as num?)?.toDouble() ?? 0.0,
-            mouthOpenRatio: (jsResult['mouthOpenRatio'] as num?)?.toDouble() ?? 0.0,
+            headRotationX: (rotX as num?)?.toDouble() ?? 0.0,
+            headRotationY: (rotY as num?)?.toDouble() ?? 0.0,
+            headRotationZ: (rotZ as num?)?.toDouble() ?? 0.0,
+            mouthOpenRatio: (mouth as num?)?.toDouble() ?? 0.0,
             isFaceDetected: true,
           );
         } else {
           faceState = const FaceState(isFaceDetected: false);
         }
 
-        setState(() {
-          _currentFaceState = faceState;
-          if (faceState.isFaceDetected) {
-            _statusMessage = '顔を検出しました';
-          } else {
-            _statusMessage = '顔を検出中...';
-          }
-        });
+        if (mounted) {
+          setState(() {
+            _currentFaceState = faceState;
+            if (faceState.isFaceDetected) {
+              _statusMessage = '顔を検出しました';
+            } else {
+              _statusMessage = '顔を検出中...';
+            }
+          });
+        }
 
         _inputManager.updateFaceState(faceState);
-      } catch (e) {
-        // 結果のパースエラーは無視
       }
+    } catch (e) {
+      // エラーは無視
     }
   }
 
@@ -303,14 +355,9 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
           color: Colors.black,
           child: Stack(
             children: [
-              // ビデオ要素を表示するHtmlElementView
-              if (_isInitialized && _videoElement != null)
-                HtmlElementView(
-                  viewType: 'videoElement',
-                  onPlatformViewCreated: (id) {
-                    // ビデオ要素を登録
-                  },
-                ),
+              // ビデオ要素を表示
+              if (_isInitialized)
+                const HtmlElementView(viewType: 'video-element'),
               // フォールバック表示
               if (!_isInitialized)
                 Center(
