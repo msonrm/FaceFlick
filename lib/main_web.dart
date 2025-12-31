@@ -13,19 +13,42 @@ import 'widgets/flick_keyboard.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ビデオ要素のビューファクトリを登録
+  // カメラビデオ要素のビューファクトリを登録
   ui_web.platformViewRegistry.registerViewFactory(
-    'video-element',
+    'camera-view',
     (int viewId) {
+      final container = html.DivElement()
+        ..style.width = '100%'
+        ..style.height = '100%'
+        ..style.backgroundColor = 'black'
+        ..style.display = 'flex'
+        ..style.alignItems = 'center'
+        ..style.justifyContent = 'center';
+
+      // カメラビデオを複製して表示
       final video = html.VideoElement()
-        ..id = 'faceVideo-$viewId'
-        ..autoplay = true
-        ..setAttribute('playsinline', 'true')
+        ..id = 'displayVideo-$viewId'
         ..style.width = '100%'
         ..style.height = '100%'
         ..style.objectFit = 'cover'
-        ..style.transform = 'scaleX(-1)';
-      return video;
+        ..style.transform = 'scaleX(-1)'
+        ..setAttribute('playsinline', 'true')
+        ..setAttribute('autoplay', 'true')
+        ..muted = true;
+
+      container.append(video);
+
+      // カメラビデオのストリームを共有
+      Timer.periodic(const Duration(milliseconds: 100), (timer) {
+        final sourceVideo = html.document.getElementById('cameraVideo') as html.VideoElement?;
+        if (sourceVideo != null && sourceVideo.srcObject != null && video.srcObject == null) {
+          video.srcObject = sourceVideo.srcObject;
+          video.play();
+          timer.cancel();
+        }
+      });
+
+      return container;
     },
   );
 
@@ -67,17 +90,15 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
   InputState _inputState = const InputState();
   bool _isInitialized = false;
   bool _showDebug = true;
-  String _statusMessage = 'カメラを初期化中...';
+  String _statusMessage = '初期化中...';
 
-  html.VideoElement? _videoElement;
   Timer? _processingTimer;
-  int? _videoViewId;
 
   @override
   void initState() {
     super.initState();
     _setupListeners();
-    _initializeMediaPipe();
+    _initialize();
   }
 
   void _setupListeners() {
@@ -104,89 +125,59 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
     });
   }
 
-  Future<void> _initializeMediaPipe() async {
+  Future<void> _initialize() async {
     try {
+      setState(() {
+        _statusMessage = 'MediaPipe初期化中...';
+      });
+
       // MediaPipeを初期化
-      final initFunc = js_util.getProperty(html.window, 'initMediaPipe');
-      if (initFunc != null) {
-        await js_util.promiseToFuture(js_util.callMethod(html.window, 'initMediaPipe', []));
-      }
-
-      // 初期化完了を待つ
-      await Future.delayed(const Duration(seconds: 1));
+      final initResult = await js_util.promiseToFuture(
+        js_util.callMethod(html.window, 'initMediaPipe', [])
+      );
+      print('MediaPipe init result: $initResult');
 
       setState(() {
-        _statusMessage = 'カメラを起動中...';
+        _statusMessage = 'カメラ起動中...';
       });
 
-      await _initializeCamera();
-    } catch (e) {
-      print('MediaPipe initialization error: $e');
-      setState(() {
-        _statusMessage = 'MediaPipe初期化エラー: $e';
-      });
-    }
-  }
+      // カメラを開始
+      final cameraResult = await js_util.promiseToFuture(
+        js_util.callMethod(html.window, 'startCamera', [])
+      );
+      print('Camera start result: $cameraResult');
 
-  Future<void> _initializeCamera() async {
-    try {
-      final mediaStream = await html.window.navigator.mediaDevices?.getUserMedia({
-        'video': {
-          'facingMode': 'user',
-          'width': {'ideal': 640},
-          'height': {'ideal': 480},
-        }
-      });
-
-      if (mediaStream != null) {
+      if (cameraResult == true) {
         setState(() {
           _isInitialized = true;
           _statusMessage = '顔を検出中...';
         });
 
-        // 少し待ってからビデオ要素を取得
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        // ビデオ要素を取得してストリームを設定
-        _videoElement = html.document.querySelector('video[id^="faceVideo"]') as html.VideoElement?;
-        if (_videoElement != null) {
-          _videoElement!.srcObject = mediaStream;
-          await _videoElement!.play();
-          _startProcessing();
-        } else {
-          // ビデオ要素が見つからない場合は直接作成
-          _videoElement = html.VideoElement()
-            ..srcObject = mediaStream
-            ..autoplay = true
-            ..setAttribute('playsinline', 'true');
-          html.document.body?.append(_videoElement!);
-          _videoElement!.style.display = 'none';
-          await _videoElement!.play();
-          _startProcessing();
-        }
+        // 顔検出結果のポーリングを開始
+        _startPolling();
+      } else {
+        setState(() {
+          _statusMessage = 'カメラの起動に失敗しました';
+        });
       }
     } catch (e) {
+      print('Initialization error: $e');
       setState(() {
-        _statusMessage = 'カメラのアクセス許可が必要です';
+        _statusMessage = 'エラー: $e';
       });
-      print('Camera error: $e');
     }
   }
 
-  void _startProcessing() {
-    _processingTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      _processFrame();
+  void _startPolling() {
+    _processingTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      _pollFaceData();
     });
   }
 
-  void _processFrame() {
-    if (!_isInitialized || _videoElement == null) return;
+  void _pollFaceData() {
+    if (!_isInitialized) return;
 
     try {
-      // MediaPipeで処理
-      js_util.callMethod(html.window, 'processVideoFrame', [_videoElement]);
-
-      // 結果を取得
       final result = js_util.callMethod(html.window, 'getLastFaceData', []);
 
       if (result != null) {
@@ -196,13 +187,12 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
         if (detected) {
           final rotX = js_util.getProperty(result, 'headRotationX');
           final rotY = js_util.getProperty(result, 'headRotationY');
-          final rotZ = js_util.getProperty(result, 'headRotationZ');
           final mouth = js_util.getProperty(result, 'mouthOpenRatio');
 
           faceState = FaceState(
             headRotationX: (rotX as num?)?.toDouble() ?? 0.0,
             headRotationY: (rotY as num?)?.toDouble() ?? 0.0,
-            headRotationZ: (rotZ as num?)?.toDouble() ?? 0.0,
+            headRotationZ: 0.0,
             mouthOpenRatio: (mouth as num?)?.toDouble() ?? 0.0,
             isFaceDetected: true,
           );
@@ -213,11 +203,7 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
         if (mounted) {
           setState(() {
             _currentFaceState = faceState;
-            if (faceState.isFaceDetected) {
-              _statusMessage = '顔を検出しました';
-            } else {
-              _statusMessage = '顔を検出中...';
-            }
+            _statusMessage = faceState.isFaceDetected ? '顔を検出しました' : '顔を検出中...';
           });
         }
 
@@ -231,7 +217,6 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
   @override
   void dispose() {
     _processingTimer?.cancel();
-    _videoElement?.srcObject?.getTracks().forEach((track) => track.stop());
     _inputManager.dispose();
     super.dispose();
   }
@@ -355,10 +340,12 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
           color: Colors.black,
           child: Stack(
             children: [
-              // ビデオ要素を表示
+              // カメラビュー
               if (_isInitialized)
-                const HtmlElementView(viewType: 'video-element'),
-              // フォールバック表示
+                const Positioned.fill(
+                  child: HtmlElementView(viewType: 'camera-view'),
+                ),
+              // ローディング表示
               if (!_isInitialized)
                 Center(
                   child: Column(
@@ -366,7 +353,7 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
                     children: [
                       const CircularProgressIndicator(),
                       const SizedBox(height: 16),
-                      Text(_statusMessage),
+                      Text(_statusMessage, style: const TextStyle(color: Colors.white)),
                     ],
                   ),
                 ),
