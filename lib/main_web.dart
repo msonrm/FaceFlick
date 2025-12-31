@@ -102,7 +102,7 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
           ..id = 'faceVideo'
           ..srcObject = mediaStream
           ..autoplay = true
-          ..playsInline = true
+          ..setAttribute('playsinline', 'true')
           ..style.position = 'absolute'
           ..style.top = '0'
           ..style.left = '0'

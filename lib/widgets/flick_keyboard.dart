@@ -97,7 +97,7 @@ class FlickKeyboardWidget extends StatelessWidget {
     if (isFlicking) return Colors.blue.shade700;
     if (isSelecting) return Colors.blue.shade800;
     if (isSelected) return Colors.grey.shade800;
-    return Colors.grey.shade850;
+    return Colors.grey.shade800;
   }
 
   List<Widget> _buildFlickIndicators(FlickKey key) {
