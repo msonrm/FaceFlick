@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="FaceFlick - Face gesture flick keyboard">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="FaceFlick">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <title>FaceFlick</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- MediaPipe Face Mesh -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+  <script>
+    // MediaPipe Face Detection for Flutter Web
+    let faceMesh = null;
+    let lastFaceData = null;
+
+    async function initMediaPipe() {
+      faceMesh = new FaceMesh({
+        locateFile: (file) => {
+          return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+        }
+      });
+
+      faceMesh.setOptions({
+        maxNumFaces: 1,
+        refineLandmarks: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      faceMesh.onResults(onFaceResults);
+      console.log('MediaPipe Face Mesh initialized');
+    }
+
+    function onFaceResults(results) {
+      if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        const landmarks = results.multiFaceLandmarks[0];
+
+        // 顔の向きを推定（簡易計算）
+        const nose = landmarks[1];      // 鼻先
+        const leftEye = landmarks[33];  // 左目
+        const rightEye = landmarks[263]; // 右目
+        const upperLip = landmarks[13]; // 上唇
+        const lowerLip = landmarks[14]; // 下唇
+
+        // 左右の傾き（Y軸回転）
+        const eyeCenter = {
+          x: (leftEye.x + rightEye.x) / 2,
+          y: (leftEye.y + rightEye.y) / 2
+        };
+        const headRotationY = (nose.x - 0.5) * 90; // -45 to +45 degrees
+
+        // 上下の傾き（X軸回転）
+        const headRotationX = (nose.y - 0.5) * 90; // -45 to +45 degrees
+
+        // 口の開き具合
+        const mouthDistance = Math.abs(lowerLip.y - upperLip.y);
+        const eyeDistance = Math.abs(rightEye.x - leftEye.x);
+        const mouthOpenRatio = Math.min(1.0, mouthDistance / eyeDistance * 3);
+
+        lastFaceData = {
+          detected: true,
+          headRotationX: headRotationX,
+          headRotationY: headRotationY,
+          headRotationZ: 0,
+          mouthOpenRatio: mouthOpenRatio
+        };
+      } else {
+        lastFaceData = { detected: false };
+      }
+    }
+
+    async function processVideoFrame(videoElement) {
+      if (faceMesh && videoElement) {
+        await faceMesh.send({ image: videoElement });
+      }
+      return lastFaceData;
+    }
+
+    // グローバルに公開
+    window.initMediaPipe = initMediaPipe;
+    window.processVideoFrame = processVideoFrame;
+    window.getLastFaceData = () => lastFaceData;
+  </script>
+
+  <script>
+    const serviceWorkerVersion = null;
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</head>
+<body>
+</body>
+</html>
