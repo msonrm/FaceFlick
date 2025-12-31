@@ -85,6 +85,28 @@ class CalibrationData {
     );
   }
 
+  /// JSONに変換
+  Map<String, dynamic> toJson() {
+    return {
+      'centerX': centerX,
+      'centerY': centerY,
+      'rangeX': rangeX,
+      'rangeY': rangeY,
+      'mouthThreshold': mouthThreshold,
+    };
+  }
+
+  /// JSONから生成
+  factory CalibrationData.fromJson(Map<String, dynamic> json) {
+    return CalibrationData(
+      centerX: (json['centerX'] as num?)?.toDouble() ?? 0.0,
+      centerY: (json['centerY'] as num?)?.toDouble() ?? 0.0,
+      rangeX: (json['rangeX'] as num?)?.toDouble() ?? 30.0,
+      rangeY: (json['rangeY'] as num?)?.toDouble() ?? 40.0,
+      mouthThreshold: (json['mouthThreshold'] as num?)?.toDouble() ?? 0.3,
+    );
+  }
+
   @override
   String toString() {
     return 'Calibration(center: ($centerX, $centerY), range: ($rangeX, $rangeY), mouth: $mouthThreshold)';
