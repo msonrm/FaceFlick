@@ -123,7 +123,9 @@ class FaceState {
 enum InputPhase {
   /// 待機中（口が閉じている）
   idle,
-  /// キー選択中（口が開いた瞬間から）
+  /// キー確認中（口を開けて同じキーで2秒待機中）
+  waiting,
+  /// キー選択完了（2秒経過、フリック待ち）
   selecting,
   /// フリック中（口を開いたまま移動）
   flicking,
@@ -134,12 +136,16 @@ class InputState {
   final FaceState? selectStartState;  // 選択開始時の顔の状態
   final (int, int)? selectedCell;     // 選択中のセル
   final FlickDirection flickDirection;
+  final DateTime? waitStartTime;      // 待機開始時刻
+  final double waitProgress;          // 待機進捗 (0.0 ~ 1.0)
 
   const InputState({
     this.phase = InputPhase.idle,
     this.selectStartState,
     this.selectedCell,
     this.flickDirection = FlickDirection.none,
+    this.waitStartTime,
+    this.waitProgress = 0.0,
   });
 
   InputState copyWith({
@@ -147,12 +153,16 @@ class InputState {
     FaceState? selectStartState,
     (int, int)? selectedCell,
     FlickDirection? flickDirection,
+    DateTime? waitStartTime,
+    double? waitProgress,
   }) {
     return InputState(
       phase: phase ?? this.phase,
       selectStartState: selectStartState ?? this.selectStartState,
       selectedCell: selectedCell ?? this.selectedCell,
       flickDirection: flickDirection ?? this.flickDirection,
+      waitStartTime: waitStartTime ?? this.waitStartTime,
+      waitProgress: waitProgress ?? this.waitProgress,
     );
   }
 }

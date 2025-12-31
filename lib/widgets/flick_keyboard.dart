@@ -7,6 +7,7 @@ class FlickKeyboardWidget extends StatelessWidget {
   final (int, int)? selectedCell;
   final FlickDirection flickDirection;
   final InputPhase inputPhase;
+  final double waitProgress;
   final VoidCallback? onBackspace;
 
   const FlickKeyboardWidget({
@@ -14,6 +15,7 @@ class FlickKeyboardWidget extends StatelessWidget {
     this.selectedCell,
     this.flickDirection = FlickDirection.none,
     this.inputPhase = InputPhase.idle,
+    this.waitProgress = 0.0,
     this.onBackspace,
   });
 
@@ -47,6 +49,7 @@ class FlickKeyboardWidget extends StatelessWidget {
   Widget _buildKeyCell(int row, int col) {
     final key = FlickKeyboard.keys[row][col];
     final isSelected = selectedCell == (row, col);
+    final isWaiting = isSelected && inputPhase == InputPhase.waiting;
     final isSelecting = isSelected && inputPhase == InputPhase.selecting;
     final isFlicking = isSelected && inputPhase == InputPhase.flicking;
 
@@ -55,7 +58,7 @@ class FlickKeyboardWidget extends StatelessWidget {
       height: 80,
       margin: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: _getCellColor(isSelected, isSelecting, isFlicking),
+        color: _getCellColor(isSelected, isWaiting, isSelecting, isFlicking),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isSelected ? Colors.blue : Colors.grey.shade700,
@@ -73,6 +76,8 @@ class FlickKeyboardWidget extends StatelessWidget {
       ),
       child: Stack(
         children: [
+          // 待機中のプログレス表示
+          if (isWaiting) _buildWaitProgress(),
           // 中央の文字
           Center(
             child: Text(
@@ -85,7 +90,7 @@ class FlickKeyboardWidget extends StatelessWidget {
             ),
           ),
           // フリック方向の表示
-          if (isSelected) ..._buildFlickIndicators(key),
+          if (isSelected && (isSelecting || isFlicking)) ..._buildFlickIndicators(key),
           // フリック中のハイライト
           if (isFlicking) _buildFlickHighlight(key),
         ],
@@ -93,9 +98,26 @@ class FlickKeyboardWidget extends StatelessWidget {
     );
   }
 
-  Color _getCellColor(bool isSelected, bool isSelecting, bool isFlicking) {
+  Widget _buildWaitProgress() {
+    return Positioned.fill(
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: CircularProgressIndicator(
+          value: waitProgress,
+          strokeWidth: 3,
+          backgroundColor: Colors.grey.shade700,
+          valueColor: AlwaysStoppedAnimation<Color>(
+            waitProgress >= 1.0 ? Colors.green : Colors.orange,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getCellColor(bool isSelected, bool isWaiting, bool isSelecting, bool isFlicking) {
     if (isFlicking) return Colors.blue.shade700;
     if (isSelecting) return Colors.blue.shade800;
+    if (isWaiting) return Colors.orange.shade900;
     if (isSelected) return Colors.grey.shade800;
     return Colors.grey.shade800;
   }

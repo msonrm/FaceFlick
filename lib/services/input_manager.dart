@@ -8,6 +8,9 @@ class InputManager {
   FaceState? _lastFaceState;
   (int, int)? _lastGridPosition;
 
+  /// キー選択確定までの待機時間（ミリ秒）
+  static const int waitDurationMs = 2000;
+
   final _inputController = StreamController<String>.broadcast();
   final _stateController = StreamController<InputState>.broadcast();
 
@@ -28,6 +31,9 @@ class InputManager {
       case InputPhase.idle:
         _handleIdlePhase(faceState, previousMouthOpen, currentMouthOpen);
         break;
+      case InputPhase.waiting:
+        _handleWaitingPhase(faceState, previousMouthOpen, currentMouthOpen);
+        break;
       case InputPhase.selecting:
         _handleSelectingPhase(faceState, previousMouthOpen, currentMouthOpen);
         break;
@@ -41,16 +47,60 @@ class InputManager {
 
   /// 待機フェーズの処理
   void _handleIdlePhase(FaceState faceState, bool prevMouth, bool currMouth) {
-    // 口が開いた瞬間 -> 選択開始
+    // 口が開いた瞬間 -> 待機開始
     if (!prevMouth && currMouth) {
       final gridPos = _lastGridPosition;
       if (gridPos != null) {
+        _updateState(InputState(
+          phase: InputPhase.waiting,
+          selectedCell: gridPos,
+          waitStartTime: DateTime.now(),
+          waitProgress: 0.0,
+          flickDirection: FlickDirection.none,
+        ));
+      }
+    }
+  }
+
+  /// 待機フェーズの処理（2秒待ち）
+  void _handleWaitingPhase(FaceState faceState, bool prevMouth, bool currMouth) {
+    // 口を閉じた -> キャンセル
+    if (!currMouth) {
+      _updateState(const InputState(phase: InputPhase.idle));
+      return;
+    }
+
+    final gridPos = _lastGridPosition;
+    final selectedCell = _state.selectedCell;
+
+    // セルが変わった -> 待機リセット
+    if (gridPos != null && selectedCell != null && gridPos != selectedCell) {
+      _updateState(InputState(
+        phase: InputPhase.waiting,
+        selectedCell: gridPos,
+        waitStartTime: DateTime.now(),
+        waitProgress: 0.0,
+        flickDirection: FlickDirection.none,
+      ));
+      return;
+    }
+
+    // 待機時間を計算
+    final waitStart = _state.waitStartTime;
+    if (waitStart != null) {
+      final elapsed = DateTime.now().difference(waitStart).inMilliseconds;
+      final progress = (elapsed / waitDurationMs).clamp(0.0, 1.0);
+
+      if (elapsed >= waitDurationMs) {
+        // 2秒経過 -> 選択確定、フリック待ちへ
         _updateState(_state.copyWith(
           phase: InputPhase.selecting,
           selectStartState: faceState,
-          selectedCell: gridPos,
-          flickDirection: FlickDirection.none,
+          waitProgress: 1.0,
         ));
+      } else {
+        // 進捗を更新
+        _updateState(_state.copyWith(waitProgress: progress));
       }
     }
   }
