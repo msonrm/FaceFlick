@@ -38,8 +38,9 @@ class CalibrationData {
   /// 正規化された座標からグリッド位置を計算
   /// X: -1.0(左) ~ 1.0(右) -> 列 0, 1, 2
   /// Y: -1.0(上) ~ 1.0(下) -> 行 0, 1, 2, 3
+  /// ゼロ座標は「な」キー（row=1, col=1）に対応
   (int row, int col)? getGridPosition(double normalizedX, double normalizedY) {
-    // 列の計算（3列）
+    // 列の計算（3列）- 中央列が 0
     int col;
     if (normalizedX < -0.33) {
       col = 0;  // 左
@@ -49,16 +50,17 @@ class CalibrationData {
       col = 1;  // 中央
     }
 
-    // 行の計算（4行）
+    // 行の計算（4行）- 「な」(row=1)が 0 になるよう調整
+    // 各行の範囲: row0[-1.0,-0.25), row1[-0.25,0.25), row2[0.25,0.75), row3[0.75,1.0]
     int row;
-    if (normalizedY < -0.5) {
-      row = 0;  // 上
-    } else if (normalizedY < 0.0) {
-      row = 1;
-    } else if (normalizedY < 0.5) {
-      row = 2;
+    if (normalizedY < -0.25) {
+      row = 0;  // 上（あ/か/さ）
+    } else if (normalizedY < 0.25) {
+      row = 1;  // 「な」行（た/な/は）← 0 はここ
+    } else if (normalizedY < 0.75) {
+      row = 2;  // ま/や/ら
     } else {
-      row = 3;  // 下
+      row = 3;  // 下（゛/わ/⌫）
     }
 
     return (row, col);
