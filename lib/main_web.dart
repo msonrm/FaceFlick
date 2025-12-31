@@ -240,8 +240,11 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
             });
           }
 
-          if (!_showCalibration) {
-            _inputManager.updateFaceState(faceState);
+          if (!_showCalibration && _isCalibrated) {
+            final normalizedX = _calibration.normalizeX(rotY);
+            final normalizedY = _calibration.normalizeY(rotX);
+            final gridPos = _calibration.getGridPosition(normalizedX, normalizedY);
+            _inputManager.updateFaceState(faceState, gridPosition: gridPos);
           }
         } else {
           if (mounted) {
