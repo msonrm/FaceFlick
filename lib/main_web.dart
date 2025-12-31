@@ -12,6 +12,7 @@ import 'models/flick_key.dart';
 import 'services/input_manager.dart';
 import 'widgets/calibration_overlay.dart';
 import 'widgets/flick_keyboard.dart';
+import 'widgets/simple_calibration.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -94,6 +95,7 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
   bool _isInitialized = false;
   bool _showDebug = true;
   bool _showCalibration = false;
+  bool _showSimpleCalibration = false;
   String _statusMessage = '初期化中...';
 
   // キャリブレーションデータ
@@ -195,9 +197,10 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
           if (_isCalibrated) {
             _statusMessage = '準備完了';
             _showCalibration = false;
+            _showSimpleCalibration = false;
           } else {
             _statusMessage = 'キャリブレーションしてください';
-            _showCalibration = true;
+            _showSimpleCalibration = true;  // 初回はかんたんキャリブレーションを表示
           }
         });
 
@@ -325,6 +328,23 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
     });
   }
 
+  void _onSimpleCalibrationComplete(CalibrationData calibration) {
+    setState(() {
+      _calibration = calibration;
+      _isCalibrated = true;
+      _showSimpleCalibration = false;
+      _statusMessage = '準備完了';
+    });
+    _saveCalibration();
+    print('Simple calibration complete: $calibration');
+  }
+
+  void _onSimpleCalibrationCancel() {
+    setState(() {
+      _showSimpleCalibration = false;
+    });
+  }
+
   @override
   void dispose() {
     _processingTimer?.cancel();
@@ -340,11 +360,17 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          // キャリブレーションボタン
+          // かんたんキャリブレーションボタン
+          IconButton(
+            icon: const Icon(Icons.auto_fix_high),
+            onPressed: () => setState(() => _showSimpleCalibration = true),
+            tooltip: 'かんたんキャリブレーション',
+          ),
+          // 詳細キャリブレーションボタン
           IconButton(
             icon: const Icon(Icons.tune),
             onPressed: () => setState(() => _showCalibration = true),
-            tooltip: 'キャリブレーション',
+            tooltip: '詳細キャリブレーション',
           ),
           IconButton(
             icon: Icon(_showDebug ? Icons.bug_report : Icons.bug_report_outlined),
@@ -372,7 +398,7 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
               },
             ),
           ),
-          // キャリブレーションオーバーレイ
+          // 詳細キャリブレーションオーバーレイ
           if (_showCalibration)
             CalibrationOverlay(
               currentX: _rawFaceX,
@@ -381,6 +407,16 @@ class _FaceFlickWebPageState extends State<FaceFlickWebPage> {
               isFaceDetected: _currentFaceState.isFaceDetected,
               onComplete: _onCalibrationComplete,
               onCancel: _onCalibrationCancel,
+            ),
+          // かんたんキャリブレーションオーバーレイ
+          if (_showSimpleCalibration)
+            SimpleCalibration(
+              currentX: _rawFaceX,
+              currentY: _rawFaceY,
+              currentMouth: _rawMouth,
+              isFaceDetected: _currentFaceState.isFaceDetected,
+              onComplete: _onSimpleCalibrationComplete,
+              onCancel: _onSimpleCalibrationCancel,
             ),
         ],
       ),
