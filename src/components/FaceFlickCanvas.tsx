@@ -8,8 +8,16 @@ import {
   getFlickDirection,
   getCharFromFlick,
 } from '../utils/input-logic';
-import { KEYBOARD_LAYOUT } from '../utils/keyboard-layout';
-import { InputState } from '../types';
+import {
+  KEYBOARD_LAYOUT,
+  MOUTH_OPEN_THRESHOLD,
+  MOUTH_PUCKER_THRESHOLD,
+  EAR_THRESHOLD,
+  GRID_SENSITIVITY,
+  FLICK_SENSITIVITY,
+} from '../utils/keyboard-layout';
+import { InputState, CalibrationSettings } from '../types';
+import { CalibrationModal } from './CalibrationModal';
 
 export function FaceFlickCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -31,6 +39,16 @@ export function FaceFlickCanvas() {
     triggerType: string;
     headRotation: { yaw: number; pitch: number };
   } | null>(null);
+  const [showCalibration, setShowCalibration] = useState(false);
+  const [calibrationSettings, setCalibrationSettings] = useState<CalibrationSettings>({
+    yawRange: { min: -30, max: 30 },
+    pitchRange: { min: -20, max: 30 },
+    mouthOpenThreshold: MOUTH_OPEN_THRESHOLD,
+    mouthPuckerThreshold: MOUTH_PUCKER_THRESHOLD,
+    earThreshold: EAR_THRESHOLD,
+    gridSensitivity: GRID_SENSITIVITY,
+    flickSensitivity: FLICK_SENSITIVITY,
+  });
   const animationFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -58,7 +76,7 @@ export function FaceFlickCanvas() {
       // 顔検出
       const result = detectFace(video, timestamp);
       if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
-        const faceState = analyzeFace(result);
+        const faceState = analyzeFace(result, calibrationSettings);
         if (faceState) {
           // 現在の顔の状態を保存
           setCurrentFaceState(faceState);
@@ -96,10 +114,10 @@ export function FaceFlickCanvas() {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [video, cameraReady, landmarkerReady, detectFace, inputState, inputText]);
+  }, [video, cameraReady, landmarkerReady, detectFace, inputState, inputText, calibrationSettings]);
 
   function processInput(faceState: any) {
-    const selectedKey = getSelectedKey(faceState);
+    const selectedKey = getSelectedKey(faceState, calibrationSettings);
 
     if (inputState.type === 'idle') {
       // いずれかのトリガーがアクティブでキーが選択されている
@@ -118,7 +136,7 @@ export function FaceFlickCanvas() {
         setInputState({ type: 'idle' });
       } else {
         // トリガーを維持したまま = フリック判定
-        const direction = getFlickDirection(faceState);
+        const direction = getFlickDirection(faceState, calibrationSettings);
         if (direction) {
           setInputState({
             type: 'flicking',
@@ -137,7 +155,7 @@ export function FaceFlickCanvas() {
       }
       // フリック中に方向が変わったら更新
       else {
-        const direction = getFlickDirection(faceState);
+        const direction = getFlickDirection(faceState, calibrationSettings);
         if (direction && direction !== inputState.direction) {
           setInputState({
             type: 'flicking',
@@ -183,7 +201,7 @@ export function FaceFlickCanvas() {
     const keyHeight = height / 4;
 
     // 現在顔が向いているキーを取得
-    const currentKey = currentFaceState ? getSelectedKey(currentFaceState) : null;
+    const currentKey = currentFaceState ? getSelectedKey(currentFaceState, calibrationSettings) : null;
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 2;
@@ -246,48 +264,64 @@ export function FaceFlickCanvas() {
     width: number,
     height: number
   ) {
-    // 入力テキストエリア
+    // 入力テキストエリア（拡大）
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, height - 120, width, 120);
+    ctx.fillRect(0, height - 140, width, 140);
 
     // 入力テキスト
     ctx.fillStyle = '#ffffff';
     ctx.font = '32px sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(inputText, 20, height - 80);
-
-    // トリガー情報表示
-    if (debugInfo) {
-      ctx.font = '14px monospace';
-      const triggerText = getTriggerDisplayText(debugInfo.triggerType);
-      ctx.fillText(`トリガー: ${triggerText}`, 20, height - 60);
-
-      // EAR/MAR値表示
-      ctx.fillText(
-        `EAR: L=${debugInfo.ear.left.toFixed(2)} R=${debugInfo.ear.right.toFixed(2)} | MAR: ${debugInfo.mar.toFixed(2)} | Pucker: ${debugInfo.mouthPucker.toFixed(2)}`,
-        20,
-        height - 45
-      );
-
-      // 頭の回転角度表示
-      ctx.fillText(
-        `頭の向き: Yaw=${debugInfo.headRotation.yaw.toFixed(1)}° Pitch=${debugInfo.headRotation.pitch.toFixed(1)}°`,
-        20,
-        height - 30
-      );
-    }
+    ctx.fillText(inputText, 20, height - 100);
 
     // 入力状態表示
     if (inputState.type === 'selecting') {
       ctx.fillStyle = '#ffff00';
-      ctx.font = '24px sans-serif';
-      ctx.fillText('選択中...', 20, height - 105);
+      ctx.font = '20px sans-serif';
+      ctx.fillText('選択中...', 20, height - 120);
     } else if (inputState.type === 'flicking') {
       ctx.fillStyle = '#00ff00';
-      ctx.font = '24px sans-serif';
+      ctx.font = '20px sans-serif';
       const directionText = getDirectionDisplayText(inputState.direction);
-      ctx.fillText(`フリック: ${directionText}`, 20, height - 105);
+      ctx.fillText(`フリック: ${directionText}`, 20, height - 120);
+    }
+
+    // デバッグ情報表示（複数行に分割）
+    if (debugInfo) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '12px monospace';
+
+      const triggerText = getTriggerDisplayText(debugInfo.triggerType);
+      ctx.fillText(`トリガー: ${triggerText}`, 20, height - 70);
+
+      // EAR値
+      ctx.fillText(
+        `EAR: L=${debugInfo.ear.left.toFixed(2)} R=${debugInfo.ear.right.toFixed(2)}`,
+        20,
+        height - 55
+      );
+
+      // MAR/Pucker値
+      ctx.fillText(
+        `MAR: ${debugInfo.mar.toFixed(2)} Pucker: ${debugInfo.mouthPucker.toFixed(2)}`,
+        width / 2,
+        height - 55
+      );
+
+      // 頭の向き
+      ctx.fillText(
+        `Yaw: ${debugInfo.headRotation.yaw.toFixed(1)}° Pitch: ${debugInfo.headRotation.pitch.toFixed(1)}°`,
+        20,
+        height - 40
+      );
+
+      // グリッド感度の参考値
+      ctx.fillText(
+        `[グリッド閾値: ±15° フリック閾値: ±20°]`,
+        20,
+        height - 25
+      );
     }
   }
 
@@ -355,20 +389,54 @@ export function FaceFlickCanvas() {
 
   return (
     <div className="relative w-full h-full">
+      {/* ツールバー */}
+      <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 p-3 flex gap-3 z-10">
+        <button
+          onClick={() => setShowCalibration(true)}
+          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded font-bold text-white"
+        >
+          ⚙️ キャリブレーション
+        </button>
+        <button
+          onClick={handleRecordToggle}
+          className={`px-4 py-2 rounded font-bold text-white ${
+            isRecording
+              ? 'bg-red-600 hover:bg-red-700'
+              : 'bg-blue-600 hover:bg-blue-700'
+          }`}
+        >
+          {isRecording ? '⏹ 録画停止' : '⏺ 録画開始'}
+        </button>
+        <div className="flex-1"></div>
+        <div className="text-white text-sm self-center">
+          FaceFlick - 顔ジェスチャー入力
+        </div>
+      </div>
+
+      {/* Canvas */}
       <canvas
         ref={canvasRef}
         className="w-full h-full object-cover"
       />
-      <button
-        onClick={handleRecordToggle}
-        className={`absolute top-4 right-4 px-6 py-3 rounded-lg font-bold text-white transition-colors ${
-          isRecording
-            ? 'bg-red-600 hover:bg-red-700'
-            : 'bg-blue-600 hover:bg-blue-700'
-        }`}
-      >
-        {isRecording ? '⏹ 録画停止' : '⏺ 録画開始'}
-      </button>
+
+      {/* キャリブレーションモーダル */}
+      <CalibrationModal
+        isOpen={showCalibration}
+        onClose={() => setShowCalibration(false)}
+        settings={calibrationSettings}
+        onSave={setCalibrationSettings}
+        currentValues={
+          currentFaceState && debugInfo
+            ? {
+                yaw: debugInfo.headRotation.yaw,
+                pitch: debugInfo.headRotation.pitch,
+                mar: debugInfo.mar,
+                mouthPucker: debugInfo.mouthPucker,
+                ear: debugInfo.ear,
+              }
+            : null
+        }
+      />
     </div>
   );
 }

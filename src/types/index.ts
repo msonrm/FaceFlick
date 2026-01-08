@@ -46,3 +46,16 @@ export type InputState =
 export interface KeyboardLayout {
   rows: FlickKey[][];
 }
+
+export interface CalibrationSettings {
+  // 顔の向きの範囲
+  yawRange: { min: number; max: number };
+  pitchRange: { min: number; max: number };
+  // トリガーの閾値
+  mouthOpenThreshold: number;
+  mouthPuckerThreshold: number;
+  earThreshold: number;
+  // グリッド・フリック感度
+  gridSensitivity: number;
+  flickSensitivity: number;
+}

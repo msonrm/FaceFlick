@@ -1,37 +1,37 @@
-import { FaceState, FlickDirection, FlickKey } from '../types';
-import {
-  KEYBOARD_LAYOUT,
-  GRID_SENSITIVITY,
-  FLICK_SENSITIVITY,
-} from './keyboard-layout';
+import { FaceState, FlickDirection, FlickKey, CalibrationSettings } from '../types';
+import { KEYBOARD_LAYOUT } from './keyboard-layout';
 
-export function getSelectedKey(faceState: FaceState): FlickKey | null {
+export function getSelectedKey(
+  faceState: FaceState,
+  settings?: CalibrationSettings
+): FlickKey | null {
   const { yaw, pitch } = faceState.headRotation;
+  const gridSensitivity = settings?.gridSensitivity ?? 15;
 
   // グリッド位置を計算 (3x4 グリッド)
   let col = 1; // 中央列
   let row = 1; // 中央行
 
-  // 列の決定 (左右)
-  if (yaw < -GRID_SENSITIVITY) {
-    col = 0; // 左
-  } else if (yaw > GRID_SENSITIVITY) {
-    col = 2; // 右
+  // 列の決定 (左右) - 鏡像なので左右を反転
+  if (yaw < -gridSensitivity) {
+    col = 2; // 顔を左に振る → 右列
+  } else if (yaw > gridSensitivity) {
+    col = 0; // 顔を右に振る → 左列
   }
 
   // 行の決定 (上下)
-  if (pitch < -GRID_SENSITIVITY) {
+  if (pitch < -gridSensitivity) {
     row = 0; // 上
-  } else if (pitch > GRID_SENSITIVITY) {
+  } else if (pitch > gridSensitivity) {
     row = 2; // 下
-  } else if (Math.abs(pitch) < GRID_SENSITIVITY / 2) {
+  } else if (Math.abs(pitch) < gridSensitivity / 2) {
     row = 1; // 中央
   } else if (pitch > 0) {
     row = 2; // やや下
   }
 
   // 4行目は特別処理
-  if (pitch > GRID_SENSITIVITY * 2) {
+  if (pitch > gridSensitivity * 2) {
     row = 3;
   }
 
@@ -39,18 +39,22 @@ export function getSelectedKey(faceState: FaceState): FlickKey | null {
   return key || null;
 }
 
-export function getFlickDirection(faceState: FaceState): FlickDirection {
+export function getFlickDirection(
+  faceState: FaceState,
+  settings?: CalibrationSettings
+): FlickDirection {
   const { yaw, pitch } = faceState.headRotation;
+  const flickSensitivity = settings?.flickSensitivity ?? 20;
 
   // フリック方向の判定（閾値を超えた方向を優先）
   const absYaw = Math.abs(yaw);
   const absPitch = Math.abs(pitch);
 
-  // 上下左右で最も強い方向を選択
-  if (absPitch > FLICK_SENSITIVITY && absPitch > absYaw) {
+  // 上下左右で最も強い方向を選択（鏡像対応）
+  if (absPitch > flickSensitivity && absPitch > absYaw) {
     return pitch < 0 ? 'up' : 'down';
-  } else if (absYaw > FLICK_SENSITIVITY && absYaw > absPitch) {
-    return yaw < 0 ? 'left' : 'right';
+  } else if (absYaw > flickSensitivity && absYaw > absPitch) {
+    return yaw < 0 ? 'right' : 'left'; // 鏡像なので左右反転
   }
 
   return null;

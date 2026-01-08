@@ -1,12 +1,10 @@
 import { NormalizedLandmark, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
-import { FaceState, TriggerType } from '../types';
-import {
-  MOUTH_OPEN_THRESHOLD,
-  MOUTH_PUCKER_THRESHOLD,
-  EAR_THRESHOLD,
-} from './keyboard-layout';
+import { FaceState, TriggerType, CalibrationSettings } from '../types';
 
-export function analyzeFace(result: FaceLandmarkerResult): FaceState | null {
+export function analyzeFace(
+  result: FaceLandmarkerResult,
+  settings?: CalibrationSettings
+): FaceState | null {
   if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
     return null;
   }
@@ -22,11 +20,15 @@ export function analyzeFace(result: FaceLandmarkerResult): FaceState | null {
   // 口をすぼめる度合いを計算
   const mouthPucker = calculateMouthPucker(landmarks);
 
-  // 各トリガーの検出
-  const mouthOpen = mar > MOUTH_OPEN_THRESHOLD;
-  const mouthPuckered = mouthPucker > MOUTH_PUCKER_THRESHOLD;
-  const winkLeft = ear.left < EAR_THRESHOLD && ear.right > EAR_THRESHOLD;
-  const winkRight = ear.right < EAR_THRESHOLD && ear.left > EAR_THRESHOLD;
+  // 各トリガーの検出（設定された閾値を使用）
+  const mouthOpenThreshold = settings?.mouthOpenThreshold ?? 0.5;
+  const mouthPuckerThreshold = settings?.mouthPuckerThreshold ?? 0.3;
+  const earThreshold = settings?.earThreshold ?? 0.2;
+
+  const mouthOpen = mar > mouthOpenThreshold;
+  const mouthPuckered = mouthPucker > mouthPuckerThreshold;
+  const winkLeft = ear.left < earThreshold && ear.right > earThreshold;
+  const winkRight = ear.right < earThreshold && ear.left > earThreshold;
 
   // どのトリガーがアクティブか判定（優先順位あり）
   let isTriggered = false;
