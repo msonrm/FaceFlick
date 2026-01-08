@@ -1,9 +1,9 @@
 import { NormalizedLandmark, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
 import { FaceState, TriggerType, CalibrationSettings } from '../types';
 
-// デフォルト閾値をインポート
+// デフォルト閾値
 const DEFAULT_MOUTH_OPEN_THRESHOLD = 0.5;
-const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.4;
+const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.3;
 const DEFAULT_EAR_THRESHOLD = 0.2;
 
 export function analyzeFace(
@@ -136,40 +136,30 @@ function calculateMAR(landmarks: NormalizedLandmark[]): number {
 
 /**
  * 口をすぼめる度合いを計算（キス顔検出）
- * 口角間の距離が短くなり、唇が前に出る
+ * 口角間の距離が短くなることに着目
  */
 function calculateMouthPucker(landmarks: NormalizedLandmark[]): number {
   const leftMouth = landmarks[61]; // 左口角
   const rightMouth = landmarks[291]; // 右口角
-  const upperLipCenter = landmarks[13]; // 上唇中心
-  const lowerLipCenter = landmarks[14]; // 下唇中心
 
   // 顔の基準サイズ（目と目の距離）
   const leftEye = landmarks[33];
   const rightEye = landmarks[263];
   const eyeDistance = distance(leftEye, rightEye);
 
+  if (eyeDistance === 0) return 0;
+
   // 口角間の距離（すぼめると短くなる）
   const mouthWidth = distance(leftMouth, rightMouth);
 
-  // 正規化された口の幅（通常は0.5〜0.7、すぼめると0.3〜0.4）
+  // 正規化された口の幅
+  // 通常は0.45〜0.55、すぼめると0.25〜0.35
   const normalizedMouthWidth = mouthWidth / eyeDistance;
 
-  // 唇の前後位置（Z座標）
-  const lipZ = (upperLipCenter.z + lowerLipCenter.z) / 2;
-
-  // 口角のZ座標の平均
-  const mouthCornerZ = (leftMouth.z + rightMouth.z) / 2;
-
-  // 唇が口角より前に出ている度合い（正規化）
-  const lipProtrusion = (mouthCornerZ - lipZ) / eyeDistance;
-
-  // すぼめ度合いの計算
-  // normalizedMouthWidth が小さく（< 0.45）、lipProtrusion が正の場合に高い値
-  const widthScore = Math.max(0, 0.5 - normalizedMouthWidth) * 4.0; // 0〜0.8
-  const protrusionScore = Math.max(0, lipProtrusion) * 20.0; // 0〜0.5程度
-
-  const puckerScore = widthScore + protrusionScore;
+  // すぼめ度合いの計算（シンプルに口の幅だけで判定）
+  // normalizedMouthWidth が 0.40 以下でキス顔と判定
+  // 0.40 → 0, 0.30 → 0.5, 0.20 → 1.0
+  const puckerScore = Math.max(0, (0.40 - normalizedMouthWidth) * 5.0);
 
   return Math.max(0, Math.min(1, puckerScore));
 }
