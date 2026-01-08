@@ -52,6 +52,7 @@ export function FaceFlickCanvas() {
     flickSensitivity: FLICK_SENSITIVITY,
   });
   const animationFrameRef = useRef<number | null>(null);
+  const triggerStartTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current || !video || !cameraReady || !landmarkerReady) {
@@ -123,19 +124,33 @@ export function FaceFlickCanvas() {
 
   function processInput(faceState: any) {
     const selectedKey = getSelectedKey(faceState, calibrationSettings);
+    const HOLD_DELAY_MS = 800; // 0.8秒のホールド遅延
 
     if (inputState.type === 'idle') {
-      // いずれかのトリガーがアクティブでキーが選択されている
+      // トリガーがアクティブでキーが選択されている
       if (faceState.isTriggered && selectedKey) {
-        setInputState({
-          type: 'selecting',
-          key: selectedKey,
-          triggerType: faceState.triggerType,
-          holdPosition: {
-            yaw: faceState.headRotation.yaw,
-            pitch: faceState.headRotation.pitch,
-          },
-        });
+        // トリガー開始時刻を記録
+        if (triggerStartTimeRef.current === null) {
+          triggerStartTimeRef.current = Date.now();
+        }
+
+        // 0.8秒経過したかチェック
+        const elapsedTime = Date.now() - triggerStartTimeRef.current;
+        if (elapsedTime >= HOLD_DELAY_MS) {
+          setInputState({
+            type: 'selecting',
+            key: selectedKey,
+            triggerType: faceState.triggerType,
+            holdPosition: {
+              yaw: faceState.headRotation.yaw,
+              pitch: faceState.headRotation.pitch,
+            },
+          });
+          triggerStartTimeRef.current = null; // リセット
+        }
+      } else {
+        // トリガーが解除されたらタイマーリセット
+        triggerStartTimeRef.current = null;
       }
     } else if (inputState.type === 'selecting') {
       // トリガーが解除された = 入力確定
@@ -195,13 +210,13 @@ export function FaceFlickCanvas() {
     _result: any
   ) {
     if (faceDisplayMode === 'points') {
-      // ポイント表示
-      ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+      // ポイント表示（Instagram風）
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       for (const landmark of landmarks) {
         const x = width - landmark.x * width; // 反転
         const y = landmark.y * height;
         ctx.beginPath();
-        ctx.arc(x, y, 2, 0, 2 * Math.PI);
+        ctx.arc(x, y, 3, 0, 2 * Math.PI);
         ctx.fill();
       }
     } else if (faceDisplayMode === 'mesh') {
@@ -250,8 +265,12 @@ export function FaceFlickCanvas() {
     width: number,
     _height: number
   ) {
-    // ツールバーの高さ（縮小）
+    // ツールバーの高さ
     const toolbarHeight = 50;
+    // デバッグ情報エリアの高さ
+    const debugInfoHeight = 80;
+    // キーボードの開始位置
+    const keyboardTop = toolbarHeight + debugInfoHeight;
     // キーを正方形にする（画面幅基準）
     const keySize = width / 3;
 
@@ -269,7 +288,7 @@ export function FaceFlickCanvas() {
     KEYBOARD_LAYOUT.rows.forEach((row, rowIndex) => {
       row.forEach((key, colIndex) => {
         const x = colIndex * keySize;
-        const y = toolbarHeight + rowIndex * keySize;
+        const y = keyboardTop + rowIndex * keySize;
 
         // キーの枠を描画
         ctx.strokeRect(x, y, keySize, keySize);
@@ -284,28 +303,39 @@ export function FaceFlickCanvas() {
 
         // ハイライト表示
         if (isSelected) {
-          // トリガーでホールド中 = 強調表示（黄色）
-          ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
+          // トリガーでホールド中 = 強調表示（半透明の青）
+          ctx.fillStyle = 'rgba(100, 150, 255, 0.5)';
           ctx.fillRect(x, y, keySize, keySize);
         } else if (isHovered) {
-          // 顔が向いているだけ = 薄いハイライト（青）
-          ctx.fillStyle = 'rgba(100, 150, 255, 0.3)';
+          // 顔が向いているだけ = 薄いハイライト（半透明の白）
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
           ctx.fillRect(x, y, keySize, keySize);
         }
 
-        // キーのテキストを描画
-        ctx.fillStyle = isSelected ? '#ffff00' : isHovered ? '#aaddff' : '#ffffff';
+        // キーのテキストを描画（ドロップシャドウ付き）
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+        ctx.fillStyle = '#ffffff';
         ctx.fillText(key.base, x + keySize / 2, y + keySize / 2);
+        ctx.shadowColor = 'transparent'; // シャドウをリセット
 
         // フリック方向を描画（キーホールド中のみ）
         if (isSelected) {
           const activeDirection = inputState.type === 'flicking' ? inputState.direction : null;
 
+          // ドロップシャドウを有効化
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+          ctx.shadowBlur = 3;
+          ctx.shadowOffsetX = 1;
+          ctx.shadowOffsetY = 1;
+
           // 上
           if (key.up) {
             const isActive = activeDirection === 'up';
             ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
-            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.5)';
+            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
             ctx.fillText(key.up, x + keySize / 2, y + keySize * 0.15);
           }
 
@@ -313,7 +343,7 @@ export function FaceFlickCanvas() {
           if (key.down) {
             const isActive = activeDirection === 'down';
             ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
-            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.5)';
+            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
             ctx.fillText(key.down, x + keySize / 2, y + keySize * 0.85);
           }
 
@@ -321,7 +351,7 @@ export function FaceFlickCanvas() {
           if (key.left) {
             const isActive = activeDirection === 'left';
             ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
-            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.5)';
+            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
             ctx.fillText(key.left, x + keySize * 0.15, y + keySize / 2);
           }
 
@@ -329,11 +359,12 @@ export function FaceFlickCanvas() {
           if (key.right) {
             const isActive = activeDirection === 'right';
             ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
-            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.5)';
+            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
             ctx.fillText(key.right, x + keySize * 0.85, y + keySize / 2);
           }
 
           ctx.font = '32px sans-serif';
+          ctx.shadowColor = 'transparent'; // シャドウをリセット
         }
       });
     });
@@ -346,14 +377,52 @@ export function FaceFlickCanvas() {
   ) {
     // レイアウト計算
     const toolbarHeight = 50;
+    const debugInfoHeight = 80; // デバッグ情報エリアの高さ
     const keySize = width / 3;
     const keyboardHeight = keySize * 4;
-    const debugAreaHeight = height - toolbarHeight - keyboardHeight;
-    const debugAreaTop = toolbarHeight + keyboardHeight;
+    const keyboardTop = toolbarHeight + debugInfoHeight;
+    const inputAreaTop = keyboardTop + keyboardHeight;
+    const inputAreaHeight = height - inputAreaTop;
 
-    // デバッグ/入力エリアの背景
+    // デバッグ情報エリアの背景（ツールバーの下、キーボードの上）
+    if (debugInfo) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(0, toolbarHeight, width, debugInfoHeight);
+
+      // デバッグ情報表示
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+
+      const triggerText = getTriggerDisplayText(debugInfo.triggerType);
+      ctx.fillText(`トリガー: ${triggerText}`, 10, toolbarHeight + 10);
+
+      // EAR値
+      ctx.fillText(
+        `EAR: L=${debugInfo.ear.left.toFixed(2)} R=${debugInfo.ear.right.toFixed(2)}`,
+        10,
+        toolbarHeight + 25
+      );
+
+      // MAR/Pucker値
+      ctx.fillText(
+        `MAR: ${debugInfo.mar.toFixed(2)} Pucker: ${debugInfo.mouthPucker.toFixed(2)}`,
+        10,
+        toolbarHeight + 40
+      );
+
+      // 頭の向き
+      ctx.fillText(
+        `Yaw: ${debugInfo.headRotation.yaw.toFixed(1)}° Pitch: ${debugInfo.headRotation.pitch.toFixed(1)}°`,
+        10,
+        toolbarHeight + 55
+      );
+    }
+
+    // 入力テキストエリアの背景
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, debugAreaTop, width, debugAreaHeight);
+    ctx.fillRect(0, inputAreaTop, width, inputAreaHeight);
 
     // 入力テキスト（複数行対応）
     ctx.fillStyle = '#ffffff';
@@ -384,60 +453,22 @@ export function FaceFlickCanvas() {
 
     // 最大3行まで表示
     const displayLines = lines.slice(-3);
-    let textY = debugAreaTop + 10;
+    let textY = inputAreaTop + 10;
     displayLines.forEach((line) => {
       ctx.fillText(line, 20, textY);
       textY += lineHeight;
     });
 
     // 入力状態表示
-    const statusY = debugAreaTop + debugAreaHeight - 75;
     if (inputState.type === 'selecting') {
       ctx.fillStyle = '#ffff00';
       ctx.font = '16px sans-serif';
-      ctx.fillText('選択中...', 20, statusY);
+      ctx.fillText('選択中...', 20, inputAreaTop + inputAreaHeight - 30);
     } else if (inputState.type === 'flicking') {
       ctx.fillStyle = '#00ff00';
       ctx.font = '16px sans-serif';
       const directionText = getDirectionDisplayText(inputState.direction);
-      ctx.fillText(`フリック: ${directionText}`, 20, statusY);
-    }
-
-    // デバッグ情報表示（複数行に分割）
-    if (debugInfo) {
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '11px monospace';
-
-      const triggerText = getTriggerDisplayText(debugInfo.triggerType);
-      ctx.fillText(`トリガー: ${triggerText}`, 20, debugAreaTop + debugAreaHeight - 55);
-
-      // EAR値
-      ctx.fillText(
-        `EAR: L=${debugInfo.ear.left.toFixed(2)} R=${debugInfo.ear.right.toFixed(2)}`,
-        20,
-        debugAreaTop + debugAreaHeight - 40
-      );
-
-      // MAR/Pucker値
-      ctx.fillText(
-        `MAR: ${debugInfo.mar.toFixed(2)} Pucker: ${debugInfo.mouthPucker.toFixed(2)}`,
-        width / 2,
-        debugAreaTop + debugAreaHeight - 40
-      );
-
-      // 頭の向き
-      ctx.fillText(
-        `Yaw: ${debugInfo.headRotation.yaw.toFixed(1)}° Pitch: ${debugInfo.headRotation.pitch.toFixed(1)}°`,
-        20,
-        debugAreaTop + debugAreaHeight - 25
-      );
-
-      // キャリブレーション情報
-      ctx.fillText(
-        `[相対範囲: Yaw 3分割, Pitch 4分割]`,
-        20,
-        debugAreaTop + debugAreaHeight - 10
-      );
+      ctx.fillText(`フリック: ${directionText}`, 20, inputAreaTop + inputAreaHeight - 30);
     }
   }
 
