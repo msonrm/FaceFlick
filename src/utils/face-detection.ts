@@ -1,6 +1,10 @@
 import { NormalizedLandmark, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
-import { FaceState } from '../types';
-import { MOUTH_OPEN_THRESHOLD } from './keyboard-layout';
+import { FaceState, TriggerType } from '../types';
+import {
+  MOUTH_OPEN_THRESHOLD,
+  MOUTH_PUCKER_THRESHOLD,
+  EAR_THRESHOLD,
+} from './keyboard-layout';
 
 export function analyzeFace(result: FaceLandmarkerResult): FaceState | null {
   if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
@@ -8,30 +12,153 @@ export function analyzeFace(result: FaceLandmarkerResult): FaceState | null {
   }
 
   const landmarks = result.faceLandmarks[0];
-  const mouthOpen = calculateMouthOpenness(landmarks) > MOUTH_OPEN_THRESHOLD;
+
+  // EAR（Eye Aspect Ratio）を計算
+  const ear = calculateEAR(landmarks);
+
+  // MAR（Mouth Aspect Ratio）を計算
+  const mar = calculateMAR(landmarks);
+
+  // 口をすぼめる度合いを計算
+  const mouthPucker = calculateMouthPucker(landmarks);
+
+  // 各トリガーの検出
+  const mouthOpen = mar > MOUTH_OPEN_THRESHOLD;
+  const mouthPuckered = mouthPucker > MOUTH_PUCKER_THRESHOLD;
+  const winkLeft = ear.left < EAR_THRESHOLD && ear.right > EAR_THRESHOLD;
+  const winkRight = ear.right < EAR_THRESHOLD && ear.left > EAR_THRESHOLD;
+
+  // どのトリガーがアクティブか判定（優先順位あり）
+  let isTriggered = false;
+  let triggerType: TriggerType = null;
+
+  if (mouthOpen) {
+    isTriggered = true;
+    triggerType = 'mouth_open';
+  } else if (mouthPuckered) {
+    isTriggered = true;
+    triggerType = 'mouth_pucker';
+  } else if (winkLeft) {
+    isTriggered = true;
+    triggerType = 'wink_left';
+  } else if (winkRight) {
+    isTriggered = true;
+    triggerType = 'wink_right';
+  }
+
+  // 頭の回転を計算
   const headRotation = calculateHeadRotation(landmarks);
 
   return {
     landmarks,
+    ear,
+    mar,
+    mouthPucker,
     mouthOpen,
+    mouthPuckered,
+    winkLeft,
+    winkRight,
+    isTriggered,
+    triggerType,
     headRotation,
   };
 }
 
-function calculateMouthOpenness(landmarks: NormalizedLandmark[]): number {
-  // 上唇と下唇のランドマーク
-  const upperLip = landmarks[13]; // Upper lip top
-  const lowerLip = landmarks[14]; // Lower lip bottom
+/**
+ * EAR（Eye Aspect Ratio）を計算
+ * 目の開閉度を測定。値が小さいほど目が閉じている
+ * 通常: 0.2-0.3以上、閉じている: 0.2以下
+ */
+function calculateEAR(landmarks: NormalizedLandmark[]): {
+  left: number;
+  right: number;
+} {
+  // 左目のランドマーク
+  const leftEyeOuter = landmarks[33]; // 左目外側
+  const leftEyeInner = landmarks[133]; // 左目内側
+  const leftEyeTop1 = landmarks[159]; // 左目上部1
+  const leftEyeBottom1 = landmarks[145]; // 左目下部1
+  const leftEyeTop2 = landmarks[158]; // 左目上部2
+  const leftEyeBottom2 = landmarks[153]; // 左目下部2
 
-  if (!upperLip || !lowerLip) {
-    return 0;
-  }
+  // 右目のランドマーク
+  const rightEyeOuter = landmarks[362]; // 右目外側
+  const rightEyeInner = landmarks[263]; // 右目内側
+  const rightEyeTop1 = landmarks[386]; // 右目上部1
+  const rightEyeBottom1 = landmarks[374]; // 右目下部1
+  const rightEyeTop2 = landmarks[385]; // 右目上部2
+  const rightEyeBottom2 = landmarks[380]; // 右目下部2
 
-  // 垂直距離を計算
-  const distance = Math.abs(lowerLip.y - upperLip.y);
-  return distance;
+  // 左目のEARを計算
+  const leftVertical1 = distance(leftEyeTop1, leftEyeBottom1);
+  const leftVertical2 = distance(leftEyeTop2, leftEyeBottom2);
+  const leftHorizontal = distance(leftEyeOuter, leftEyeInner);
+  const leftEAR = (leftVertical1 + leftVertical2) / (2.0 * leftHorizontal);
+
+  // 右目のEARを計算
+  const rightVertical1 = distance(rightEyeTop1, rightEyeBottom1);
+  const rightVertical2 = distance(rightEyeTop2, rightEyeBottom2);
+  const rightHorizontal = distance(rightEyeOuter, rightEyeInner);
+  const rightEAR = (rightVertical1 + rightVertical2) / (2.0 * rightHorizontal);
+
+  return {
+    left: leftEAR,
+    right: rightEAR,
+  };
 }
 
+/**
+ * MAR（Mouth Aspect Ratio）を計算
+ * 口の開き具合を測定。値が大きいほど口が開いている
+ */
+function calculateMAR(landmarks: NormalizedLandmark[]): number {
+  // 口のランドマーク
+  const upperLip = landmarks[13]; // 上唇上部
+  const lowerLip = landmarks[14]; // 下唇下部
+  const leftMouth = landmarks[61]; // 左口角
+  const rightMouth = landmarks[291]; // 右口角
+
+  // 垂直距離（口の開き）
+  const vertical = distance(upperLip, lowerLip);
+  // 水平距離（口の幅）
+  const horizontal = distance(leftMouth, rightMouth);
+
+  // MAR = 垂直距離 / 水平距離
+  return horizontal > 0 ? vertical / horizontal : 0;
+}
+
+/**
+ * 口をすぼめる度合いを計算（キス顔検出）
+ * 口角間の距離が短くなり、唇が前に出る
+ */
+function calculateMouthPucker(landmarks: NormalizedLandmark[]): number {
+  const leftMouth = landmarks[61]; // 左口角
+  const rightMouth = landmarks[291]; // 右口角
+  const upperLip = landmarks[0]; // 上唇中心
+  const lowerLip = landmarks[17]; // 下唇中心
+
+  // 口角間の距離（すぼめると短くなる）
+  const mouthWidth = distance(leftMouth, rightMouth);
+
+  // 唇の前後位置（Z座標の平均）
+  const lipZ = (upperLip.z + lowerLip.z) / 2;
+
+  // 口角のZ座標の平均
+  const mouthCornerZ = (leftMouth.z + rightMouth.z) / 2;
+
+  // 唇が口角より前に出ている度合い
+  const lipProtrusion = Math.max(0, mouthCornerZ - lipZ);
+
+  // 口の幅が狭く、唇が前に出ているほど高い値
+  // 正規化: 通常の口幅を0.1と仮定
+  const puckerScore = (0.1 - mouthWidth) * 10 + lipProtrusion * 50;
+
+  return Math.max(0, Math.min(1, puckerScore));
+}
+
+/**
+ * 頭の回転を計算
+ */
 function calculateHeadRotation(landmarks: NormalizedLandmark[]): {
   yaw: number;
   pitch: number;
@@ -56,4 +183,14 @@ function calculateHeadRotation(landmarks: NormalizedLandmark[]): {
   const pitch = pitchOffset * 90; // -90 to 90 度に変換
 
   return { yaw, pitch };
+}
+
+/**
+ * 2つのランドマーク間の距離を計算
+ */
+function distance(p1: NormalizedLandmark, p2: NormalizedLandmark): number {
+  const dx = p1.x - p2.x;
+  const dy = p1.y - p2.y;
+  const dz = (p1.z || 0) - (p2.z || 0);
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }

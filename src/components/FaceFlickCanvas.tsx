@@ -23,6 +23,12 @@ export function FaceFlickCanvas() {
 
   const [inputState, setInputState] = useState<InputState>({ type: 'idle' });
   const [inputText, setInputText] = useState('');
+  const [debugInfo, setDebugInfo] = useState<{
+    ear: { left: number; right: number };
+    mar: number;
+    mouthPucker: number;
+    triggerType: string;
+  } | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -52,6 +58,14 @@ export function FaceFlickCanvas() {
       if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
         const faceState = analyzeFace(result);
         if (faceState) {
+          // デバッグ情報を更新
+          setDebugInfo({
+            ear: faceState.ear,
+            mar: faceState.mar,
+            mouthPucker: faceState.mouthPucker,
+            triggerType: faceState.triggerType || 'none',
+          });
+
           // 入力ロジック
           processInput(faceState);
 
@@ -82,28 +96,50 @@ export function FaceFlickCanvas() {
     const selectedKey = getSelectedKey(faceState);
 
     if (inputState.type === 'idle') {
-      if (faceState.mouthOpen && selectedKey) {
-        setInputState({ type: 'selecting', key: selectedKey });
+      // いずれかのトリガーがアクティブでキーが選択されている
+      if (faceState.isTriggered && selectedKey) {
+        setInputState({
+          type: 'selecting',
+          key: selectedKey,
+          triggerType: faceState.triggerType,
+        });
       }
     } else if (inputState.type === 'selecting') {
-      if (!faceState.mouthOpen) {
-        // 口を閉じた = 入力確定
+      // トリガーが解除された = 入力確定
+      if (!faceState.isTriggered || faceState.triggerType !== inputState.triggerType) {
         const char = getCharFromFlick(inputState.key, null);
         addCharacter(char);
         setInputState({ type: 'idle' });
       } else {
-        // 口を開けたまま = フリック判定
+        // トリガーを維持したまま = フリック判定
         const direction = getFlickDirection(faceState);
         if (direction) {
-          setInputState({ type: 'flicking', key: inputState.key, direction });
+          setInputState({
+            type: 'flicking',
+            key: inputState.key,
+            direction,
+            triggerType: inputState.triggerType,
+          });
         }
       }
     } else if (inputState.type === 'flicking') {
-      if (!faceState.mouthOpen) {
-        // 口を閉じた = フリック入力確定
+      // トリガーが解除された = フリック入力確定
+      if (!faceState.isTriggered || faceState.triggerType !== inputState.triggerType) {
         const char = getCharFromFlick(inputState.key, inputState.direction);
         addCharacter(char);
         setInputState({ type: 'idle' });
+      }
+      // フリック中に方向が変わったら更新
+      else {
+        const direction = getFlickDirection(faceState);
+        if (direction && direction !== inputState.direction) {
+          setInputState({
+            type: 'flicking',
+            key: inputState.key,
+            direction,
+            triggerType: inputState.triggerType,
+          });
+        }
       }
     }
   }
@@ -192,14 +228,72 @@ export function FaceFlickCanvas() {
     width: number,
     height: number
   ) {
+    // 入力テキストエリア
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, height - 80, width, 80);
+    ctx.fillRect(0, height - 120, width, 120);
 
+    // 入力テキスト
     ctx.fillStyle = '#ffffff';
     ctx.font = '32px sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(inputText, 20, height - 40);
+    ctx.fillText(inputText, 20, height - 80);
+
+    // トリガー情報表示
+    if (debugInfo) {
+      ctx.font = '16px monospace';
+      const triggerText = getTriggerDisplayText(debugInfo.triggerType);
+      ctx.fillText(`トリガー: ${triggerText}`, 20, height - 50);
+
+      // EAR/MAR値表示
+      ctx.fillText(
+        `EAR: L=${debugInfo.ear.left.toFixed(2)} R=${debugInfo.ear.right.toFixed(2)} | MAR: ${debugInfo.mar.toFixed(2)} | Pucker: ${debugInfo.mouthPucker.toFixed(2)}`,
+        20,
+        height - 30
+      );
+    }
+
+    // 入力状態表示
+    if (inputState.type === 'selecting') {
+      ctx.fillStyle = '#ffff00';
+      ctx.font = '24px sans-serif';
+      ctx.fillText('選択中...', 20, height - 105);
+    } else if (inputState.type === 'flicking') {
+      ctx.fillStyle = '#00ff00';
+      ctx.font = '24px sans-serif';
+      const directionText = getDirectionDisplayText(inputState.direction);
+      ctx.fillText(`フリック: ${directionText}`, 20, height - 105);
+    }
+  }
+
+  function getTriggerDisplayText(triggerType: string): string {
+    switch (triggerType) {
+      case 'mouth_open':
+        return '口を開ける 👄';
+      case 'mouth_pucker':
+        return 'キス顔 💋';
+      case 'wink_left':
+        return '左ウィンク 😉';
+      case 'wink_right':
+        return '右ウィンク 😉';
+      default:
+        return 'なし';
+    }
+  }
+
+  function getDirectionDisplayText(direction: string | null): string {
+    switch (direction) {
+      case 'up':
+        return '↑ 上';
+      case 'down':
+        return '↓ 下';
+      case 'left':
+        return '← 左';
+      case 'right':
+        return '→ 右';
+      default:
+        return '';
+    }
   }
 
   function handleRecordToggle() {
