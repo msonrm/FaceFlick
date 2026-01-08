@@ -14,7 +14,7 @@ export const KEYBOARD_LAYOUT: KeyboardLayout = {
     ],
     [
       { base: 'ま', left: 'み', up: 'む', right: 'め', down: 'も' },
-      { base: 'や', left: '（', up: 'ゆ', right: '）', down: 'よ' },
+      { base: 'や', left: '「', up: 'ゆ', right: '」', down: 'よ' },
       { base: 'ら', left: 'り', up: 'る', right: 'れ', down: 'ろ' },
     ],
     [

@@ -157,9 +157,9 @@ function calculateMouthPucker(landmarks: NormalizedLandmark[]): number {
   const normalizedMouthWidth = mouthWidth / eyeDistance;
 
   // すぼめ度合いの計算（シンプルに口の幅だけで判定）
-  // normalizedMouthWidth が 0.40 以下でキス顔と判定
-  // 0.40 → 0, 0.30 → 0.5, 0.20 → 1.0
-  const puckerScore = Math.max(0, (0.40 - normalizedMouthWidth) * 5.0);
+  // normalizedMouthWidth が 0.48 以下でキス顔と判定（感度向上）
+  // 0.48 → 0, 0.40 → 0.48, 0.30 → 1.08 (clampで1.0)
+  const puckerScore = Math.max(0, (0.48 - normalizedMouthWidth) * 6.0);
 
   return Math.max(0, Math.min(1, puckerScore));
 }

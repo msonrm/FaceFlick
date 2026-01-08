@@ -307,7 +307,31 @@ export function FaceFlickCanvas() {
     // MediaPipe公式のFACE_LANDMARKS_TESSELATIONデータを使用
     const connections = FaceLandmarker.FACE_LANDMARKS_TESSELATION;
 
-    ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+    // まず顔全体を半透明の緑で覆う（プライバシー保護）
+    // 顔の輪郭ポイントを使用（MediaPipe Face Meshの顔輪郭インデックス）
+    const faceOvalIndices = [
+      10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109
+    ];
+
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+    ctx.beginPath();
+    faceOvalIndices.forEach((idx, i) => {
+      if (idx < landmarks.length) {
+        const landmark = landmarks[idx];
+        const x = width - landmark.x * width; // 反転
+        const y = landmark.y * height;
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+    });
+    ctx.closePath();
+    ctx.fill();
+
+    // その上にワイヤーフレームを描画
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
     ctx.lineWidth = 1;
 
     // 各接続を線で描画
