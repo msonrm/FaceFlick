@@ -6,31 +6,46 @@ export function getSelectedKey(
   settings?: CalibrationSettings
 ): FlickKey | null {
   const { yaw, pitch } = faceState.headRotation;
-  const gridSensitivity = settings?.gridSensitivity ?? 15;
+
+  // キャリブレーション範囲を使用（デフォルトは±30度）
+  const yawRange = settings?.yawRange ?? { min: -30, max: 30 };
+  const pitchRange = settings?.pitchRange ?? { min: -30, max: 30 };
 
   // グリッド位置を計算 (3x4 グリッド)
   let col = 1; // 中央列
-  let row = 1; // 中央行
+  let row = 1; // 中央行（デフォルト）
 
   // 列の決定 (左右) - 鏡像なので左右を反転
-  if (yaw < -gridSensitivity) {
+  // yawRangeを3分割: 左 | 中央 | 右
+  const yawTotal = yawRange.max - yawRange.min;
+  const yawThirdWidth = yawTotal / 3;
+  const yawLeftBoundary = yawRange.min + yawThirdWidth;
+  const yawRightBoundary = yawRange.max - yawThirdWidth;
+
+  if (yaw < yawLeftBoundary) {
     col = 2; // 顔を左に振る → 右列
-  } else if (yaw > gridSensitivity) {
+  } else if (yaw > yawRightBoundary) {
     col = 0; // 顔を右に振る → 左列
+  } else {
+    col = 1; // 中央
   }
 
   // 行の決定 (上下)
-  // 4行グリッドなので、範囲を適切に分割
-  if (pitch < -gridSensitivity * 1.5) {
-    row = 0; // 上（最上部）
-  } else if (pitch < -gridSensitivity / 2) {
+  // pitchRangeを4分割: 上 | 中上 | 中下 | 下
+  const pitchTotal = pitchRange.max - pitchRange.min;
+  const pitchQuarterHeight = pitchTotal / 4;
+  const pitchRow0Boundary = pitchRange.min + pitchQuarterHeight;
+  const pitchRow1Boundary = pitchRange.min + pitchQuarterHeight * 2;
+  const pitchRow2Boundary = pitchRange.min + pitchQuarterHeight * 3;
+
+  if (pitch < pitchRow0Boundary) {
     row = 0; // 上
-  } else if (pitch < gridSensitivity / 2) {
+  } else if (pitch < pitchRow1Boundary) {
     row = 1; // 中央上
-  } else if (pitch < gridSensitivity * 1.5) {
+  } else if (pitch < pitchRow2Boundary) {
     row = 2; // 中央下
   } else {
-    row = 3; // 下（最下部）
+    row = 3; // 下
   }
 
   const key = KEYBOARD_LAYOUT.rows[row]?.[col];
@@ -42,17 +57,30 @@ export function getFlickDirection(
   settings?: CalibrationSettings
 ): FlickDirection {
   const { yaw, pitch } = faceState.headRotation;
-  const flickSensitivity = settings?.flickSensitivity ?? 20;
 
-  // フリック方向の判定（閾値を超えた方向を優先）
-  const absYaw = Math.abs(yaw);
-  const absPitch = Math.abs(pitch);
+  // キャリブレーション範囲を使用
+  const yawRange = settings?.yawRange ?? { min: -30, max: 30 };
+  const pitchRange = settings?.pitchRange ?? { min: -30, max: 30 };
+
+  // フリック感度は範囲の25%（調整可能）
+  const flickSensitivityRatio = settings?.flickSensitivity ? settings.flickSensitivity / 100 : 0.25;
+  const yawFlickThreshold = (yawRange.max - yawRange.min) * flickSensitivityRatio;
+  const pitchFlickThreshold = (pitchRange.max - pitchRange.min) * flickSensitivityRatio;
+
+  // 中央位置からの相対的な移動量
+  const yawCenter = (yawRange.min + yawRange.max) / 2;
+  const pitchCenter = (pitchRange.min + pitchRange.max) / 2;
+  const yawOffset = yaw - yawCenter;
+  const pitchOffset = pitch - pitchCenter;
+
+  const absYawOffset = Math.abs(yawOffset);
+  const absPitchOffset = Math.abs(pitchOffset);
 
   // 上下左右で最も強い方向を選択（鏡像対応）
-  if (absPitch > flickSensitivity && absPitch > absYaw) {
-    return pitch < 0 ? 'up' : 'down';
-  } else if (absYaw > flickSensitivity && absYaw > absPitch) {
-    return yaw < 0 ? 'right' : 'left'; // 鏡像なので左右反転
+  if (absPitchOffset > pitchFlickThreshold && absPitchOffset > absYawOffset) {
+    return pitchOffset < 0 ? 'up' : 'down';
+  } else if (absYawOffset > yawFlickThreshold && absYawOffset > absPitchOffset) {
+    return yawOffset < 0 ? 'right' : 'left'; // 鏡像なので左右反転
   }
 
   return null;
