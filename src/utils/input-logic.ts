@@ -54,6 +54,7 @@ export function getSelectedKey(
 
 export function getFlickDirection(
   faceState: FaceState,
+  holdPosition: { yaw: number; pitch: number },
   settings?: CalibrationSettings
 ): FlickDirection {
   const { yaw, pitch } = faceState.headRotation;
@@ -67,11 +68,9 @@ export function getFlickDirection(
   const yawFlickThreshold = (yawRange.max - yawRange.min) * flickSensitivityRatio;
   const pitchFlickThreshold = (pitchRange.max - pitchRange.min) * flickSensitivityRatio;
 
-  // 中央位置からの相対的な移動量
-  const yawCenter = (yawRange.min + yawRange.max) / 2;
-  const pitchCenter = (pitchRange.min + pitchRange.max) / 2;
-  const yawOffset = yaw - yawCenter;
-  const pitchOffset = pitch - pitchCenter;
+  // ホールド位置からの相対的な移動量
+  const yawOffset = yaw - holdPosition.yaw;
+  const pitchOffset = pitch - holdPosition.pitch;
 
   const absYawOffset = Math.abs(yawOffset);
   const absPitchOffset = Math.abs(pitchOffset);

@@ -40,8 +40,8 @@ export type FlickDirection = 'up' | 'down' | 'left' | 'right' | null;
 
 export type InputState =
   | { type: 'idle' }
-  | { type: 'selecting'; key: FlickKey; triggerType: TriggerType }
-  | { type: 'flicking'; key: FlickKey; direction: FlickDirection; triggerType: TriggerType };
+  | { type: 'selecting'; key: FlickKey; triggerType: TriggerType; holdPosition: { yaw: number; pitch: number } }
+  | { type: 'flicking'; key: FlickKey; direction: FlickDirection; triggerType: TriggerType; holdPosition: { yaw: number; pitch: number } };
 
 export interface KeyboardLayout {
   rows: FlickKey[][];
