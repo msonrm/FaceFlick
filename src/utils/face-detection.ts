@@ -151,9 +151,14 @@ function calculateMouthPucker(landmarks: NormalizedLandmark[]): number {
   // 唇が口角より前に出ている度合い
   const lipProtrusion = Math.max(0, mouthCornerZ - lipZ);
 
-  // 口の幅が狭く、唇が前に出ているほど高い値
-  // 正規化: 通常の口幅を0.1と仮定
-  const puckerScore = (0.1 - mouthWidth) * 10 + lipProtrusion * 50;
+  // 口の幅の比率（すぼめると0.7以下になる）
+  const normalMouthWidth = 0.08; // 通常の口の幅の基準値
+  const widthRatio = mouthWidth / normalMouthWidth;
+
+  // すぼめ度合いの計算
+  // 口の幅が狭く（widthRatio < 0.85）、かつ唇が前に出ているほど高い値
+  const widthFactor = Math.max(0, 1.0 - widthRatio); // 0.85より小さいと正の値
+  const puckerScore = widthFactor * 0.5 + lipProtrusion * 100;
 
   return Math.max(0, Math.min(1, puckerScore));
 }

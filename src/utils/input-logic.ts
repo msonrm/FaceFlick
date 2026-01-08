@@ -20,19 +20,17 @@ export function getSelectedKey(
   }
 
   // 行の決定 (上下)
-  if (pitch < -gridSensitivity) {
+  // 4行グリッドなので、範囲を適切に分割
+  if (pitch < -gridSensitivity * 1.5) {
+    row = 0; // 上（最上部）
+  } else if (pitch < -gridSensitivity / 2) {
     row = 0; // 上
-  } else if (pitch > gridSensitivity) {
-    row = 2; // 下
-  } else if (Math.abs(pitch) < gridSensitivity / 2) {
-    row = 1; // 中央
-  } else if (pitch > 0) {
-    row = 2; // やや下
-  }
-
-  // 4行目は特別処理
-  if (pitch > gridSensitivity * 2) {
-    row = 3;
+  } else if (pitch < gridSensitivity / 2) {
+    row = 1; // 中央上
+  } else if (pitch < gridSensitivity * 1.5) {
+    row = 2; // 中央下
+  } else {
+    row = 3; // 下（最下部）
   }
 
   const key = KEYBOARD_LAYOUT.rows[row]?.[col];

@@ -30,5 +30,5 @@ export const FLICK_SENSITIVITY = 20; // 度
 
 // トリガーの閾値
 export const MOUTH_OPEN_THRESHOLD = 0.5; // MAR: 口が開いていると判定（0.5以上で口を開けている）
-export const MOUTH_PUCKER_THRESHOLD = 0.3; // 口をすぼめている判定（0.3以上でキス顔）
+export const MOUTH_PUCKER_THRESHOLD = 0.5; // 口をすぼめている判定（0.5以上でキス顔）※より厳格に
 export const EAR_THRESHOLD = 0.2; // EAR: 目が閉じていると判定（0.2以下でウィンク）

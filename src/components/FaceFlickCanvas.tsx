@@ -42,7 +42,7 @@ export function FaceFlickCanvas() {
   const [showCalibration, setShowCalibration] = useState(false);
   const [calibrationSettings, setCalibrationSettings] = useState<CalibrationSettings>({
     yawRange: { min: -30, max: 30 },
-    pitchRange: { min: -20, max: 30 },
+    pitchRange: { min: -30, max: 30 },
     mouthOpenThreshold: MOUTH_OPEN_THRESHOLD,
     mouthPuckerThreshold: MOUTH_PUCKER_THRESHOLD,
     earThreshold: EAR_THRESHOLD,
@@ -197,8 +197,15 @@ export function FaceFlickCanvas() {
     width: number,
     height: number
   ) {
+    // ツールバーの高さ
+    const toolbarHeight = 60;
+    // デバッグ情報エリアの高さ
+    const debugHeight = 140;
+    // キーボードエリアの高さ
+    const keyboardAreaHeight = height - toolbarHeight - debugHeight;
+
     const keyWidth = width / 3;
-    const keyHeight = height / 4;
+    const keyHeight = keyboardAreaHeight / 4;
 
     // 現在顔が向いているキーを取得
     const currentKey = currentFaceState ? getSelectedKey(currentFaceState, calibrationSettings) : null;
@@ -212,7 +219,7 @@ export function FaceFlickCanvas() {
     KEYBOARD_LAYOUT.rows.forEach((row, rowIndex) => {
       row.forEach((key, colIndex) => {
         const x = colIndex * keyWidth;
-        const y = rowIndex * keyHeight;
+        const y = toolbarHeight + rowIndex * keyHeight;
 
         // キーの枠を描画
         ctx.strokeRect(x, y, keyWidth, keyHeight);
