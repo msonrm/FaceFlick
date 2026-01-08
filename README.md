@@ -1,10 +1,17 @@
 # FaceFlick
 
-顔の動きと口の開閉でフリック入力を行うFlutterアプリケーション
+顔の動きと口の開閉でフリック入力を行うWebアプリケーション
 
 ## 概要
 
-FaceFlickは、顔の向きと口の開閉を認識して日本語フリック入力を実現するアクセシビリティアプリです。Google ML Kitの顔検出機能を使用しています。
+FaceFlickは、顔の向きと口の開閉を認識して日本語フリック入力を実現するアクセシビリティWebアプリです。MediaPipe Face Landmarkerを使用して高精度な顔検出を実現し、Canvas APIによる高速な描画と録画機能を提供します。
+
+## 主な機能
+
+- リアルタイム顔検出とジェスチャー認識
+- Canvas APIによる高速レンダリング
+- 録画機能（Media Stream Recording API使用）
+- 完全なWebアプリケーション（インストール不要）
 
 ## 操作方法
 
@@ -28,38 +35,70 @@ FaceFlickは、顔の向きと口の開閉を認識して日本語フリック�
 
 ## 技術スタック
 
-- **Flutter**: クロスプラットフォームUIフレームワーク
-- **google_mlkit_face_detection**: 顔検出・ランドマーク検出
-- **camera**: カメラ制御
+- **React**: UIライブラリ
+- **Vite**: 高速ビルドツール
+- **TypeScript**: 型安全な開発
+- **Tailwind CSS**: ユーティリティファーストCSSフレームワーク
+- **MediaPipe Tasks Vision**: 顔検出・ランドマーク検出（Web版）
+- **HTML5 Canvas API**: 高速描画
+- **Media Stream Recording API**: 録画機能
+- **Vercel**: デプロイプラットフォーム
 
 ## セットアップ
 
+### 開発環境
+
 ```bash
 # 依存関係のインストール
-flutter pub get
+npm install
 
-# 実行
-flutter run
+# 開発サーバーの起動
+npm run dev
+
+# ビルド
+npm run build
+
+# プレビュー
+npm run preview
 ```
+
+### Vercelへのデプロイ
+
+```bash
+# Vercel CLIのインストール（初回のみ）
+npm i -g vercel
+
+# デプロイ
+vercel
+
+# 本番環境へのデプロイ
+vercel --prod
+```
+
+または、GitHubリポジトリを連携してVercelで自動デプロイ設定が可能です。
 
 ## 必要な権限
 
-- **カメラ**: 顔の検出に必要
+- **カメラ**: 顔の検出に必要（ブラウザで許可してください）
 
-## アーキテクチャ
+## プロジェクト構造
 
 ```
-lib/
-├── main.dart                    # アプリエントリーポイント
-├── models/
-│   ├── face_state.dart         # 顔の状態モデル
-│   └── flick_key.dart          # フリックキー定義
-├── services/
-│   ├── face_detection_service.dart  # ML Kit顔検出
-│   └── input_manager.dart           # 入力状態管理
-└── widgets/
-    ├── camera_preview.dart     # カメラプレビュー
-    └── flick_keyboard.dart     # キーボードUI
+src/
+├── main.tsx                  # アプリケーションエントリーポイント
+├── App.tsx                   # メインアプリケーションコンポーネント
+├── components/
+│   └── FaceFlickCanvas.tsx  # Canvas描画とメインロジック
+├── hooks/
+│   ├── useCamera.ts         # カメラアクセスフック
+│   ├── useFaceLandmarker.ts # MediaPipe顔検出フック
+│   └── useRecording.ts      # 録画機能フック
+├── types/
+│   └── index.ts             # TypeScript型定義
+└── utils/
+    ├── face-detection.ts    # 顔検出解析ロジック
+    ├── input-logic.ts       # 入力判定ロジック
+    └── keyboard-layout.ts   # キーボード配列定義
 ```
 
 ## 入力フロー
@@ -74,12 +113,28 @@ lib/
 
 ## 設定可能なパラメータ
 
-`lib/models/face_state.dart`で以下の値を調整できます：
+`src/utils/keyboard-layout.ts`で以下の値を調整できます：
 
-- `mouthOpenThreshold`: 口が開いていると判定する閾値（デフォルト: 0.3）
-- `gridSensitivity`: グリッド選択の感度（デフォルト: 15度）
-- `flickSensitivity`: フリック判定の感度（デフォルト: 20度）
+- `MOUTH_OPEN_THRESHOLD`: 口が開いていると判定する閾値（デフォルト: 0.3）
+- `GRID_SENSITIVITY`: グリッド選択の感度（デフォルト: 15度）
+- `FLICK_SENSITIVITY`: フリック判定の感度（デフォルト: 20度）
+
+## ブラウザ要件
+
+- モダンブラウザ（Chrome, Edge, Safari, Firefox）
+- WebRTC対応（カメラアクセスに必要）
+- WebAssembly対応（MediaPipeに必要）
+
+## パフォーマンス最適化
+
+- Canvas APIによる直接描画で高速レンダリング
+- MediaPipe GPUデリゲートによる高速顔検出
+- 30fpsでの安定した録画
 
 ## ライセンス
 
 MIT
+
+## 貢献
+
+プルリクエストを歓迎します。大きな変更の場合は、まずissueを開いて変更内容を議論してください。
