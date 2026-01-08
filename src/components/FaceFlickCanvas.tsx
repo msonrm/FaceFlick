@@ -308,15 +308,15 @@ export function FaceFlickCanvas() {
           ctx.fillRect(x, y, keySize, keySize);
         } else if (isHovered) {
           // 顔が向いているだけ = 薄いハイライト（半透明の白）
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
           ctx.fillRect(x, y, keySize, keySize);
         }
 
         // キーのテキストを描画（ドロップシャドウ付き）
         ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
         ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
         ctx.fillStyle = '#ffffff';
         ctx.fillText(key.base, x + keySize / 2, y + keySize / 2);
         ctx.shadowColor = 'transparent'; // シャドウをリセット
@@ -328,26 +328,10 @@ export function FaceFlickCanvas() {
           // ドロップシャドウを有効化
           ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
           ctx.shadowBlur = 3;
-          ctx.shadowOffsetX = 1;
-          ctx.shadowOffsetY = 1;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
 
-          // 上
-          if (key.up) {
-            const isActive = activeDirection === 'up';
-            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
-            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
-            ctx.fillText(key.up, x + keySize / 2, y + keySize * 0.15);
-          }
-
-          // 下
-          if (key.down) {
-            const isActive = activeDirection === 'down';
-            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
-            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
-            ctx.fillText(key.down, x + keySize / 2, y + keySize * 0.85);
-          }
-
-          // 左
+          // 左（left）
           if (key.left) {
             const isActive = activeDirection === 'left';
             ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
@@ -355,12 +339,28 @@ export function FaceFlickCanvas() {
             ctx.fillText(key.left, x + keySize * 0.15, y + keySize / 2);
           }
 
-          // 右
+          // 上（up）
+          if (key.up) {
+            const isActive = activeDirection === 'up';
+            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
+            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
+            ctx.fillText(key.up, x + keySize / 2, y + keySize * 0.15);
+          }
+
+          // 右（right）
           if (key.right) {
             const isActive = activeDirection === 'right';
             ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
             ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
             ctx.fillText(key.right, x + keySize * 0.85, y + keySize / 2);
+          }
+
+          // 下（down）
+          if (key.down) {
+            const isActive = activeDirection === 'down';
+            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
+            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
+            ctx.fillText(key.down, x + keySize / 2, y + keySize * 0.85);
           }
 
           ctx.font = '32px sans-serif';
