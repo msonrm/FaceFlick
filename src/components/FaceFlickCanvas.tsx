@@ -40,6 +40,7 @@ export function FaceFlickCanvas() {
     headRotation: { yaw: number; pitch: number };
   } | null>(null);
   const [showCalibration, setShowCalibration] = useState(false);
+  const [faceDisplayMode, setFaceDisplayMode] = useState<'none' | 'points' | 'mesh'>('points');
   const [calibrationSettings, setCalibrationSettings] = useState<CalibrationSettings>({
     yawRange: { min: -30, max: 30 },
     pitchRange: { min: -30, max: 30 },
@@ -94,8 +95,10 @@ export function FaceFlickCanvas() {
           // 入力ロジック
           processInput(faceState);
 
-          // 顔のランドマークを描画
-          drawFaceLandmarks(ctx, faceState.landmarks, canvas.width, canvas.height);
+          // 顔のランドマークを描画（モードに応じて）
+          if (faceDisplayMode !== 'none') {
+            drawFaceLandmarks(ctx, faceState.landmarks, canvas.width, canvas.height, result);
+          }
         }
       }
 
@@ -115,7 +118,7 @@ export function FaceFlickCanvas() {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [video, cameraReady, landmarkerReady, detectFace, inputState, inputText, calibrationSettings]);
+  }, [video, cameraReady, landmarkerReady, detectFace, inputState, inputText, calibrationSettings, faceDisplayMode]);
 
   function processInput(faceState: any) {
     const selectedKey = getSelectedKey(faceState, calibrationSettings);
@@ -181,15 +184,78 @@ export function FaceFlickCanvas() {
     ctx: CanvasRenderingContext2D,
     landmarks: any[],
     width: number,
+    height: number,
+    _result: any
+  ) {
+    if (faceDisplayMode === 'points') {
+      // ポイント表示
+      ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+      for (const landmark of landmarks) {
+        const x = width - landmark.x * width; // 反転
+        const y = landmark.y * height;
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    } else if (faceDisplayMode === 'mesh') {
+      // メッシュ表示（Max Headroom風ワイヤーフレーム）
+      drawFaceMesh(ctx, landmarks, width, height);
+    }
+  }
+
+  function drawFaceMesh(
+    ctx: CanvasRenderingContext2D,
+    landmarks: any[],
+    width: number,
     height: number
   ) {
-    ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
-    for (const landmark of landmarks) {
-      const x = width - landmark.x * width; // 反転
-      const y = landmark.y * height;
-      ctx.beginPath();
-      ctx.arc(x, y, 2, 0, 2 * Math.PI);
-      ctx.fill();
+    // MediaPipe Face Landmarkerの主要な接続線を定義
+    // 簡易版：顔の主要な特徴を線で結ぶ
+    const connections = [
+      // 顔の輪郭
+      [10, 338], [338, 297], [297, 332], [332, 284], [284, 251], [251, 389], [389, 356], [356, 454], [454, 323], [323, 361], [361, 288], [288, 397], [397, 365], [365, 379], [379, 378], [378, 400], [400, 377], [377, 152], [152, 148], [148, 176], [176, 149], [149, 150], [150, 136], [136, 172], [172, 58], [58, 132], [132, 93], [93, 234], [234, 127], [127, 162], [162, 21], [21, 54], [54, 103], [103, 67], [67, 109], [109, 10],
+
+      // 左目
+      [33, 7], [7, 163], [163, 144], [144, 145], [145, 153], [153, 154], [154, 155], [155, 133], [133, 173], [173, 157], [157, 158], [158, 159], [159, 160], [160, 161], [161, 246], [246, 33],
+
+      // 右目
+      [362, 382], [382, 381], [381, 380], [380, 374], [374, 373], [373, 390], [390, 249], [249, 263], [263, 466], [466, 388], [388, 387], [387, 386], [386, 385], [385, 384], [384, 398], [398, 362],
+
+      // 左眉
+      [70, 63], [63, 105], [105, 66], [66, 107], [107, 55], [55, 65], [65, 52], [52, 53], [53, 46],
+
+      // 右眉
+      [300, 293], [293, 334], [334, 296], [296, 336], [336, 285], [285, 295], [295, 282], [282, 283], [283, 276],
+
+      // 鼻
+      [1, 2], [2, 98], [98, 327], [327, 326], [326, 2], [2, 97], [97, 326],
+      [168, 6], [6, 197], [197, 195], [195, 5], [5, 4], [4, 1],
+
+      // 口の外側
+      [61, 146], [146, 91], [91, 181], [181, 84], [84, 17], [17, 314], [314, 405], [405, 321], [321, 375], [375, 291], [291, 409], [409, 270], [270, 269], [269, 267], [267, 0], [0, 37], [37, 39], [39, 40], [40, 185], [185, 61],
+
+      // 口の内側
+      [78, 95], [95, 88], [88, 178], [178, 87], [87, 14], [14, 317], [317, 402], [402, 318], [318, 324], [324, 308], [308, 415], [415, 310], [310, 311], [311, 312], [312, 13], [13, 82], [82, 81], [81, 80], [80, 191], [191, 78],
+    ];
+
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.6)';
+    ctx.lineWidth = 1;
+
+    for (const [start, end] of connections) {
+      if (start < landmarks.length && end < landmarks.length) {
+        const startLandmark = landmarks[start];
+        const endLandmark = landmarks[end];
+
+        const x1 = width - startLandmark.x * width; // 反転
+        const y1 = startLandmark.y * height;
+        const x2 = width - endLandmark.x * width; // 反転
+        const y2 = endLandmark.y * height;
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
     }
   }
 
@@ -454,31 +520,52 @@ export function FaceFlickCanvas() {
   return (
     <div className="relative w-full h-full">
       {/* ツールバー */}
-      <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 p-2 flex items-center justify-between z-10" style={{ height: '50px' }}>
-        {/* 録画ボタン（左） */}
-        <button
-          onClick={handleRecordToggle}
-          className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${
-            isRecording
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-blue-600 hover:bg-blue-700'
-          }`}
-        >
-          {isRecording ? '⏹' : '⏺'}
-        </button>
+      <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 p-2 flex items-center z-10" style={{ height: '50px' }}>
+        {/* 左側のボタン群 */}
+        <div className="flex gap-2">
+          {/* 録画ボタン */}
+          <button
+            onClick={handleRecordToggle}
+            className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${
+              isRecording
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {isRecording ? '⏹' : '⏺'}
+          </button>
+
+          {/* プライバシーボタン（サングラス） */}
+          <button
+            onClick={() => {
+              setFaceDisplayMode((prev) => {
+                if (prev === 'none') return 'points';
+                if (prev === 'points') return 'mesh';
+                return 'none';
+              });
+            }}
+            className="w-12 h-12 bg-gray-600 hover:bg-gray-700 rounded-full flex items-center justify-center text-2xl"
+            title={`顔表示: ${faceDisplayMode === 'none' ? '無加工' : faceDisplayMode === 'points' ? 'ポイント' : 'メッシュ'}`}
+          >
+            🕶️
+          </button>
+        </div>
 
         {/* タイトル（中央） */}
-        <div className="text-white text-lg font-bold">
+        <div className="flex-1 text-center text-white text-lg font-bold">
           Face Flick
         </div>
 
-        {/* キャリブレーションボタン（右） */}
-        <button
-          onClick={() => setShowCalibration(true)}
-          className="w-12 h-12 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center text-2xl"
-        >
-          ⚙️
-        </button>
+        {/* 右側のボタン群 */}
+        <div className="flex gap-2">
+          {/* キャリブレーションボタン */}
+          <button
+            onClick={() => setShowCalibration(true)}
+            className="w-12 h-12 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center text-2xl"
+          >
+            ⚙️
+          </button>
+        </div>
       </div>
 
       {/* Canvas */}
