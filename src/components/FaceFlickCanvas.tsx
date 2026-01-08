@@ -23,11 +23,13 @@ export function FaceFlickCanvas() {
 
   const [inputState, setInputState] = useState<InputState>({ type: 'idle' });
   const [inputText, setInputText] = useState('');
+  const [currentFaceState, setCurrentFaceState] = useState<any>(null);
   const [debugInfo, setDebugInfo] = useState<{
     ear: { left: number; right: number };
     mar: number;
     mouthPucker: number;
     triggerType: string;
+    headRotation: { yaw: number; pitch: number };
   } | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
@@ -58,12 +60,16 @@ export function FaceFlickCanvas() {
       if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
         const faceState = analyzeFace(result);
         if (faceState) {
+          // 現在の顔の状態を保存
+          setCurrentFaceState(faceState);
+
           // デバッグ情報を更新
           setDebugInfo({
             ear: faceState.ear,
             mar: faceState.mar,
             mouthPucker: faceState.mouthPucker,
             triggerType: faceState.triggerType || 'none',
+            headRotation: faceState.headRotation,
           });
 
           // 入力ロジック
@@ -176,6 +182,9 @@ export function FaceFlickCanvas() {
     const keyWidth = width / 3;
     const keyHeight = height / 4;
 
+    // 現在顔が向いているキーを取得
+    const currentKey = currentFaceState ? getSelectedKey(currentFaceState) : null;
+
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 2;
     ctx.font = '32px sans-serif';
@@ -190,18 +199,27 @@ export function FaceFlickCanvas() {
         // キーの枠を描画
         ctx.strokeRect(x, y, keyWidth, keyHeight);
 
-        // 選択状態の表示
+        // 顔が向いているキー（トリガーなし）
+        const isHovered = currentKey && currentKey.base === key.base;
+
+        // トリガーでホールド中のキー
         const isSelected =
           inputState.type !== 'idle' &&
           inputState.key.base === key.base;
 
+        // ハイライト表示
         if (isSelected) {
-          ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+          // トリガーでホールド中 = 強調表示（黄色）
+          ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
+          ctx.fillRect(x, y, keyWidth, keyHeight);
+        } else if (isHovered) {
+          // 顔が向いているだけ = 薄いハイライト（青）
+          ctx.fillStyle = 'rgba(100, 150, 255, 0.3)';
           ctx.fillRect(x, y, keyWidth, keyHeight);
         }
 
         // キーのテキストを描画
-        ctx.fillStyle = isSelected ? '#ffff00' : '#ffffff';
+        ctx.fillStyle = isSelected ? '#ffff00' : isHovered ? '#aaddff' : '#ffffff';
         ctx.fillText(key.base, x + keyWidth / 2, y + keyHeight / 2);
 
         // フリック方向を描画
@@ -241,13 +259,20 @@ export function FaceFlickCanvas() {
 
     // トリガー情報表示
     if (debugInfo) {
-      ctx.font = '16px monospace';
+      ctx.font = '14px monospace';
       const triggerText = getTriggerDisplayText(debugInfo.triggerType);
-      ctx.fillText(`トリガー: ${triggerText}`, 20, height - 50);
+      ctx.fillText(`トリガー: ${triggerText}`, 20, height - 60);
 
       // EAR/MAR値表示
       ctx.fillText(
         `EAR: L=${debugInfo.ear.left.toFixed(2)} R=${debugInfo.ear.right.toFixed(2)} | MAR: ${debugInfo.mar.toFixed(2)} | Pucker: ${debugInfo.mouthPucker.toFixed(2)}`,
+        20,
+        height - 45
+      );
+
+      // 頭の回転角度表示
+      ctx.fillText(
+        `頭の向き: Yaw=${debugInfo.headRotation.yaw.toFixed(1)}° Pitch=${debugInfo.headRotation.pitch.toFixed(1)}°`,
         20,
         height - 30
       );
