@@ -212,11 +212,16 @@ export function FaceFlickCanvas() {
   }
 
   function toggleCharacter(char: string): string {
+    // 「つ」の特殊なサイクル: つ→っ→づ→つ
+    if (char === 'つ') return 'っ';
+    if (char === 'っ') return 'づ';
+    if (char === 'づ') return 'つ';
+
     // 濁点変換マップ
     const dakutenMap: Record<string, string> = {
       'か': 'が', 'き': 'ぎ', 'く': 'ぐ', 'け': 'げ', 'こ': 'ご',
       'さ': 'ざ', 'し': 'じ', 'す': 'ず', 'せ': 'ぜ', 'そ': 'ぞ',
-      'た': 'だ', 'ち': 'ぢ', 'つ': 'づ', 'て': 'で', 'と': 'ど',
+      'た': 'だ', 'ち': 'ぢ', 'て': 'で', 'と': 'ど',
       'は': 'ば', 'ひ': 'び', 'ふ': 'ぶ', 'へ': 'べ', 'ほ': 'ぼ',
     };
 
@@ -228,7 +233,7 @@ export function FaceFlickCanvas() {
     // 小文字変換マップ
     const smallMap: Record<string, string> = {
       'あ': 'ぁ', 'い': 'ぃ', 'う': 'ぅ', 'え': 'ぇ', 'お': 'ぉ',
-      'つ': 'っ', 'や': 'ゃ', 'ゆ': 'ゅ', 'よ': 'ょ', 'わ': 'ゎ',
+      'や': 'ゃ', 'ゆ': 'ゅ', 'よ': 'ょ', 'わ': 'ゎ',
     };
 
     // 逆マップ（元に戻す）
@@ -380,18 +385,21 @@ export function FaceFlickCanvas() {
           ctx.fillRect(x, y, keySize, keySize);
         }
 
+        // フリック方向の判定（isSelectedの場合のみ）
+        const activeDirection = isSelected && inputState.type === 'flicking' ? inputState.direction : null;
+        const isCenterActive = isSelected && !activeDirection;
+
         // キーのテキストを描画（ドロップシャドウ付き）
         ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
         ctx.shadowBlur = 4;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = isCenterActive ? '#00ff00' : '#ffffff';
         ctx.fillText(key.base, x + keySize / 2, y + keySize / 2);
         ctx.shadowColor = 'transparent'; // シャドウをリセット
 
         // フリック方向を描画（キーホールド中のみ）
         if (isSelected) {
-          const activeDirection = inputState.type === 'flicking' ? inputState.direction : null;
 
           // ドロップシャドウを有効化
           ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
