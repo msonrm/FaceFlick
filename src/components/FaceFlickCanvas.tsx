@@ -41,6 +41,7 @@ export function FaceFlickCanvas() {
     headRotation: { yaw: number; pitch: number };
   } | null>(null);
   const [showCalibration, setShowCalibration] = useState(false);
+  const [showDebugInfo, setShowDebugInfo] = useState(true);
   const [faceDisplayMode, setFaceDisplayMode] = useState<'none' | 'points' | 'mesh'>('points');
   const [calibrationSettings, setCalibrationSettings] = useState<CalibrationSettings>({
     yawRange: { min: -30, max: 30 },
@@ -53,6 +54,8 @@ export function FaceFlickCanvas() {
   });
   const animationFrameRef = useRef<number | null>(null);
   const triggerStartTimeRef = useRef<number | null>(null);
+  const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; timestamp: number }>>([]);
+  const lastGestureTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (!canvasRef.current || !video || !cameraReady || !landmarkerReady) {
@@ -122,9 +125,96 @@ export function FaceFlickCanvas() {
     };
   }, [video, cameraReady, landmarkerReady, detectFace, inputState, inputText, calibrationSettings, faceDisplayMode]);
 
+  function detectGesture(
+    history: Array<{ yaw: number; pitch: number; timestamp: number }>
+  ): 'head_shake' | 'nod' | null {
+    // 最低0.5秒のデータが必要
+    if (history.length < 10) return null;
+
+    const timeSpan = history[history.length - 1].timestamp - history[0].timestamp;
+    if (timeSpan < 500) return null;
+
+    // ヘッドシェイク検出（左右に振る）
+    // yaw値の変化を見て、方向転換が2回以上あるかチェック
+    let yawDirectionChanges = 0;
+    let lastYawDirection: 'left' | 'right' | null = null;
+
+    for (let i = 1; i < history.length; i++) {
+      const yawDiff = history[i].yaw - history[i - 1].yaw;
+      if (Math.abs(yawDiff) > 3) { // 3度以上の変化
+        const currentDirection = yawDiff > 0 ? 'left' : 'right';
+        if (lastYawDirection && lastYawDirection !== currentDirection) {
+          yawDirectionChanges++;
+        }
+        lastYawDirection = currentDirection;
+      }
+    }
+
+    // 2回以上方向転換があればヘッドシェイク
+    if (yawDirectionChanges >= 2) {
+      return 'head_shake';
+    }
+
+    // ノッド検出（頷く）
+    // pitch値の変化を見て、下→上の動きがあるかチェック
+    let pitchDirectionChanges = 0;
+    let lastPitchDirection: 'down' | 'up' | null = null;
+    let maxPitchDown = -Infinity;
+
+    for (let i = 1; i < history.length; i++) {
+      const pitchDiff = history[i].pitch - history[i - 1].pitch;
+      if (Math.abs(pitchDiff) > 2) { // 2度以上の変化
+        const currentDirection = pitchDiff > 0 ? 'down' : 'up';
+        if (lastPitchDirection && lastPitchDirection !== currentDirection) {
+          pitchDirectionChanges++;
+        }
+        lastPitchDirection = currentDirection;
+        if (currentDirection === 'down') {
+          maxPitchDown = Math.max(maxPitchDown, history[i].pitch);
+        }
+      }
+    }
+
+    // 下→上の動きが少なくとも1回あり、十分な振り幅があればノッド
+    if (pitchDirectionChanges >= 1 && maxPitchDown > 5) {
+      return 'nod';
+    }
+
+    return null;
+  }
+
   function processInput(faceState: any) {
     const selectedKey = getSelectedKey(faceState, calibrationSettings);
     const HOLD_DELAY_MS = 800; // 0.8秒のホールド遅延
+
+    // 頭の回転履歴を更新（ジェスチャー検出用）
+    const now = Date.now();
+    headRotationHistoryRef.current.push({
+      yaw: faceState.headRotation.yaw,
+      pitch: faceState.headRotation.pitch,
+      timestamp: now,
+    });
+
+    // 1秒以上古い履歴を削除
+    headRotationHistoryRef.current = headRotationHistoryRef.current.filter(
+      (h) => now - h.timestamp < 1000
+    );
+
+    // ジェスチャー検出（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
+    if (inputState.type === 'idle' && now - lastGestureTimeRef.current > 1000) {
+      const gesture = detectGesture(headRotationHistoryRef.current);
+      if (gesture === 'head_shake') {
+        // バックスペース
+        setInputText((prev) => prev.slice(0, -1));
+        lastGestureTimeRef.current = now;
+        headRotationHistoryRef.current = []; // 履歴をクリア
+      } else if (gesture === 'nod') {
+        // 改行
+        setInputText((prev) => prev + '\n');
+        lastGestureTimeRef.current = now;
+        headRotationHistoryRef.current = []; // 履歴をクリア
+      }
+    }
 
     if (inputState.type === 'idle') {
       // トリガーがアクティブでキーが選択されている
@@ -365,7 +455,7 @@ export function FaceFlickCanvas() {
     // ツールバーの高さ
     const toolbarHeight = 50;
     // デバッグ情報エリアの高さ
-    const debugInfoHeight = 80;
+    const debugInfoHeight = showDebugInfo ? 80 : 0;
     // キーボードの開始位置
     const keyboardTop = toolbarHeight + debugInfoHeight;
     // キーを正方形にする（画面幅基準）
@@ -418,9 +508,16 @@ export function FaceFlickCanvas() {
         ctx.shadowBlur = 4;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
-        ctx.fillStyle = isCenterActive ? '#00ff00' : '#ffffff';
+        if (isCenterActive) {
+          ctx.font = '36px sans-serif'; // ホールド時は大きく
+          ctx.fillStyle = '#00ffff'; // シアン
+        } else {
+          ctx.font = '32px sans-serif';
+          ctx.fillStyle = '#ffffff';
+        }
         ctx.fillText(key.base, x + keySize / 2, y + keySize / 2);
         ctx.shadowColor = 'transparent'; // シャドウをリセット
+        ctx.font = '32px sans-serif'; // フォントをリセット
 
         // フリック方向を描画（キーホールド中のみ）
         if (isSelected) {
@@ -434,32 +531,32 @@ export function FaceFlickCanvas() {
           // 左（left）
           if (key.left) {
             const isActive = activeDirection === 'left';
-            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
-            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
+            ctx.font = isActive ? '28px sans-serif' : '14px sans-serif';
+            ctx.fillStyle = isActive ? '#00ffff' : 'rgba(255, 255, 255, 0.6)';
             ctx.fillText(key.left, x + keySize * 0.15, y + keySize / 2);
           }
 
           // 上（up）
           if (key.up) {
             const isActive = activeDirection === 'up';
-            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
-            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
+            ctx.font = isActive ? '28px sans-serif' : '14px sans-serif';
+            ctx.fillStyle = isActive ? '#00ffff' : 'rgba(255, 255, 255, 0.6)';
             ctx.fillText(key.up, x + keySize / 2, y + keySize * 0.15);
           }
 
           // 右（right）
           if (key.right) {
             const isActive = activeDirection === 'right';
-            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
-            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
+            ctx.font = isActive ? '28px sans-serif' : '14px sans-serif';
+            ctx.fillStyle = isActive ? '#00ffff' : 'rgba(255, 255, 255, 0.6)';
             ctx.fillText(key.right, x + keySize * 0.85, y + keySize / 2);
           }
 
           // 下（down）
           if (key.down) {
             const isActive = activeDirection === 'down';
-            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
-            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.6)';
+            ctx.font = isActive ? '28px sans-serif' : '14px sans-serif';
+            ctx.fillStyle = isActive ? '#00ffff' : 'rgba(255, 255, 255, 0.6)';
             ctx.fillText(key.down, x + keySize / 2, y + keySize * 0.85);
           }
 
@@ -477,7 +574,7 @@ export function FaceFlickCanvas() {
   ) {
     // レイアウト計算
     const toolbarHeight = 50;
-    const debugInfoHeight = 80; // デバッグ情報エリアの高さ
+    const debugInfoHeight = showDebugInfo ? 80 : 0; // デバッグ情報エリアの高さ
     const keySize = width / 3;
     const keyboardHeight = keySize * 4;
     const keyboardTop = toolbarHeight + debugInfoHeight;
@@ -485,7 +582,7 @@ export function FaceFlickCanvas() {
     const inputAreaHeight = height - inputAreaTop;
 
     // デバッグ情報エリアの背景（ツールバーの下、キーボードの上）
-    if (debugInfo) {
+    if (debugInfo && showDebugInfo) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
       ctx.fillRect(0, toolbarHeight, width, debugInfoHeight);
 
@@ -637,22 +734,30 @@ export function FaceFlickCanvas() {
   return (
     <div className="relative w-full h-full">
       {/* ツールバー */}
-      <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 p-2 flex items-center z-10" style={{ height: '50px' }}>
-        {/* 左側のボタン群 */}
+      <div className="absolute top-0 left-0 right-0 backdrop-blur-md bg-white/20 px-4 py-2 flex items-center justify-between z-10" style={{ height: '50px' }}>
+        {/* タイトル（左寄せ） */}
+        <div className="text-white text-lg font-semibold tracking-wide">
+          Face Flick
+        </div>
+
+        {/* 右側のボタン群 */}
         <div className="flex gap-2">
           {/* 録画ボタン */}
           <button
             onClick={handleRecordToggle}
-            className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
               isRecording
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-blue-600 hover:bg-blue-700'
+                ? 'bg-red-500/80 hover:bg-red-500 backdrop-blur-sm'
+                : 'bg-white/30 hover:bg-white/40 backdrop-blur-sm'
             }`}
+            title={isRecording ? '録画停止' : '録画開始'}
           >
-            {isRecording ? '⏹' : '⏺'}
+            <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>
+              {isRecording ? 'stop' : 'fiber_manual_record'}
+            </span>
           </button>
 
-          {/* プライバシーボタン（サングラス） */}
+          {/* プライバシーボタン */}
           <button
             onClick={() => {
               setFaceDisplayMode((prev) => {
@@ -661,26 +766,34 @@ export function FaceFlickCanvas() {
                 return 'none';
               });
             }}
-            className="w-12 h-12 bg-gray-600 hover:bg-gray-700 rounded-full flex items-center justify-center text-2xl"
-            title={`顔表示: ${faceDisplayMode === 'none' ? '無加工' : faceDisplayMode === 'points' ? 'ポイント' : 'メッシュ'}`}
+            className="w-10 h-10 bg-white/30 hover:bg-white/40 backdrop-blur-sm rounded-full flex items-center justify-center transition-all"
+            title={`顔表示: ${faceDisplayMode === 'none' ? '非表示' : faceDisplayMode === 'points' ? 'ポイント' : 'メッシュ'}`}
           >
-            🕶️
+            <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>
+              {faceDisplayMode === 'none' ? 'visibility_off' : faceDisplayMode === 'points' ? 'blur_on' : 'grid_on'}
+            </span>
           </button>
-        </div>
 
-        {/* タイトル（中央） */}
-        <div className="flex-1 text-center text-white text-lg font-bold">
-          Face Flick
-        </div>
+          {/* デバッグ情報トグルボタン */}
+          <button
+            onClick={() => setShowDebugInfo((prev) => !prev)}
+            className="w-10 h-10 bg-white/30 hover:bg-white/40 backdrop-blur-sm rounded-full flex items-center justify-center transition-all"
+            title={showDebugInfo ? 'デバッグ情報を非表示' : 'デバッグ情報を表示'}
+          >
+            <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>
+              {showDebugInfo ? 'bug_report' : 'code_off'}
+            </span>
+          </button>
 
-        {/* 右側のボタン群 */}
-        <div className="flex gap-2">
           {/* キャリブレーションボタン */}
           <button
             onClick={() => setShowCalibration(true)}
-            className="w-12 h-12 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center text-2xl"
+            className="w-10 h-10 bg-white/30 hover:bg-white/40 backdrop-blur-sm rounded-full flex items-center justify-center transition-all"
+            title="設定"
           >
-            ⚙️
+            <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>
+              settings
+            </span>
           </button>
         </div>
       </div>
