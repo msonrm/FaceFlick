@@ -63,9 +63,10 @@ export function FaceFlickCanvas() {
     function animate(timestamp: number) {
       if (!ctx || !canvas || !video) return;
 
-      // キャンバスサイズを設定
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      // キャンバスサイズをビューポートサイズに合わせる
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
 
       // ビデオを描画（反転）
       ctx.save();
@@ -202,8 +203,10 @@ export function FaceFlickCanvas() {
     // キーを正方形にする（画面幅基準）
     const keySize = width / 3;
 
-    // 現在顔が向いているキーを取得
-    const currentKey = currentFaceState ? getSelectedKey(currentFaceState, calibrationSettings) : null;
+    // 現在顔が向いているキーを取得（idle状態のみ）
+    const currentKey = (inputState.type === 'idle' && currentFaceState)
+      ? getSelectedKey(currentFaceState, calibrationSettings)
+      : null;
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 2;
