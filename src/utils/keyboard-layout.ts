@@ -14,11 +14,11 @@ export const KEYBOARD_LAYOUT: KeyboardLayout = {
     ],
     [
       { base: 'ま', left: 'み', up: 'む', right: 'め', down: 'も' },
-      { base: 'や', left: '', up: 'ゆ', right: '', down: 'よ' },
+      { base: 'や', left: '（', up: 'ゆ', right: '）', down: 'よ' },
       { base: 'ら', left: 'り', up: 'る', right: 'れ', down: 'ろ' },
     ],
     [
-      { base: '゛', left: '', up: '゜', right: '', down: '小' },
+      { base: '゛゜小', left: '', up: '', right: '', down: '' },
       { base: 'わ', left: 'を', up: 'ん', right: 'ー', down: '〜' },
       { base: '、', left: '。', up: '？', right: '！', down: '…' },
     ],

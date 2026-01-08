@@ -197,9 +197,77 @@ export function FaceFlickCanvas() {
   function addCharacter(char: string) {
     if (char === '⌫') {
       setInputText((prev) => prev.slice(0, -1));
+    } else if (char === '゛゜小') {
+      // 直前の文字を濁点・半濁点・小文字・通常文字でトグル
+      setInputText((prev) => {
+        if (prev.length === 0) return prev;
+        const lastChar = prev[prev.length - 1];
+        const restText = prev.slice(0, -1);
+        const newChar = toggleCharacter(lastChar);
+        return restText + newChar;
+      });
     } else if (char) {
       setInputText((prev) => prev + char);
     }
+  }
+
+  function toggleCharacter(char: string): string {
+    // 濁点変換マップ
+    const dakutenMap: Record<string, string> = {
+      'か': 'が', 'き': 'ぎ', 'く': 'ぐ', 'け': 'げ', 'こ': 'ご',
+      'さ': 'ざ', 'し': 'じ', 'す': 'ず', 'せ': 'ぜ', 'そ': 'ぞ',
+      'た': 'だ', 'ち': 'ぢ', 'つ': 'づ', 'て': 'で', 'と': 'ど',
+      'は': 'ば', 'ひ': 'び', 'ふ': 'ぶ', 'へ': 'べ', 'ほ': 'ぼ',
+    };
+
+    // 半濁点変換マップ（は行のみ）
+    const handakutenMap: Record<string, string> = {
+      'ば': 'ぱ', 'び': 'ぴ', 'ぶ': 'ぷ', 'べ': 'ぺ', 'ぼ': 'ぽ',
+    };
+
+    // 小文字変換マップ
+    const smallMap: Record<string, string> = {
+      'あ': 'ぁ', 'い': 'ぃ', 'う': 'ぅ', 'え': 'ぇ', 'お': 'ぉ',
+      'つ': 'っ', 'や': 'ゃ', 'ゆ': 'ゅ', 'よ': 'ょ', 'わ': 'ゎ',
+    };
+
+    // 逆マップ（元に戻す）
+    const reverseDakuten: Record<string, string> = Object.fromEntries(
+      Object.entries(dakutenMap).map(([k, v]) => [v, k])
+    );
+    const reverseHandakuten: Record<string, string> = Object.fromEntries(
+      Object.entries(handakutenMap).map(([k, v]) => [v, k])
+    );
+    const reverseSmall: Record<string, string> = Object.fromEntries(
+      Object.entries(smallMap).map(([k, v]) => [v, k])
+    );
+
+    // は行の濁点→半濁点→通常のサイクル
+    if (handakutenMap[char]) {
+      return handakutenMap[char];
+    }
+    if (reverseHandakuten[char]) {
+      return reverseDakuten[reverseHandakuten[char]] || char;
+    }
+
+    // 濁点のサイクル（通常→濁点→通常）
+    if (dakutenMap[char]) {
+      return dakutenMap[char];
+    }
+    if (reverseDakuten[char]) {
+      return reverseDakuten[char];
+    }
+
+    // 小文字のサイクル（通常→小文字→通常）
+    if (smallMap[char]) {
+      return smallMap[char];
+    }
+    if (reverseSmall[char]) {
+      return reverseSmall[char];
+    }
+
+    // 変換できない文字はそのまま
+    return char;
   }
 
   function drawFaceLandmarks(
