@@ -197,15 +197,13 @@ export function FaceFlickCanvas() {
     width: number,
     height: number
   ) {
-    // ツールバーの高さ
-    const toolbarHeight = 60;
+    // ツールバーの高さ（縮小）
+    const toolbarHeight = 50;
+    // キーを正方形にする（画面幅基準）
+    const keySize = width / 3;
+    const keyboardHeight = keySize * 4;
     // デバッグ情報エリアの高さ
-    const debugHeight = 140;
-    // キーボードエリアの高さ
-    const keyboardAreaHeight = height - toolbarHeight - debugHeight;
-
-    const keyWidth = width / 3;
-    const keyHeight = keyboardAreaHeight / 4;
+    const debugHeight = height - toolbarHeight - keyboardHeight;
 
     // 現在顔が向いているキーを取得
     const currentKey = currentFaceState ? getSelectedKey(currentFaceState, calibrationSettings) : null;
@@ -218,50 +216,73 @@ export function FaceFlickCanvas() {
 
     KEYBOARD_LAYOUT.rows.forEach((row, rowIndex) => {
       row.forEach((key, colIndex) => {
-        const x = colIndex * keyWidth;
-        const y = toolbarHeight + rowIndex * keyHeight;
+        const x = colIndex * keySize;
+        const y = toolbarHeight + rowIndex * keySize;
 
         // キーの枠を描画
-        ctx.strokeRect(x, y, keyWidth, keyHeight);
-
-        // 顔が向いているキー（トリガーなし）
-        const isHovered = currentKey && currentKey.base === key.base;
+        ctx.strokeRect(x, y, keySize, keySize);
 
         // トリガーでホールド中のキー
         const isSelected =
           inputState.type !== 'idle' &&
           inputState.key.base === key.base;
 
+        // 顔が向いているキー（トリガーなし時のみ）
+        const isHovered = !isSelected && inputState.type === 'idle' && currentKey && currentKey.base === key.base;
+
         // ハイライト表示
         if (isSelected) {
           // トリガーでホールド中 = 強調表示（黄色）
           ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
-          ctx.fillRect(x, y, keyWidth, keyHeight);
+          ctx.fillRect(x, y, keySize, keySize);
         } else if (isHovered) {
           // 顔が向いているだけ = 薄いハイライト（青）
           ctx.fillStyle = 'rgba(100, 150, 255, 0.3)';
-          ctx.fillRect(x, y, keyWidth, keyHeight);
+          ctx.fillRect(x, y, keySize, keySize);
         }
 
         // キーのテキストを描画
         ctx.fillStyle = isSelected ? '#ffff00' : isHovered ? '#aaddff' : '#ffffff';
-        ctx.fillText(key.base, x + keyWidth / 2, y + keyHeight / 2);
+        ctx.fillText(key.base, x + keySize / 2, y + keySize / 2);
 
-        // フリック方向を描画
-        ctx.font = '16px sans-serif';
-        if (key.up) {
-          ctx.fillText(key.up, x + keyWidth / 2, y + 20);
+        // フリック方向を描画（キーホールド中のみ）
+        if (isSelected) {
+          const activeDirection = inputState.type === 'flicking' ? inputState.direction : null;
+
+          // 上
+          if (key.up) {
+            const isActive = activeDirection === 'up';
+            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
+            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.5)';
+            ctx.fillText(key.up, x + keySize / 2, y + keySize * 0.15);
+          }
+
+          // 下
+          if (key.down) {
+            const isActive = activeDirection === 'down';
+            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
+            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.5)';
+            ctx.fillText(key.down, x + keySize / 2, y + keySize * 0.85);
+          }
+
+          // 左
+          if (key.left) {
+            const isActive = activeDirection === 'left';
+            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
+            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.5)';
+            ctx.fillText(key.left, x + keySize * 0.15, y + keySize / 2);
+          }
+
+          // 右
+          if (key.right) {
+            const isActive = activeDirection === 'right';
+            ctx.font = isActive ? '24px sans-serif' : '14px sans-serif';
+            ctx.fillStyle = isActive ? '#00ff00' : 'rgba(255, 255, 255, 0.5)';
+            ctx.fillText(key.right, x + keySize * 0.85, y + keySize / 2);
+          }
+
+          ctx.font = '32px sans-serif';
         }
-        if (key.down) {
-          ctx.fillText(key.down, x + keyWidth / 2, y + keyHeight - 20);
-        }
-        if (key.left) {
-          ctx.fillText(key.left, x + 20, y + keyHeight / 2);
-        }
-        if (key.right) {
-          ctx.fillText(key.right, x + keyWidth - 20, y + keyHeight / 2);
-        }
-        ctx.font = '32px sans-serif';
       });
     });
   }
@@ -271,63 +292,99 @@ export function FaceFlickCanvas() {
     width: number,
     height: number
   ) {
-    // 入力テキストエリア（拡大）
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, height - 140, width, 140);
+    // レイアウト計算
+    const toolbarHeight = 50;
+    const keySize = width / 3;
+    const keyboardHeight = keySize * 4;
+    const debugAreaHeight = height - toolbarHeight - keyboardHeight;
+    const debugAreaTop = toolbarHeight + keyboardHeight;
 
-    // 入力テキスト
+    // デバッグ/入力エリアの背景
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, debugAreaTop, width, debugAreaHeight);
+
+    // 入力テキスト（複数行対応）
     ctx.fillStyle = '#ffffff';
-    ctx.font = '32px sans-serif';
+    ctx.font = '24px sans-serif';
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(inputText, 20, height - 100);
+    ctx.textBaseline = 'top';
+
+    // テキストを折り返して描画
+    const lineHeight = 30;
+    const maxWidth = width - 40;
+    const lines: string[] = [];
+    let currentLine = '';
+
+    for (let i = 0; i < inputText.length; i++) {
+      const testLine = currentLine + inputText[i];
+      const metrics = ctx.measureText(testLine);
+
+      if (metrics.width > maxWidth && currentLine.length > 0) {
+        lines.push(currentLine);
+        currentLine = inputText[i];
+      } else {
+        currentLine = testLine;
+      }
+    }
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+
+    // 最大3行まで表示
+    const displayLines = lines.slice(-3);
+    let textY = debugAreaTop + 10;
+    displayLines.forEach((line) => {
+      ctx.fillText(line, 20, textY);
+      textY += lineHeight;
+    });
 
     // 入力状態表示
+    const statusY = debugAreaTop + debugAreaHeight - 75;
     if (inputState.type === 'selecting') {
       ctx.fillStyle = '#ffff00';
-      ctx.font = '20px sans-serif';
-      ctx.fillText('選択中...', 20, height - 120);
+      ctx.font = '16px sans-serif';
+      ctx.fillText('選択中...', 20, statusY);
     } else if (inputState.type === 'flicking') {
       ctx.fillStyle = '#00ff00';
-      ctx.font = '20px sans-serif';
+      ctx.font = '16px sans-serif';
       const directionText = getDirectionDisplayText(inputState.direction);
-      ctx.fillText(`フリック: ${directionText}`, 20, height - 120);
+      ctx.fillText(`フリック: ${directionText}`, 20, statusY);
     }
 
     // デバッグ情報表示（複数行に分割）
     if (debugInfo) {
       ctx.fillStyle = '#ffffff';
-      ctx.font = '12px monospace';
+      ctx.font = '11px monospace';
 
       const triggerText = getTriggerDisplayText(debugInfo.triggerType);
-      ctx.fillText(`トリガー: ${triggerText}`, 20, height - 70);
+      ctx.fillText(`トリガー: ${triggerText}`, 20, debugAreaTop + debugAreaHeight - 55);
 
       // EAR値
       ctx.fillText(
         `EAR: L=${debugInfo.ear.left.toFixed(2)} R=${debugInfo.ear.right.toFixed(2)}`,
         20,
-        height - 55
+        debugAreaTop + debugAreaHeight - 40
       );
 
       // MAR/Pucker値
       ctx.fillText(
         `MAR: ${debugInfo.mar.toFixed(2)} Pucker: ${debugInfo.mouthPucker.toFixed(2)}`,
         width / 2,
-        height - 55
+        debugAreaTop + debugAreaHeight - 40
       );
 
       // 頭の向き
       ctx.fillText(
         `Yaw: ${debugInfo.headRotation.yaw.toFixed(1)}° Pitch: ${debugInfo.headRotation.pitch.toFixed(1)}°`,
         20,
-        height - 40
+        debugAreaTop + debugAreaHeight - 25
       );
 
-      // グリッド感度の参考値
+      // キャリブレーション情報
       ctx.fillText(
-        `[グリッド閾値: ±15° フリック閾値: ±20°]`,
+        `[相対範囲: Yaw 3分割, Pitch 4分割]`,
         20,
-        height - 25
+        debugAreaTop + debugAreaHeight - 10
       );
     }
   }
@@ -397,27 +454,31 @@ export function FaceFlickCanvas() {
   return (
     <div className="relative w-full h-full">
       {/* ツールバー */}
-      <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 p-3 flex gap-3 z-10">
-        <button
-          onClick={() => setShowCalibration(true)}
-          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded font-bold text-white"
-        >
-          ⚙️ キャリブレーション
-        </button>
+      <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 p-2 flex items-center justify-between z-10" style={{ height: '50px' }}>
+        {/* 録画ボタン（左） */}
         <button
           onClick={handleRecordToggle}
-          className={`px-4 py-2 rounded font-bold text-white ${
+          className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${
             isRecording
               ? 'bg-red-600 hover:bg-red-700'
               : 'bg-blue-600 hover:bg-blue-700'
           }`}
         >
-          {isRecording ? '⏹ 録画停止' : '⏺ 録画開始'}
+          {isRecording ? '⏹' : '⏺'}
         </button>
-        <div className="flex-1"></div>
-        <div className="text-white text-sm self-center">
-          FaceFlick - 顔ジェスチャー入力
+
+        {/* タイトル（中央） */}
+        <div className="text-white text-lg font-bold">
+          Face Flick
         </div>
+
+        {/* キャリブレーションボタン（右） */}
+        <button
+          onClick={() => setShowCalibration(true)}
+          className="w-12 h-12 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center text-2xl"
+        >
+          ⚙️
+        </button>
       </div>
 
       {/* Canvas */}
