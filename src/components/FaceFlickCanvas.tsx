@@ -195,15 +195,12 @@ export function FaceFlickCanvas() {
   function drawKeyboard(
     ctx: CanvasRenderingContext2D,
     width: number,
-    height: number
+    _height: number
   ) {
     // ツールバーの高さ（縮小）
     const toolbarHeight = 50;
     // キーを正方形にする（画面幅基準）
     const keySize = width / 3;
-    const keyboardHeight = keySize * 4;
-    // デバッグ情報エリアの高さ
-    const debugHeight = height - toolbarHeight - keyboardHeight;
 
     // 現在顔が向いているキーを取得
     const currentKey = currentFaceState ? getSelectedKey(currentFaceState, calibrationSettings) : null;
