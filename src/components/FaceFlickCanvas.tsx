@@ -43,6 +43,7 @@ export function FaceFlickCanvas() {
   const [showCalibration, setShowCalibration] = useState(false);
   const [showDebugInfo, setShowDebugInfo] = useState(true);
   const [faceDisplayMode, setFaceDisplayMode] = useState<'none' | 'points' | 'mesh'>('points');
+  const [gestureFeedback, setGestureFeedback] = useState<{ type: 'backspace' | 'newline'; timestamp: number } | null>(null);
   const [calibrationSettings, setCalibrationSettings] = useState<CalibrationSettings>({
     yawRange: { min: -30, max: 30 },
     pitchRange: { min: -30, max: 30 },
@@ -56,6 +57,17 @@ export function FaceFlickCanvas() {
   const triggerStartTimeRef = useRef<number | null>(null);
   const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; timestamp: number }>>([]);
   const lastGestureTimeRef = useRef<number>(0);
+
+  // ジェスチャーフィードバックを自動消去
+  useEffect(() => {
+    if (gestureFeedback) {
+      const timer = setTimeout(() => {
+        setGestureFeedback(null);
+      }, 1000); // 1秒後に消去
+
+      return () => clearTimeout(timer);
+    }
+  }, [gestureFeedback]);
 
   useEffect(() => {
     if (!canvasRef.current || !video || !cameraReady || !landmarkerReady) {
@@ -206,11 +218,13 @@ export function FaceFlickCanvas() {
       if (gesture === 'head_shake') {
         // バックスペース
         setInputText((prev) => prev.slice(0, -1));
+        setGestureFeedback({ type: 'backspace', timestamp: now });
         lastGestureTimeRef.current = now;
         headRotationHistoryRef.current = []; // 履歴をクリア
       } else if (gesture === 'nod') {
         // 改行
         setInputText((prev) => prev + '\n');
+        setGestureFeedback({ type: 'newline', timestamp: now });
         lastGestureTimeRef.current = now;
         headRotationHistoryRef.current = []; // 履歴をクリア
       }
@@ -627,26 +641,35 @@ export function FaceFlickCanvas() {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
-    // テキストを折り返して描画
+    // テキストを折り返して描画（改行対応）
     const lineHeight = 30;
     const maxWidth = width - 40;
     const lines: string[] = [];
-    let currentLine = '';
 
-    for (let i = 0; i < inputText.length; i++) {
-      const testLine = currentLine + inputText[i];
-      const metrics = ctx.measureText(testLine);
+    // まず改行で分割
+    const paragraphs = inputText.split('\n');
 
-      if (metrics.width > maxWidth && currentLine.length > 0) {
-        lines.push(currentLine);
-        currentLine = inputText[i];
-      } else {
-        currentLine = testLine;
+    // 各段落を折り返し処理
+    paragraphs.forEach((paragraph, paragraphIndex) => {
+      let currentLine = '';
+
+      for (let i = 0; i < paragraph.length; i++) {
+        const testLine = currentLine + paragraph[i];
+        const metrics = ctx.measureText(testLine);
+
+        if (metrics.width > maxWidth && currentLine.length > 0) {
+          lines.push(currentLine);
+          currentLine = paragraph[i];
+        } else {
+          currentLine = testLine;
+        }
       }
-    }
-    if (currentLine) {
-      lines.push(currentLine);
-    }
+
+      // 段落の終わりに現在の行を追加
+      if (currentLine || paragraphIndex < paragraphs.length - 1) {
+        lines.push(currentLine);
+      }
+    });
 
     // 最大3行まで表示
     const displayLines = lines.slice(-3);
@@ -666,6 +689,26 @@ export function FaceFlickCanvas() {
       ctx.font = '16px sans-serif';
       const directionText = getDirectionDisplayText(inputState.direction);
       ctx.fillText(`フリック: ${directionText}`, 20, inputAreaTop + inputAreaHeight - 30);
+    }
+
+    // ジェスチャーフィードバック表示（画面中央）
+    if (gestureFeedback) {
+      const feedbackAge = Date.now() - gestureFeedback.timestamp;
+      const opacity = Math.max(0, 1 - feedbackAge / 1000); // 1秒かけてフェードアウト
+
+      ctx.save();
+      ctx.fillStyle = `rgba(0, 255, 255, ${opacity})`;
+      ctx.font = 'bold 48px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = `rgba(0, 0, 0, ${opacity * 0.8})`;
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      const text = gestureFeedback.type === 'backspace' ? '⌫ 削除' : '↵ 改行';
+      ctx.fillText(text, width / 2, height / 2);
+      ctx.restore();
     }
   }
 
@@ -734,7 +777,7 @@ export function FaceFlickCanvas() {
   return (
     <div className="relative w-full h-full">
       {/* ツールバー */}
-      <div className="absolute top-0 left-0 right-0 backdrop-blur-md bg-white/20 px-4 py-2 flex items-center justify-between z-10" style={{ height: '50px' }}>
+      <div className="absolute top-0 left-0 right-0 backdrop-blur-md bg-black/60 px-4 py-2 flex items-center justify-between z-10" style={{ height: '50px' }}>
         {/* タイトル（左寄せ） */}
         <div className="text-white text-lg font-semibold tracking-wide">
           Face Flick

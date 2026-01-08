@@ -79,7 +79,7 @@ export function CalibrationModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
       <div className="bg-gray-800 text-white p-6 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold mb-4">キャリブレーション設定</h2>
+        <h2 className="text-2xl font-bold mb-4">Face Flick設定</h2>
 
         {/* 現在の値表示 */}
         {currentValues && (
@@ -249,55 +249,6 @@ export function CalibrationModal({
                   setLocalSettings({
                     ...localSettings,
                     earThreshold: parseFloat(e.target.value),
-                  })
-                }
-                className="w-full"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* 感度設定 */}
-        <div className="mb-6">
-          <h3 className="font-bold mb-2">感度設定</h3>
-
-          <div className="space-y-3">
-            {/* グリッド感度 */}
-            <div>
-              <label className="block text-sm mb-1">
-                グリッド感度: ±{localSettings.gridSensitivity.toFixed(0)}°
-              </label>
-              <input
-                type="range"
-                min="5"
-                max="30"
-                step="1"
-                value={localSettings.gridSensitivity}
-                onChange={(e) =>
-                  setLocalSettings({
-                    ...localSettings,
-                    gridSensitivity: parseFloat(e.target.value),
-                  })
-                }
-                className="w-full"
-              />
-            </div>
-
-            {/* フリック感度 */}
-            <div>
-              <label className="block text-sm mb-1">
-                フリック感度: ±{localSettings.flickSensitivity.toFixed(0)}°
-              </label>
-              <input
-                type="range"
-                min="10"
-                max="40"
-                step="1"
-                value={localSettings.flickSensitivity}
-                onChange={(e) =>
-                  setLocalSettings({
-                    ...localSettings,
-                    flickSensitivity: parseFloat(e.target.value),
                   })
                 }
                 className="w-full"
