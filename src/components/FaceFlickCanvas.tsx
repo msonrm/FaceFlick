@@ -130,6 +130,10 @@ export function FaceFlickCanvas() {
           type: 'selecting',
           key: selectedKey,
           triggerType: faceState.triggerType,
+          holdPosition: {
+            yaw: faceState.headRotation.yaw,
+            pitch: faceState.headRotation.pitch,
+          },
         });
       }
     } else if (inputState.type === 'selecting') {
@@ -139,14 +143,15 @@ export function FaceFlickCanvas() {
         addCharacter(char);
         setInputState({ type: 'idle' });
       } else {
-        // トリガーを維持したまま = フリック判定
-        const direction = getFlickDirection(faceState, calibrationSettings);
+        // トリガーを維持したまま = フリック判定（ホールド位置を基準に）
+        const direction = getFlickDirection(faceState, inputState.holdPosition, calibrationSettings);
         if (direction) {
           setInputState({
             type: 'flicking',
             key: inputState.key,
             direction,
             triggerType: inputState.triggerType,
+            holdPosition: inputState.holdPosition,
           });
         }
       }
@@ -157,15 +162,16 @@ export function FaceFlickCanvas() {
         addCharacter(char);
         setInputState({ type: 'idle' });
       }
-      // フリック中に方向が変わったら更新
+      // フリック中に方向が変わったら更新（ホールド位置を基準に）
       else {
-        const direction = getFlickDirection(faceState, calibrationSettings);
+        const direction = getFlickDirection(faceState, inputState.holdPosition, calibrationSettings);
         if (direction && direction !== inputState.direction) {
           setInputState({
             type: 'flicking',
             key: inputState.key,
             direction,
             triggerType: inputState.triggerType,
+            holdPosition: inputState.holdPosition,
           });
         }
       }
