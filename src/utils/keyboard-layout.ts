@@ -3,24 +3,24 @@ import { KeyboardLayout } from '../types';
 export const KEYBOARD_LAYOUT: KeyboardLayout = {
   rows: [
     [
-      { base: 'あ', up: 'い', down: 'う', left: 'え', right: 'お' },
-      { base: 'か', up: 'き', down: 'く', left: 'け', right: 'こ' },
-      { base: 'さ', up: 'し', down: 'す', left: 'せ', right: 'そ' },
+      { base: 'あ', left: 'い', up: 'う', right: 'え', down: 'お' },
+      { base: 'か', left: 'き', up: 'く', right: 'け', down: 'こ' },
+      { base: 'さ', left: 'し', up: 'す', right: 'せ', down: 'そ' },
     ],
     [
-      { base: 'た', up: 'ち', down: 'つ', left: 'て', right: 'と' },
-      { base: 'な', up: 'に', down: 'ぬ', left: 'ね', right: 'の' },
-      { base: 'は', up: 'ひ', down: 'ふ', left: 'へ', right: 'ほ' },
+      { base: 'た', left: 'ち', up: 'つ', right: 'て', down: 'と' },
+      { base: 'な', left: 'に', up: 'ぬ', right: 'ね', down: 'の' },
+      { base: 'は', left: 'ひ', up: 'ふ', right: 'へ', down: 'ほ' },
     ],
     [
-      { base: 'ま', up: 'み', down: 'む', left: 'め', right: 'も' },
-      { base: 'や', up: '', down: 'ゆ', left: '', right: 'よ' },
-      { base: 'ら', up: 'り', down: 'る', left: 'れ', right: 'ろ' },
+      { base: 'ま', left: 'み', up: 'む', right: 'め', down: 'も' },
+      { base: 'や', left: '', up: 'ゆ', right: '', down: 'よ' },
+      { base: 'ら', left: 'り', up: 'る', right: 'れ', down: 'ろ' },
     ],
     [
-      { base: '゛', up: '゜', down: '小', left: '', right: '' },
-      { base: 'わ', up: 'を', down: 'ん', left: 'ー', right: '〜' },
-      { base: '⌫', up: '', down: '', left: '', right: '' },
+      { base: '゛', left: '', up: '゜', right: '', down: '小' },
+      { base: 'わ', left: 'を', up: 'ん', right: 'ー', down: '〜' },
+      { base: '、', left: '。', up: '？', right: '！', down: '…' },
     ],
   ],
 };
