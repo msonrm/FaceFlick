@@ -55,10 +55,11 @@ export function FaceFlickCanvas() {
   });
   const animationFrameRef = useRef<number | null>(null);
   const triggerStartTimeRef = useRef<number | null>(null);
-  const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; timestamp: number }>>([]);
+  const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>>([]);
   const lastGestureTimeRef = useRef<number>(0);
   const bothEyesClosedStartTimeRef = useRef<number | null>(null);
   const headTiltStartTimeRef = useRef<number | null>(null);
+  const headTiltBaseRollRef = useRef<number | null>(null);
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -140,7 +141,7 @@ export function FaceFlickCanvas() {
   }, [video, cameraReady, landmarkerReady, detectFace, inputState, inputText, calibrationSettings, faceDisplayMode]);
 
   function detectGesture(
-    history: Array<{ yaw: number; pitch: number; timestamp: number }>
+    history: Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>
   ): 'head_shake' | 'nod' | null {
     // 最低0.5秒のデータが必要
     if (history.length < 10) return null;
@@ -206,6 +207,7 @@ export function FaceFlickCanvas() {
     headRotationHistoryRef.current.push({
       yaw: faceState.headRotation.yaw,
       pitch: faceState.headRotation.pitch,
+      roll: faceState.headRotation.roll,
       timestamp: now,
     });
 
@@ -232,8 +234,20 @@ export function FaceFlickCanvas() {
       bothEyesClosedStartTimeRef.current = null;
     }
 
-    // 首かしげジェスチャー検出（1.5秒保持でコピー&発声&クリア）
-    const isHeadTilted = Math.abs(faceState.headRotation.roll) > 20; // 20度以上傾いている
+    // 首かしげジェスチャー検出（相対値、1.5秒保持でコピー&発声&クリア）
+    // 基準roll値を設定（履歴がある程度溜まってから）
+    if (headRotationHistoryRef.current.length > 5 && headTiltBaseRollRef.current === null) {
+      const recentRolls = headRotationHistoryRef.current.slice(-5);
+      const avgRoll = recentRolls.reduce((sum, h) => sum + h.roll, 0) / recentRolls.length;
+      headTiltBaseRollRef.current = avgRoll;
+    }
+
+    // 基準値からの相対的な傾きを計算
+    const rollDiff = headTiltBaseRollRef.current !== null
+      ? Math.abs(faceState.headRotation.roll - headTiltBaseRollRef.current)
+      : 0;
+    const isHeadTilted = rollDiff > 20; // 基準位置から20度以上傾いている
+
     if (isHeadTilted) {
       if (headTiltStartTimeRef.current === null) {
         headTiltStartTimeRef.current = now;
@@ -247,10 +261,18 @@ export function FaceFlickCanvas() {
           setGestureFeedback({ type: 'copy_speak_clear' as any, timestamp: now });
           lastGestureTimeRef.current = now;
           headTiltStartTimeRef.current = null;
+          // 基準値もリセット
+          headTiltBaseRollRef.current = null;
         }
       }
     } else {
       headTiltStartTimeRef.current = null;
+      // 基準値を更新（通常姿勢に戻ったとき）
+      if (headRotationHistoryRef.current.length > 10) {
+        const recentRolls = headRotationHistoryRef.current.slice(-10);
+        const avgRoll = recentRolls.reduce((sum, h) => sum + h.roll, 0) / recentRolls.length;
+        headTiltBaseRollRef.current = avgRoll;
+      }
     }
 
     // ジェスチャー検出（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
@@ -454,57 +476,86 @@ export function FaceFlickCanvas() {
     width: number,
     height: number
   ) {
-    // MediaPipe公式のFACE_LANDMARKS_TESSELATIONデータを使用
-    const connections = FaceLandmarker.FACE_LANDMARKS_TESSELATION;
+    // アンドルフ風ローポリゴンメッシュ
+    // 主要な顔のランドマーク
+    const noseTip = 1;
+    const leftEye = 33;
+    const rightEye = 263;
+    const leftMouth = 61;
+    const rightMouth = 291;
+    const topHead = 10;
+    const chin = 152;
+    const leftCheek = 234;
+    const rightCheek = 454;
+    const leftEyeOuter = 33;
+    const rightEyeOuter = 263;
+    const leftEyeInner = 133;
+    const rightEyeInner = 362;
+    const upperLip = 13;
+    const lowerLip = 14;
 
-    // まず顔全体を半透明の緑で覆う（プライバシー保護）
-    // 顔の輪郭ポイントを使用（MediaPipe Face Meshの顔輪郭インデックス）
-    const faceOvalIndices = [
-      10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109
+    // ポリゴン定義（三角形の頂点インデックス）
+    const polygons = [
+      // 顔の上部
+      [topHead, leftEye, noseTip],
+      [topHead, rightEye, noseTip],
+      [topHead, leftEye, leftCheek],
+      [topHead, rightEye, rightCheek],
+
+      // 顔の中部
+      [leftEye, noseTip, leftMouth],
+      [rightEye, noseTip, rightMouth],
+      [leftCheek, leftEye, leftMouth],
+      [rightCheek, rightEye, rightMouth],
+
+      // 顔の下部
+      [noseTip, leftMouth, chin],
+      [noseTip, rightMouth, chin],
+      [leftMouth, chin, leftCheek],
+      [rightMouth, chin, rightCheek],
+
+      // 目のポリゴン（暗い色で塗りつぶす）
+      [leftEyeOuter, leftEyeInner, leftEye],
+      [rightEyeOuter, rightEyeInner, rightEye],
+
+      // 口のポリゴン（暗い色で塗りつぶす）
+      [leftMouth, rightMouth, upperLip],
+      [leftMouth, rightMouth, lowerLip],
     ];
 
-    ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
-    ctx.beginPath();
-    faceOvalIndices.forEach((idx, i) => {
-      if (idx < landmarks.length) {
-        const landmark = landmarks[idx];
-        const x = width - landmark.x * width; // 反転
-        const y = landmark.y * height;
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
+    const getPoint = (idx: number) => {
+      if (idx >= landmarks.length) return null;
+      const landmark = landmarks[idx];
+      return {
+        x: width - landmark.x * width, // 反転
+        y: landmark.y * height,
+      };
+    };
+
+    // ポリゴンを描画
+    polygons.forEach((polygon, polyIndex) => {
+      const points = polygon.map(getPoint).filter(p => p !== null) as Array<{ x: number; y: number }>;
+      if (points.length !== 3) return;
+
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      ctx.lineTo(points[1].x, points[1].y);
+      ctx.lineTo(points[2].x, points[2].y);
+      ctx.closePath();
+
+      // 目と口は暗い緑で塗りつぶし
+      if (polyIndex >= 12) {
+        ctx.fillStyle = 'rgba(0, 80, 0, 0.9)';
+      } else {
+        ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
       }
+      ctx.fill();
+
+      // ワイヤーフレーム（太め）
+      ctx.strokeStyle = 'rgba(0, 255, 0, 0.9)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
     });
-    ctx.closePath();
-    ctx.fill();
-
-    // その上にワイヤーフレームを描画
-    ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
-    ctx.lineWidth = 1;
-
-    // 各接続を線で描画
-    for (const connection of connections) {
-      const startIdx = connection.start;
-      const endIdx = connection.end;
-
-      if (startIdx < landmarks.length && endIdx < landmarks.length) {
-        const p0 = landmarks[startIdx];
-        const p1 = landmarks[endIdx];
-
-        const x0 = width - p0.x * width; // 反転
-        const y0 = p0.y * height;
-        const x1 = width - p1.x * width;
-        const y1 = p1.y * height;
-
-        // 線を描画
-        ctx.beginPath();
-        ctx.moveTo(x0, y0);
-        ctx.lineTo(x1, y1);
-        ctx.stroke();
-      }
-    }
   }
 
   function drawKeyboard(
