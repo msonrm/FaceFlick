@@ -44,6 +44,8 @@ export function FaceFlickCanvas() {
   const [showDebugInfo, setShowDebugInfo] = useState(true);
   const [faceDisplayMode, setFaceDisplayMode] = useState<'none' | 'points' | 'mesh'>('points');
   const [gestureFeedback, setGestureFeedback] = useState<{ type: 'backspace' | 'newline' | 'clear_all' | 'readback' | 'copy_speak_clear'; timestamp: number } | null>(null);
+  const [isCalibrating, setIsCalibrating] = useState(true);
+  const [calibrationProgress, setCalibrationProgress] = useState(0);
   const [calibrationSettings, setCalibrationSettings] = useState<CalibrationSettings>({
     yawRange: { min: -30, max: 30 },
     pitchRange: { min: -1, max: 15 },
@@ -60,6 +62,8 @@ export function FaceFlickCanvas() {
   const bothEyesClosedStartTimeRef = useRef<number | null>(null);
   const headTiltStartTimeRef = useRef<number | null>(null);
   const headTiltBaseRollRef = useRef<number | null>(null);
+  const calibrationStartTimeRef = useRef<number | null>(null);
+  const calibrationRollSamplesRef = useRef<number[]>([]);
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -216,6 +220,31 @@ export function FaceFlickCanvas() {
       (h) => now - h.timestamp < 1000
     );
 
+    // 初期キャリブレーション（起動後3秒間）
+    if (isCalibrating) {
+      if (calibrationStartTimeRef.current === null) {
+        calibrationStartTimeRef.current = now;
+      }
+
+      const elapsedTime = now - calibrationStartTimeRef.current;
+      const progress = Math.min(100, (elapsedTime / 3000) * 100);
+      setCalibrationProgress(progress);
+
+      // roll値をサンプリング
+      calibrationRollSamplesRef.current.push(faceState.headRotation.roll);
+
+      if (elapsedTime >= 3000) {
+        // 3秒経過：平均値を計算して基準値として設定
+        const avgRoll = calibrationRollSamplesRef.current.reduce((sum, r) => sum + r, 0) / calibrationRollSamplesRef.current.length;
+        headTiltBaseRollRef.current = avgRoll;
+        setIsCalibrating(false);
+        console.log('キャリブレーション完了: 基準roll =', avgRoll.toFixed(2), '度');
+      }
+
+      // キャリブレーション中は通常の入力処理をスキップ
+      return;
+    }
+
     // 両目閉じジェスチャー検出（3秒保持で読み上げ）
     if (faceState.bothEyesClosed) {
       if (bothEyesClosedStartTimeRef.current === null) {
@@ -246,7 +275,7 @@ export function FaceFlickCanvas() {
     const rollDiff = headTiltBaseRollRef.current !== null
       ? Math.abs(faceState.headRotation.roll - headTiltBaseRollRef.current)
       : 0;
-    const isHeadTilted = rollDiff > 20; // 基準位置から20度以上傾いている
+    const isHeadTilted = rollDiff > 15; // 基準位置から15度以上傾いている
 
     if (isHeadTilted) {
       if (headTiltStartTimeRef.current === null) {
@@ -899,6 +928,39 @@ export function FaceFlickCanvas() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
           <p>初期化中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // キャリブレーション画面
+  if (isCalibrating) {
+    return (
+      <div className="relative w-full h-full">
+        {/* Canvas */}
+        <canvas
+          ref={canvasRef}
+          className="w-full h-full object-cover"
+        />
+
+        {/* キャリブレーション オーバーレイ */}
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-gray-800 text-white p-8 rounded-lg text-center max-w-md">
+            <h2 className="text-2xl font-bold mb-4">初期設定</h2>
+            <p className="mb-6">頭をまっすぐにして、3秒間静止してください</p>
+
+            {/* プログレスバー */}
+            <div className="w-full bg-gray-700 rounded-full h-4 mb-4">
+              <div
+                className="bg-blue-500 h-4 rounded-full transition-all duration-100"
+                style={{ width: `${calibrationProgress}%` }}
+              ></div>
+            </div>
+
+            <p className="text-sm text-gray-400">
+              {Math.ceil((100 - calibrationProgress) / 100 * 3)}秒残り
+            </p>
+          </div>
         </div>
       </div>
     );
