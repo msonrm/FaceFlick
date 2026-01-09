@@ -59,7 +59,6 @@ export function FaceFlickCanvas() {
   const triggerStartTimeRef = useRef<number | null>(null);
   const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>>([]);
   const lastGestureTimeRef = useRef<number>(0);
-  const bothEyesClosedStartTimeRef = useRef<number | null>(null);
   const headTiltStartTimeRef = useRef<number | null>(null);
   const headTiltBaseRollRef = useRef<number | null>(null);
   const calibrationStartTimeRef = useRef<number | null>(null);
@@ -261,25 +260,7 @@ export function FaceFlickCanvas() {
       return;
     }
 
-    // 両目閉じジェスチャー検出（3秒保持で読み上げ）
-    if (faceState.bothEyesClosed) {
-      if (bothEyesClosedStartTimeRef.current === null) {
-        bothEyesClosedStartTimeRef.current = now;
-      } else {
-        const elapsedTime = now - bothEyesClosedStartTimeRef.current;
-        if (elapsedTime >= 3000 && now - lastGestureTimeRef.current > 1000) {
-          // 読み上げ
-          speakText(inputText, 'robot_normal');
-          setGestureFeedback({ type: 'readback' as any, timestamp: now });
-          lastGestureTimeRef.current = now;
-          bothEyesClosedStartTimeRef.current = null;
-        }
-      }
-    } else {
-      bothEyesClosedStartTimeRef.current = null;
-    }
-
-    // 首かしげジェスチャー検出（相対値、1.5秒保持でコピー&発声&クリア）
+    // 首かしげジェスチャー検出（相対値、1.5秒保持で発声&クリア）
     // 基準値からの相対的な傾きを計算（キャリブレーションで設定済み）
     const rollDiff = headTiltBaseRollRef.current !== null
       ? Math.abs(faceState.headRotation.roll - headTiltBaseRollRef.current)
@@ -308,20 +289,16 @@ export function FaceFlickCanvas() {
     if (inputState.type === 'idle' && now - lastGestureTimeRef.current > 1000) {
       const gesture = detectGesture(headRotationHistoryRef.current);
       if (gesture === 'head_shake') {
-        // バックスペース or 全消去（口を開けている場合）
-        if (faceState.mouthOpen) {
-          setInputText('');
-          setGestureFeedback({ type: 'clear_all' as any, timestamp: now });
-        } else {
-          setInputText((prev) => prev.slice(0, -1));
-          setGestureFeedback({ type: 'backspace', timestamp: now });
-        }
+        // バックスペース
+        setInputText((prev) => prev.slice(0, -1));
+        setGestureFeedback({ type: 'backspace', timestamp: now });
         lastGestureTimeRef.current = now;
         headRotationHistoryRef.current = []; // 履歴をクリア
       } else if (gesture === 'nod') {
-        // 改行
-        setInputText((prev) => prev + '\n');
-        setGestureFeedback({ type: 'newline', timestamp: now });
+        // 発声&クリア
+        speakText(inputText, 'human_high');
+        setInputText('');
+        setGestureFeedback({ type: 'copy_speak_clear' as any, timestamp: now });
         lastGestureTimeRef.current = now;
         headRotationHistoryRef.current = []; // 履歴をクリア
       }
