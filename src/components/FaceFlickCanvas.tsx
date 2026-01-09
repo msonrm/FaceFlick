@@ -587,7 +587,7 @@ export function FaceFlickCanvas() {
 
       // ランバート反射：内積を計算
       let diffuse = n.x * light.x + n.y * light.y + n.z * light.z;
-      diffuse = Math.max(0.2, Math.min(1.0, diffuse)); // アンビエント 0.2
+      diffuse = Math.max(0.4, Math.min(1.0, diffuse)); // アンビエント 0.4（明るめ）
 
       // 最終色を計算
       const r = Math.floor(baseColor.r * diffuse);
@@ -616,11 +616,6 @@ export function FaceFlickCanvas() {
       ctx.lineTo(p2.x, p2.y);
       ctx.closePath();
       ctx.fill();
-
-      // ワイヤーフレーム（白い線）
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
     }
   }
 
