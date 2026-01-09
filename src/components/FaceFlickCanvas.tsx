@@ -280,14 +280,7 @@ export function FaceFlickCanvas() {
     }
 
     // 首かしげジェスチャー検出（相対値、1.5秒保持でコピー&発声&クリア）
-    // 基準roll値を設定（履歴がある程度溜まってから）
-    if (headRotationHistoryRef.current.length > 5 && headTiltBaseRollRef.current === null) {
-      const recentRolls = headRotationHistoryRef.current.slice(-5);
-      const avgRoll = recentRolls.reduce((sum, h) => sum + h.roll, 0) / recentRolls.length;
-      headTiltBaseRollRef.current = avgRoll;
-    }
-
-    // 基準値からの相対的な傾きを計算
+    // 基準値からの相対的な傾きを計算（キャリブレーションで設定済み）
     const rollDiff = headTiltBaseRollRef.current !== null
       ? Math.abs(faceState.headRotation.roll - headTiltBaseRollRef.current)
       : 0;
@@ -306,18 +299,10 @@ export function FaceFlickCanvas() {
           setGestureFeedback({ type: 'copy_speak_clear' as any, timestamp: now });
           lastGestureTimeRef.current = now;
           headTiltStartTimeRef.current = null;
-          // 基準値もリセット
-          headTiltBaseRollRef.current = null;
         }
       }
     } else {
       headTiltStartTimeRef.current = null;
-      // 基準値を更新（通常姿勢に戻ったとき）
-      if (headRotationHistoryRef.current.length > 10) {
-        const recentRolls = headRotationHistoryRef.current.slice(-10);
-        const avgRoll = recentRolls.reduce((sum, h) => sum + h.roll, 0) / recentRolls.length;
-        headTiltBaseRollRef.current = avgRoll;
-      }
     }
 
     // ジェスチャー検出（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
