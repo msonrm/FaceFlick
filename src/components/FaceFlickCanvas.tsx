@@ -509,8 +509,8 @@ export function FaceFlickCanvas() {
     // SNES風フラットシェーディング + ランバート反射
     // MediaPipe公式のFACE_LANDMARKS_TESSELATIONデータを使用
 
-    // 光源方向（正規化されたベクトル）: カメラ正面から斜め上
-    const lightDir = { x: 0.3, y: -0.5, z: 1.0 };
+    // 光源方向（正規化されたベクトル）: 左上から
+    const lightDir = { x: -0.5, y: -0.8, z: 0.3 };
     const lightMag = Math.sqrt(lightDir.x ** 2 + lightDir.y ** 2 + lightDir.z ** 2);
     const light = {
       x: lightDir.x / lightMag,
@@ -532,21 +532,19 @@ export function FaceFlickCanvas() {
       const c1 = connections[i + 1];
       const c2 = connections[i + 2];
 
-      // 3つの辺から3つのユニークな頂点を抽出
-      const vertices = new Set<number>();
-      vertices.add(c0.start);
-      vertices.add(c0.end);
-      vertices.add(c1.start);
-      vertices.add(c1.end);
-      vertices.add(c2.start);
-      vertices.add(c2.end);
+      // 3つの辺から3つのユニークな頂点を抽出（順序を保持）
+      // 最初の辺から開始して、接続された辺を追跡
+      const allIndices = [c0.start, c0.end, c1.start, c1.end, c2.start, c2.end];
+      const uniqueIndices = Array.from(new Set(allIndices));
 
-      const vertexArray = Array.from(vertices);
+      // 正しく3つの頂点が見つからない場合はスキップ
+      if (uniqueIndices.length !== 3) continue;
 
-      // 正しく3つの頂点が見つかった場合のみ三角形を描画
-      if (vertexArray.length !== 3) continue;
-
-      const [i0, i1, i2] = vertexArray;
+      // 最初の辺の頂点順序を使用
+      const i0 = c0.start;
+      const i1 = c0.end;
+      // 3番目の頂点は、c0に含まれない頂点
+      const i2 = uniqueIndices.find(idx => idx !== i0 && idx !== i1)!;
 
       if (i0 >= landmarks.length || i1 >= landmarks.length || i2 >= landmarks.length) continue;
 
@@ -557,16 +555,17 @@ export function FaceFlickCanvas() {
       if (!lm0 || !lm1 || !lm2) continue;
 
       // 法線ベクトルを正規化された3D座標系で計算（スクリーン変換前）
-      // MediaPipeのz座標は正規化された深度値なので、そのまま使用
+      // MediaPipeのz座標は小さいスケールなので拡大して使用
+      const zScale = 50; // z座標を大幅に拡大して立体感を強調
       const v1 = {
         x: lm1.x - lm0.x,
         y: lm1.y - lm0.y,
-        z: (lm1.z || 0) - (lm0.z || 0)
+        z: ((lm1.z || 0) - (lm0.z || 0)) * zScale
       };
       const v2 = {
         x: lm2.x - lm0.x,
         y: lm2.y - lm0.y,
-        z: (lm2.z || 0) - (lm0.z || 0)
+        z: ((lm2.z || 0) - (lm0.z || 0)) * zScale
       };
 
       // 外積で法線ベクトルを計算
