@@ -1,6 +1,6 @@
 import { NormalizedLandmark } from '@mediapipe/tasks-vision';
 
-export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'wink_left' | 'wink_right' | null;
+export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'wink_left' | 'wink_right' | 'cheek_puff' | null;
 
 export interface FaceState {
   landmarks: NormalizedLandmark[];
@@ -13,9 +13,12 @@ export interface FaceState {
   mar: number;
   // 口をすぼめている（キス顔）
   mouthPucker: number; // 0-1の値
+  // 頬を膨らませている
+  cheekPuff: number; // 0-1の値
   // 個別の検出結果
   mouthOpen: boolean;
   mouthPuckered: boolean;
+  cheekPuffed: boolean;
   winkLeft: boolean;
   winkRight: boolean;
   bothEyesClosed: boolean;

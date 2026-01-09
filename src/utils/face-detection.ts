@@ -4,6 +4,7 @@ import { FaceState, TriggerType, CalibrationSettings } from '../types';
 // デフォルト閾値
 const DEFAULT_MOUTH_OPEN_THRESHOLD = 0.3;
 const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.3;
+const DEFAULT_CHEEK_PUFF_THRESHOLD = 0.15;
 const DEFAULT_EAR_THRESHOLD = 0.2;
 
 export function analyzeFace(
@@ -25,13 +26,18 @@ export function analyzeFace(
   // 口をすぼめる度合いを計算
   const mouthPucker = calculateMouthPucker(landmarks);
 
+  // 頬を膨らませる度合いを計算
+  const cheekPuff = calculateCheekPuff(landmarks);
+
   // 各トリガーの検出（設定された閾値を使用）
   const mouthOpenThreshold = settings?.mouthOpenThreshold ?? DEFAULT_MOUTH_OPEN_THRESHOLD;
   const mouthPuckerThreshold = settings?.mouthPuckerThreshold ?? DEFAULT_MOUTH_PUCKER_THRESHOLD;
+  const cheekPuffThreshold = DEFAULT_CHEEK_PUFF_THRESHOLD;
   const earThreshold = settings?.earThreshold ?? DEFAULT_EAR_THRESHOLD;
 
   const mouthOpen = mar > mouthOpenThreshold;
   const mouthPuckered = mouthPucker > mouthPuckerThreshold;
+  const cheekPuffed = cheekPuff > cheekPuffThreshold;
   const winkLeft = ear.left < earThreshold && ear.right > earThreshold;
   const winkRight = ear.right < earThreshold && ear.left > earThreshold;
   // 両目閉じは通常のまばたきと区別するため、より厳しい条件（閾値の半分以下）
@@ -47,6 +53,9 @@ export function analyzeFace(
   } else if (mouthPuckered) {
     isTriggered = true;
     triggerType = 'mouth_pucker';
+  } else if (cheekPuffed) {
+    isTriggered = true;
+    triggerType = 'cheek_puff';
   } else if (winkLeft) {
     isTriggered = true;
     triggerType = 'wink_left';
@@ -63,8 +72,10 @@ export function analyzeFace(
     ear,
     mar,
     mouthPucker,
+    cheekPuff,
     mouthOpen,
     mouthPuckered,
+    cheekPuffed,
     winkLeft,
     winkRight,
     bothEyesClosed,
@@ -165,6 +176,35 @@ function calculateMouthPucker(landmarks: NormalizedLandmark[]): number {
   const puckerScore = Math.max(0, (0.48 - normalizedMouthWidth) * 6.0);
 
   return Math.max(0, Math.min(1, puckerScore));
+}
+
+/**
+ * 頬を膨らませる度合いを計算
+ * 頬が膨らむと顔の幅が広がることに着目
+ */
+function calculateCheekPuff(landmarks: NormalizedLandmark[]): number {
+  // 顔の基準サイズ（目と目の距離）
+  const leftEye = landmarks[33];
+  const rightEye = landmarks[263];
+  const eyeDistance = distance(leftEye, rightEye);
+
+  if (eyeDistance === 0) return 0;
+
+  // 頬の位置（左右の頬）
+  const leftCheek = landmarks[234];
+  const rightCheek = landmarks[454];
+  const cheekWidth = distance(leftCheek, rightCheek);
+
+  // 正規化された頬の幅
+  // 通常は約1.8〜2.0、膨らむと2.1以上
+  const normalizedCheekWidth = cheekWidth / eyeDistance;
+
+  // 頬を膨らませ度合いの計算
+  // normalizedCheekWidth が 2.0 以上で頬を膨らませていると判定
+  // 2.0 → 0, 2.1 → 0.5, 2.2 → 1.0
+  const puffScore = (normalizedCheekWidth - 2.0) * 5.0;
+
+  return Math.max(0, Math.min(1, puffScore));
 }
 
 /**
