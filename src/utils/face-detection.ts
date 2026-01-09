@@ -4,7 +4,7 @@ import { FaceState, TriggerType, CalibrationSettings } from '../types';
 // デフォルト閾値
 const DEFAULT_MOUTH_OPEN_THRESHOLD = 0.3;
 const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.3;
-const DEFAULT_CHEEK_PUFF_THRESHOLD = 0.15;
+const DEFAULT_CHEEK_PUFF_THRESHOLD = 0.3; // BlendShapes: 0.3以上で頬を膨らませている
 const DEFAULT_EAR_THRESHOLD = 0.2;
 
 export function analyzeFace(
@@ -26,8 +26,8 @@ export function analyzeFace(
   // 口をすぼめる度合いを計算
   const mouthPucker = calculateMouthPucker(landmarks);
 
-  // 頬を膨らませる度合いを計算
-  const cheekPuff = calculateCheekPuff(landmarks);
+  // 頬を膨らませる度合いを計算（BlendShapesから取得）
+  const cheekPuff = getCheekPuffFromBlendShapes(result);
 
   // 各トリガーの検出（設定された閾値を使用）
   const mouthOpenThreshold = settings?.mouthOpenThreshold ?? DEFAULT_MOUTH_OPEN_THRESHOLD;
@@ -179,32 +179,27 @@ function calculateMouthPucker(landmarks: NormalizedLandmark[]): number {
 }
 
 /**
- * 頬を膨らませる度合いを計算
- * 頬が膨らむと顔の幅が広がることに着目
+ * BlendShapesから頬を膨らませる度合いを取得
+ * MediaPipeのBlendShapesを使用
  */
-function calculateCheekPuff(landmarks: NormalizedLandmark[]): number {
-  // 顔の基準サイズ（目と目の距離）
-  const leftEye = landmarks[33];
-  const rightEye = landmarks[263];
-  const eyeDistance = distance(leftEye, rightEye);
+function getCheekPuffFromBlendShapes(result: FaceLandmarkerResult): number {
+  if (!result.faceBlendshapes || result.faceBlendshapes.length === 0) {
+    return 0;
+  }
 
-  if (eyeDistance === 0) return 0;
+  const blendShapes = result.faceBlendshapes[0];
 
-  // 頬の位置（左右の頬）
-  const leftCheek = landmarks[234];
-  const rightCheek = landmarks[454];
-  const cheekWidth = distance(leftCheek, rightCheek);
+  // cheekPuffの値を探す
+  const cheekPuffCategory = blendShapes.categories.find(
+    (category) => category.categoryName === 'cheekPuff'
+  );
 
-  // 正規化された頬の幅
-  // 通常は約1.8〜2.0、膨らむと2.1以上
-  const normalizedCheekWidth = cheekWidth / eyeDistance;
+  if (!cheekPuffCategory) {
+    return 0;
+  }
 
-  // 頬を膨らませ度合いの計算
-  // normalizedCheekWidth が 2.0 以上で頬を膨らませていると判定
-  // 2.0 → 0, 2.1 → 0.5, 2.2 → 1.0
-  const puffScore = (normalizedCheekWidth - 2.0) * 5.0;
-
-  return Math.max(0, Math.min(1, puffScore));
+  // scoreは0-1の範囲
+  return cheekPuffCategory.score || 0;
 }
 
 /**

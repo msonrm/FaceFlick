@@ -58,6 +58,7 @@ export function FaceFlickCanvas() {
   });
   const animationFrameRef = useRef<number | null>(null);
   const triggerStartTimeRef = useRef<number | null>(null);
+  const cheekPuffStartTimeRef = useRef<number | null>(null);
   const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>>([]);
   const lastGestureTimeRef = useRef<number>(0);
   const headTiltStartTimeRef = useRef<number | null>(null);
@@ -310,22 +311,20 @@ export function FaceFlickCanvas() {
     // 他のトリガーと異なり、すぐに空白を入力
     if (inputState.type === 'idle' && faceState.isTriggered && faceState.triggerType === 'cheek_puff') {
       // トリガー開始時刻を記録
-      if (triggerStartTimeRef.current === null) {
-        triggerStartTimeRef.current = Date.now();
+      if (cheekPuffStartTimeRef.current === null) {
+        cheekPuffStartTimeRef.current = Date.now();
       }
 
       // 0.3秒経過したらすぐに空白を入力
-      const elapsedTime = Date.now() - triggerStartTimeRef.current;
+      const elapsedTime = Date.now() - cheekPuffStartTimeRef.current;
       if (elapsedTime >= 300 && now - lastGestureTimeRef.current > 500) {
         setInputText((prev) => prev + ' ');
         lastGestureTimeRef.current = now;
-        triggerStartTimeRef.current = null;
+        cheekPuffStartTimeRef.current = null;
       }
     } else if (inputState.type === 'idle' && (!faceState.isTriggered || faceState.triggerType !== 'cheek_puff')) {
       // cheek_puffトリガーが解除されたらタイマーリセット
-      if (triggerStartTimeRef.current !== null) {
-        triggerStartTimeRef.current = null;
-      }
+      cheekPuffStartTimeRef.current = null;
     }
 
     if (inputState.type === 'idle') {
@@ -863,7 +862,9 @@ export function FaceFlickCanvas() {
       const cursorX = displayLines.length > 0
         ? 20 + ctx.measureText(displayLines[displayLines.length - 1]).width
         : 20;
-      const cursorY = textY - lineHeight + (displayLines.length === 0 ? 0 : 0);
+      const cursorY = displayLines.length > 0
+        ? textY - lineHeight
+        : inputAreaTop + 10;
       ctx.fillText('|', cursorX, cursorY);
     }
 
