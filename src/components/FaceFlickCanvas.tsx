@@ -89,15 +89,19 @@ export function FaceFlickCanvas() {
     function animate(timestamp: number) {
       if (!ctx || !canvas || !video) return;
 
-      // キャンバスサイズをビューポートサイズに合わせる
+      // キャンバスサイズをビューポートサイズに合わせる（高DPI対応）
       const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+
+      // 高DPI用にスケーリング
+      ctx.scale(dpr, dpr);
 
       // ビデオを描画（反転）
       ctx.save();
       ctx.scale(-1, 1);
-      ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, -rect.width, 0, rect.width, rect.height);
       ctx.restore();
 
       // 顔検出
@@ -122,16 +126,16 @@ export function FaceFlickCanvas() {
 
           // 顔のランドマークを描画（モードに応じて）
           if (faceDisplayMode !== 'none') {
-            drawFaceLandmarks(ctx, faceState.landmarks, canvas.width, canvas.height, result);
+            drawFaceLandmarks(ctx, faceState.landmarks, rect.width, rect.height, result);
           }
         }
       }
 
       // キーボードオーバーレイを描画
-      drawKeyboard(ctx, canvas.width, canvas.height);
+      drawKeyboard(ctx, rect.width, rect.height);
 
       // 入力テキストを描画
-      drawInputText(ctx, canvas.width, canvas.height);
+      drawInputText(ctx, rect.width, rect.height);
 
       animationFrameRef.current = requestAnimationFrame(animate);
     }
