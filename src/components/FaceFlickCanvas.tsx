@@ -506,98 +506,56 @@ export function FaceFlickCanvas() {
     width: number,
     height: number
   ) {
-    // SNES風フラットシェーディング + ランバート反射
-    // MediaPipeの全アンカーポイントとテッセレーションを使用
+    // MediaPipe公式のFACE_LANDMARKS_TESSELATIONデータを使用
+    const connections = FaceLandmarker.FACE_LANDMARKS_TESSELATION;
 
-    // 光源方向（正規化されたベクトル）: カメラ正面から斜め上
-    const lightDir = { x: 0.3, y: -0.5, z: 1.0 };
-    const lightMag = Math.sqrt(lightDir.x ** 2 + lightDir.y ** 2 + lightDir.z ** 2);
-    const light = {
-      x: lightDir.x / lightMag,
-      y: lightDir.y / lightMag,
-      z: lightDir.z / lightMag
-    };
+    // まず顔全体をシルバーグレーで覆う（アンドルフ風）
+    // 顔の輪郭ポイントを使用（MediaPipe Face Meshの顔輪郭インデックス）
+    const faceOvalIndices = [
+      10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109
+    ];
 
-    // 基本色（シルバーグレー）
-    const baseColor = { r: 180, g: 180, b: 180 };
+    ctx.fillStyle = 'rgba(180, 180, 180, 0.5)'; // シルバーグレー
+    ctx.beginPath();
+    faceOvalIndices.forEach((idx, i) => {
+      if (idx < landmarks.length) {
+        const landmark = landmarks[idx];
+        const x = width - landmark.x * width; // 反転
+        const y = landmark.y * height;
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+    });
+    ctx.closePath();
+    ctx.fill();
 
-    // MediaPipe公式のFACE_LANDMARKS_TESSELATIONを使用
-    // 実際のデータは数値の配列（型定義がConnectionの配列となっているが実際は数値配列）
-    const tesselation = FaceLandmarker.FACE_LANDMARKS_TESSELATION as unknown as number[];
+    // その上に白いワイヤーフレームを描画（アンドルフ風）
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; // 白
+    ctx.lineWidth = 1;
 
-    // 3つずつのインデックスで1つの三角形を処理
-    for (let i = 0; i < tesselation.length; i += 3) {
-      if (i + 2 >= tesselation.length) break;
+    // 各接続を線で描画
+    for (const connection of connections) {
+      const startIdx = connection.start;
+      const endIdx = connection.end;
 
-      const i0 = tesselation[i];
-      const i1 = tesselation[i + 1];
-      const i2 = tesselation[i + 2];
+      if (startIdx < landmarks.length && endIdx < landmarks.length) {
+        const p0 = landmarks[startIdx];
+        const p1 = landmarks[endIdx];
 
-      if (i0 >= landmarks.length || i1 >= landmarks.length || i2 >= landmarks.length) continue;
+        const x0 = width - p0.x * width; // 反転
+        const y0 = p0.y * height;
+        const x1 = width - p1.x * width;
+        const y1 = p1.y * height;
 
-      const lm0 = landmarks[i0];
-      const lm1 = landmarks[i1];
-      const lm2 = landmarks[i2];
-
-      // 3D座標を取得（z座標も使用）
-      const p0 = {
-        x: width - lm0.x * width, // 反転
-        y: lm0.y * height,
-        z: lm0.z || 0
-      };
-      const p1 = {
-        x: width - lm1.x * width,
-        y: lm1.y * height,
-        z: lm1.z || 0
-      };
-      const p2 = {
-        x: width - lm2.x * width,
-        y: lm2.y * height,
-        z: lm2.z || 0
-      };
-
-      // 法線ベクトルを計算（外積）
-      const v1 = { x: p1.x - p0.x, y: p1.y - p0.y, z: p1.z - p0.z };
-      const v2 = { x: p2.x - p0.x, y: p2.y - p0.y, z: p2.z - p0.z };
-
-      const normal = {
-        x: v1.y * v2.z - v1.z * v2.y,
-        y: v1.z * v2.x - v1.x * v2.z,
-        z: v1.x * v2.y - v1.y * v2.x
-      };
-
-      // 法線を正規化
-      const normalMag = Math.sqrt(normal.x ** 2 + normal.y ** 2 + normal.z ** 2);
-      if (normalMag < 0.0001) continue; // 退化した三角形をスキップ
-
-      const n = {
-        x: normal.x / normalMag,
-        y: normal.y / normalMag,
-        z: normal.z / normalMag
-      };
-
-      // ランバート反射：内積を計算（0〜1にクランプ）
-      let diffuse = n.x * light.x + n.y * light.y + n.z * light.z;
-      diffuse = Math.max(0.2, Math.min(1.0, diffuse)); // アンビエント 0.2
-
-      // 最終色を計算
-      const r = Math.floor(baseColor.r * diffuse);
-      const g = Math.floor(baseColor.g * diffuse);
-      const b = Math.floor(baseColor.b * diffuse);
-
-      // 三角形を塗りつぶし（フラットシェーディング）
-      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-      ctx.beginPath();
-      ctx.moveTo(p0.x, p0.y);
-      ctx.lineTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.closePath();
-      ctx.fill();
-
-      // ワイヤーフレーム（白い線）
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
+        // 線を描画
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      }
     }
   }
 
