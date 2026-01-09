@@ -18,6 +18,7 @@ import {
 } from '../utils/keyboard-layout';
 import { InputState, CalibrationSettings } from '../types';
 import { CalibrationModal } from './CalibrationModal';
+import { FaceLandmarker } from '@mediapipe/tasks-vision';
 
 export function FaceFlickCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -505,7 +506,8 @@ export function FaceFlickCanvas() {
     width: number,
     height: number
   ) {
-    // SNES風ローポリスタイル：フラットシェーディング + ランバート反射
+    // SNES風フラットシェーディング + ランバート反射
+    // MediaPipeの全アンカーポイントとテッセレーションを使用
 
     // 光源方向（正規化されたベクトル）: カメラ正面から斜め上
     const lightDir = { x: 0.3, y: -0.5, z: 1.0 };
@@ -519,48 +521,40 @@ export function FaceFlickCanvas() {
     // 基本色（シルバーグレー）
     const baseColor = { r: 180, g: 180, b: 180 };
 
-    // ローポリメッシュ用の三角形定義（顔の主要領域を覆う）
-    // 各三角形は3つのランドマークインデックスで構成
-    const triangles = [
-      // 額
-      [10, 338, 297], [10, 297, 109], [10, 109, 67], [10, 67, 109],
-      // 左目周辺
-      [463, 414, 286], [286, 258, 257], [257, 259, 260],
-      // 右目周辺
-      [243, 190, 56], [56, 28, 27], [27, 29, 30],
-      // 左頬
-      [234, 93, 132], [132, 58, 172], [172, 136, 150],
-      // 右頬
-      [454, 323, 361], [361, 288, 397], [397, 365, 379],
-      // 鼻
-      [168, 6, 197], [197, 195, 5], [5, 4, 1],
-      // 口周辺
-      [61, 185, 40], [40, 39, 37], [291, 409, 270], [270, 269, 267],
-      // 下顔
-      [172, 136, 150], [150, 149, 176], [176, 148, 152],
-      [152, 377, 400], [400, 378, 379], [379, 365, 397],
-      // 顔の中央部分
-      [10, 151, 9], [9, 8, 168], [168, 6, 197],
-      // 左側面
-      [234, 127, 162], [162, 21, 54], [54, 103, 67],
-      // 右側面
-      [454, 356, 389], [389, 251, 284], [284, 332, 297],
-    ];
+    // MediaPipe公式のFACE_LANDMARKS_TESSELATIONを使用
+    // 実際のデータは数値の配列（型定義がConnectionの配列となっているが実際は数値配列）
+    const tesselation = FaceLandmarker.FACE_LANDMARKS_TESSELATION as unknown as number[];
 
-    // 座標変換ヘルパー
-    const getScreenCoords = (landmark: any) => ({
-      x: width - landmark.x * width, // 反転
-      y: landmark.y * height,
-      z: landmark.z || 0
-    });
+    // 3つずつのインデックスで1つの三角形を処理
+    for (let i = 0; i < tesselation.length; i += 3) {
+      if (i + 2 >= tesselation.length) break;
 
-    // 各三角形を描画
-    for (const [i0, i1, i2] of triangles) {
+      const i0 = tesselation[i];
+      const i1 = tesselation[i + 1];
+      const i2 = tesselation[i + 2];
+
       if (i0 >= landmarks.length || i1 >= landmarks.length || i2 >= landmarks.length) continue;
 
-      const p0 = getScreenCoords(landmarks[i0]);
-      const p1 = getScreenCoords(landmarks[i1]);
-      const p2 = getScreenCoords(landmarks[i2]);
+      const lm0 = landmarks[i0];
+      const lm1 = landmarks[i1];
+      const lm2 = landmarks[i2];
+
+      // 3D座標を取得（z座標も使用）
+      const p0 = {
+        x: width - lm0.x * width, // 反転
+        y: lm0.y * height,
+        z: lm0.z || 0
+      };
+      const p1 = {
+        x: width - lm1.x * width,
+        y: lm1.y * height,
+        z: lm1.z || 0
+      };
+      const p2 = {
+        x: width - lm2.x * width,
+        y: lm2.y * height,
+        z: lm2.z || 0
+      };
 
       // 法線ベクトルを計算（外積）
       const v1 = { x: p1.x - p0.x, y: p1.y - p0.y, z: p1.z - p0.z };
@@ -591,7 +585,7 @@ export function FaceFlickCanvas() {
       const g = Math.floor(baseColor.g * diffuse);
       const b = Math.floor(baseColor.b * diffuse);
 
-      // 三角形を塗りつぶし
+      // 三角形を塗りつぶし（フラットシェーディング）
       ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y);
@@ -601,7 +595,7 @@ export function FaceFlickCanvas() {
       ctx.fill();
 
       // ワイヤーフレーム（白い線）
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
       ctx.lineWidth = 0.5;
       ctx.stroke();
     }
