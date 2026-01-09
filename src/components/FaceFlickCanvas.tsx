@@ -37,7 +37,6 @@ export function FaceFlickCanvas() {
     ear: { left: number; right: number };
     mar: number;
     mouthPucker: number;
-    cheekPuff: number;
     triggerType: string;
     headRotation: { yaw: number; pitch: number; roll: number };
   } | null>(null);
@@ -58,7 +57,6 @@ export function FaceFlickCanvas() {
   });
   const animationFrameRef = useRef<number | null>(null);
   const triggerStartTimeRef = useRef<number | null>(null);
-  const cheekPuffStartTimeRef = useRef<number | null>(null);
   const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>>([]);
   const lastGestureTimeRef = useRef<number>(0);
   const headTiltStartTimeRef = useRef<number | null>(null);
@@ -115,7 +113,6 @@ export function FaceFlickCanvas() {
             ear: faceState.ear,
             mar: faceState.mar,
             mouthPucker: faceState.mouthPucker,
-            cheekPuff: faceState.cheekPuff,
             triggerType: faceState.triggerType || 'none',
             headRotation: faceState.headRotation,
           });
@@ -307,29 +304,9 @@ export function FaceFlickCanvas() {
       }
     }
 
-    // 頬を膨らませるトリガー（cheek_puff）の特別処理
-    // 他のトリガーと異なり、すぐに空白を入力
-    if (inputState.type === 'idle' && faceState.isTriggered && faceState.triggerType === 'cheek_puff') {
-      // トリガー開始時刻を記録
-      if (cheekPuffStartTimeRef.current === null) {
-        cheekPuffStartTimeRef.current = Date.now();
-      }
-
-      // 0.3秒経過したらすぐに空白を入力
-      const elapsedTime = Date.now() - cheekPuffStartTimeRef.current;
-      if (elapsedTime >= 300 && now - lastGestureTimeRef.current > 500) {
-        setInputText((prev) => prev + ' ');
-        lastGestureTimeRef.current = now;
-        cheekPuffStartTimeRef.current = null;
-      }
-    } else if (inputState.type === 'idle' && (!faceState.isTriggered || faceState.triggerType !== 'cheek_puff')) {
-      // cheek_puffトリガーが解除されたらタイマーリセット
-      cheekPuffStartTimeRef.current = null;
-    }
-
     if (inputState.type === 'idle') {
-      // トリガーがアクティブでキーが選択されている（cheek_puff以外）
-      if (faceState.isTriggered && selectedKey && faceState.triggerType !== 'cheek_puff') {
+      // トリガーがアクティブでキーが選択されている
+      if (faceState.isTriggered && selectedKey) {
         // トリガー開始時刻を記録
         if (triggerStartTimeRef.current === null) {
           triggerStartTimeRef.current = Date.now();
@@ -484,15 +461,24 @@ export function FaceFlickCanvas() {
     _result: any
   ) {
     if (faceDisplayMode === 'points') {
-      // ポイント表示（Instagram風）
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      // ポイント表示（Instagram風 with glow）
       for (const landmark of landmarks) {
         const x = width - landmark.x * width; // 反転
         const y = landmark.y * height;
+
+        // Glowエフェクト
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+
         ctx.beginPath();
-        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
         ctx.fill();
       }
+
+      // Shadowをリセット
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
     } else if (faceDisplayMode === 'mesh') {
       // メッシュ表示（Max Headroom風ワイヤーフレーム）
       drawFaceMesh(ctx, landmarks, width, height);
@@ -775,9 +761,9 @@ export function FaceFlickCanvas() {
         toolbarHeight + 25
       );
 
-      // MAR/Pucker/CheekPuff値
+      // MAR/Pucker値
       ctx.fillText(
-        `MAR: ${debugInfo.mar.toFixed(2)} Pucker: ${debugInfo.mouthPucker.toFixed(2)} CheekPuff: ${debugInfo.cheekPuff.toFixed(2)}`,
+        `MAR: ${debugInfo.mar.toFixed(2)} Pucker: ${debugInfo.mouthPucker.toFixed(2)}`,
         10,
         toolbarHeight + 40
       );
@@ -926,8 +912,6 @@ export function FaceFlickCanvas() {
         return '口を開ける 👄';
       case 'mouth_pucker':
         return 'キス顔 💋';
-      case 'cheek_puff':
-        return '頬を膨らます 😤';
       case 'wink_left':
         return '左ウィンク 😉';
       case 'wink_right':
