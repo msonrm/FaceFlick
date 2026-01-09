@@ -959,10 +959,6 @@ export function FaceFlickCanvas() {
         return '口を開ける 👄';
       case 'mouth_pucker':
         return 'キス顔 💋';
-      case 'wink_left':
-        return '左ウィンク 😉';
-      case 'wink_right':
-        return '右ウィンク 😉';
       case 'eyes_wide':
         return '目を見開く 👀';
       default:

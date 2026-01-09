@@ -51,12 +51,6 @@ export function analyzeFace(
   } else if (mouthPuckered) {
     isTriggered = true;
     triggerType = 'mouth_pucker';
-  } else if (winkLeft) {
-    isTriggered = true;
-    triggerType = 'wink_left';
-  } else if (winkRight) {
-    isTriggered = true;
-    triggerType = 'wink_right';
   } else if (eyesWide) {
     isTriggered = true;
     triggerType = 'eyes_wide';

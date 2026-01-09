@@ -1,6 +1,6 @@
 import { NormalizedLandmark } from '@mediapipe/tasks-vision';
 
-export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'wink_left' | 'wink_right' | 'eyes_wide' | null;
+export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'eyes_wide' | null;
 
 export interface FaceState {
   landmarks: NormalizedLandmark[];
