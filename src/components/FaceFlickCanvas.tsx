@@ -38,12 +38,12 @@ export function FaceFlickCanvas() {
     mar: number;
     mouthPucker: number;
     triggerType: string;
-    headRotation: { yaw: number; pitch: number };
+    headRotation: { yaw: number; pitch: number; roll: number };
   } | null>(null);
   const [showCalibration, setShowCalibration] = useState(false);
   const [showDebugInfo, setShowDebugInfo] = useState(true);
   const [faceDisplayMode, setFaceDisplayMode] = useState<'none' | 'points' | 'mesh'>('points');
-  const [gestureFeedback, setGestureFeedback] = useState<{ type: 'backspace' | 'newline'; timestamp: number } | null>(null);
+  const [gestureFeedback, setGestureFeedback] = useState<{ type: 'backspace' | 'newline' | 'clear_all' | 'readback' | 'copy_speak_clear'; timestamp: number } | null>(null);
   const [calibrationSettings, setCalibrationSettings] = useState<CalibrationSettings>({
     yawRange: { min: -30, max: 30 },
     pitchRange: { min: -1, max: 15 },
@@ -57,6 +57,8 @@ export function FaceFlickCanvas() {
   const triggerStartTimeRef = useRef<number | null>(null);
   const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; timestamp: number }>>([]);
   const lastGestureTimeRef = useRef<number>(0);
+  const bothEyesClosedStartTimeRef = useRef<number | null>(null);
+  const headTiltStartTimeRef = useRef<number | null>(null);
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -212,13 +214,57 @@ export function FaceFlickCanvas() {
       (h) => now - h.timestamp < 1000
     );
 
+    // 両目閉じジェスチャー検出（2秒保持で読み上げ）
+    if (faceState.bothEyesClosed) {
+      if (bothEyesClosedStartTimeRef.current === null) {
+        bothEyesClosedStartTimeRef.current = now;
+      } else {
+        const elapsedTime = now - bothEyesClosedStartTimeRef.current;
+        if (elapsedTime >= 2000 && now - lastGestureTimeRef.current > 1000) {
+          // 読み上げ
+          speakText(inputText, 'robot');
+          setGestureFeedback({ type: 'readback' as any, timestamp: now });
+          lastGestureTimeRef.current = now;
+          bothEyesClosedStartTimeRef.current = null;
+        }
+      }
+    } else {
+      bothEyesClosedStartTimeRef.current = null;
+    }
+
+    // 首かしげジェスチャー検出（1.5秒保持でコピー&発声&クリア）
+    const isHeadTilted = Math.abs(faceState.headRotation.roll) > 20; // 20度以上傾いている
+    if (isHeadTilted) {
+      if (headTiltStartTimeRef.current === null) {
+        headTiltStartTimeRef.current = now;
+      } else {
+        const elapsedTime = now - headTiltStartTimeRef.current;
+        if (elapsedTime >= 1500 && now - lastGestureTimeRef.current > 1000) {
+          // コピー&発声&クリア
+          copyToClipboard(inputText);
+          speakText(inputText, 'human');
+          setInputText('');
+          setGestureFeedback({ type: 'copy_speak_clear' as any, timestamp: now });
+          lastGestureTimeRef.current = now;
+          headTiltStartTimeRef.current = null;
+        }
+      }
+    } else {
+      headTiltStartTimeRef.current = null;
+    }
+
     // ジェスチャー検出（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
     if (inputState.type === 'idle' && now - lastGestureTimeRef.current > 1000) {
       const gesture = detectGesture(headRotationHistoryRef.current);
       if (gesture === 'head_shake') {
-        // バックスペース
-        setInputText((prev) => prev.slice(0, -1));
-        setGestureFeedback({ type: 'backspace', timestamp: now });
+        // バックスペース or 全消去（口を開けている場合）
+        if (faceState.mouthOpen) {
+          setInputText('');
+          setGestureFeedback({ type: 'clear_all' as any, timestamp: now });
+        } else {
+          setInputText((prev) => prev.slice(0, -1));
+          setGestureFeedback({ type: 'backspace', timestamp: now });
+        }
         lastGestureTimeRef.current = now;
         headRotationHistoryRef.current = []; // 履歴をクリア
       } else if (gesture === 'nod') {
@@ -625,7 +671,7 @@ export function FaceFlickCanvas() {
 
       // 頭の向き
       ctx.fillText(
-        `Yaw: ${debugInfo.headRotation.yaw.toFixed(1)}° Pitch: ${debugInfo.headRotation.pitch.toFixed(1)}°`,
+        `Yaw: ${debugInfo.headRotation.yaw.toFixed(1)}° Pitch: ${debugInfo.headRotation.pitch.toFixed(1)}° Roll: ${debugInfo.headRotation.roll.toFixed(1)}°`,
         10,
         toolbarHeight + 55
       );
@@ -724,7 +770,24 @@ export function FaceFlickCanvas() {
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
 
-      const text = gestureFeedback.type === 'backspace' ? '⌫ 削除' : '↵ 改行';
+      let text = '';
+      switch (gestureFeedback.type) {
+        case 'backspace':
+          text = '⌫ 削除';
+          break;
+        case 'newline':
+          text = '↵ 改行';
+          break;
+        case 'clear_all':
+          text = '🗑 全消去';
+          break;
+        case 'readback':
+          text = '🔊 読み上げ';
+          break;
+        case 'copy_speak_clear':
+          text = '📋 コピー完了';
+          break;
+      }
       ctx.fillText(text, width - 20, statusY);
       ctx.restore();
     }
@@ -757,6 +820,33 @@ export function FaceFlickCanvas() {
         return '→ 右';
       default:
         return '';
+    }
+  }
+
+  function speakText(text: string, voice: 'robot' | 'human') {
+    if (!text || !window.speechSynthesis) return;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ja-JP';
+
+    if (voice === 'robot') {
+      utterance.rate = 1.2; // 速め
+      utterance.pitch = 1.5; // 高め
+    } else {
+      utterance.rate = 1.0; // 普通
+      utterance.pitch = 1.0; // 普通
+    }
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function copyToClipboard(text: string) {
+    if (!text) return;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch((err) => {
+        console.error('クリップボードへのコピーに失敗しました:', err);
+      });
     }
   }
 
