@@ -63,7 +63,7 @@ export function FaceFlickCanvas() {
   const headTiltStartTimeRef = useRef<number | null>(null);
   const headTiltBaseRollRef = useRef<number | null>(null);
   const calibrationStartTimeRef = useRef<number | null>(null);
-  const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number }[]>([]);
+  const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number; ear: { left: number; right: number } }[]>([]);
   const baseYawRef = useRef<number | null>(null);
   const basePitchRef = useRef<number | null>(null);
   const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number; roll: number } | null>(null);
@@ -210,7 +210,7 @@ export function FaceFlickCanvas() {
   }
 
   function processInput(faceState: any) {
-    const HOLD_DELAY_MS = 800; // 0.8秒のホールド遅延
+    const HOLD_DELAY_MS = 400; // 0.4秒のホールド遅延
     const now = Date.now();
 
     // 頭の回転に平滑化を適用（EMA: 指数移動平均）
@@ -262,11 +262,15 @@ export function FaceFlickCanvas() {
       const progress = Math.min(100, (elapsedTime / 3000) * 100);
       setCalibrationProgress(progress);
 
-      // yaw, pitch, roll値をサンプリング
+      // yaw, pitch, roll, ear値をサンプリング
       calibrationSamplesRef.current.push({
         yaw: faceState.headRotation.yaw,
         pitch: faceState.headRotation.pitch,
         roll: faceState.headRotation.roll,
+        ear: {
+          left: faceState.ear.left,
+          right: faceState.ear.right,
+        },
       });
 
       if (elapsedTime >= 3000) {
@@ -275,16 +279,28 @@ export function FaceFlickCanvas() {
         const avgYaw = samples.reduce((sum, s) => sum + s.yaw, 0) / samples.length;
         const avgPitch = samples.reduce((sum, s) => sum + s.pitch, 0) / samples.length;
         const avgRoll = samples.reduce((sum, s) => sum + s.roll, 0) / samples.length;
+        const avgEARLeft = samples.reduce((sum, s) => sum + s.ear.left, 0) / samples.length;
+        const avgEARRight = samples.reduce((sum, s) => sum + s.ear.right, 0) / samples.length;
 
         baseYawRef.current = avgYaw;
         basePitchRef.current = avgPitch;
         headTiltBaseRollRef.current = avgRoll;
+
+        // キャリブレーション設定にbaseEARを保存
+        setCalibrationSettings((prev) => ({
+          ...prev,
+          baseEAR: {
+            left: avgEARLeft,
+            right: avgEARRight,
+          },
+        }));
 
         setIsCalibrating(false);
         console.log('キャリブレーション完了:');
         console.log('  基準Yaw =', avgYaw.toFixed(2), '度');
         console.log('  基準Pitch =', avgPitch.toFixed(2), '度');
         console.log('  基準Roll =', avgRoll.toFixed(2), '度');
+        console.log('  基準EAR = L:', avgEARLeft.toFixed(3), 'R:', avgEARRight.toFixed(3));
       }
 
       // キャリブレーション中は通常の入力処理をスキップ
@@ -947,6 +963,8 @@ export function FaceFlickCanvas() {
         return '左ウィンク 😉';
       case 'wink_right':
         return '右ウィンク 😉';
+      case 'eyes_wide':
+        return '目を見開く 👀';
       default:
         return 'なし';
     }

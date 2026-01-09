@@ -36,6 +36,10 @@ export function analyzeFace(
   const winkRight = ear.right < earThreshold && ear.left > earThreshold;
   // 両目閉じは通常のまばたきと区別するため、より厳しい条件（閾値の半分以下）
   const bothEyesClosed = ear.left < earThreshold * 0.5 && ear.right < earThreshold * 0.5;
+  // 目を見開く（baseEARの1.3倍以上）
+  const eyesWide = settings?.baseEAR
+    ? (ear.left >= settings.baseEAR.left * 1.3 && ear.right >= settings.baseEAR.right * 1.3)
+    : false;
 
   // どのトリガーがアクティブか判定（優先順位あり）
   let isTriggered = false;
@@ -53,6 +57,9 @@ export function analyzeFace(
   } else if (winkRight) {
     isTriggered = true;
     triggerType = 'wink_right';
+  } else if (eyesWide) {
+    isTriggered = true;
+    triggerType = 'eyes_wide';
   }
 
   // 頭の回転を計算

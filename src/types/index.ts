@@ -1,6 +1,6 @@
 import { NormalizedLandmark } from '@mediapipe/tasks-vision';
 
-export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'wink_left' | 'wink_right' | null;
+export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'wink_left' | 'wink_right' | 'eyes_wide' | null;
 
 export interface FaceState {
   landmarks: NormalizedLandmark[];
@@ -57,6 +57,8 @@ export interface CalibrationSettings {
   mouthOpenThreshold: number;
   mouthPuckerThreshold: number;
   earThreshold: number;
+  // 目を見開く検出用の基準EAR値
+  baseEAR?: { left: number; right: number };
   // グリッド・フリック感度
   gridSensitivity: number;
   flickSensitivity: number;
