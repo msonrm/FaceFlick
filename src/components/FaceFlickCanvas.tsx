@@ -63,7 +63,9 @@ export function FaceFlickCanvas() {
   const headTiltStartTimeRef = useRef<number | null>(null);
   const headTiltBaseRollRef = useRef<number | null>(null);
   const calibrationStartTimeRef = useRef<number | null>(null);
-  const calibrationRollSamplesRef = useRef<number[]>([]);
+  const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number }[]>([]);
+  const baseYawRef = useRef<number | null>(null);
+  const basePitchRef = useRef<number | null>(null);
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -230,15 +232,29 @@ export function FaceFlickCanvas() {
       const progress = Math.min(100, (elapsedTime / 3000) * 100);
       setCalibrationProgress(progress);
 
-      // roll値をサンプリング
-      calibrationRollSamplesRef.current.push(faceState.headRotation.roll);
+      // yaw, pitch, roll値をサンプリング
+      calibrationSamplesRef.current.push({
+        yaw: faceState.headRotation.yaw,
+        pitch: faceState.headRotation.pitch,
+        roll: faceState.headRotation.roll,
+      });
 
       if (elapsedTime >= 3000) {
         // 3秒経過：平均値を計算して基準値として設定
-        const avgRoll = calibrationRollSamplesRef.current.reduce((sum, r) => sum + r, 0) / calibrationRollSamplesRef.current.length;
+        const samples = calibrationSamplesRef.current;
+        const avgYaw = samples.reduce((sum, s) => sum + s.yaw, 0) / samples.length;
+        const avgPitch = samples.reduce((sum, s) => sum + s.pitch, 0) / samples.length;
+        const avgRoll = samples.reduce((sum, s) => sum + s.roll, 0) / samples.length;
+
+        baseYawRef.current = avgYaw;
+        basePitchRef.current = avgPitch;
         headTiltBaseRollRef.current = avgRoll;
+
         setIsCalibrating(false);
-        console.log('キャリブレーション完了: 基準roll =', avgRoll.toFixed(2), '度');
+        console.log('キャリブレーション完了:');
+        console.log('  基準Yaw =', avgYaw.toFixed(2), '度');
+        console.log('  基準Pitch =', avgPitch.toFixed(2), '度');
+        console.log('  基準Roll =', avgRoll.toFixed(2), '度');
       }
 
       // キャリブレーション中は通常の入力処理をスキップ
@@ -566,7 +582,7 @@ export function FaceFlickCanvas() {
     // ツールバーの高さ
     const toolbarHeight = 50;
     // デバッグ情報エリアの高さ
-    const debugInfoHeight = showDebugInfo ? 80 : 0;
+    const debugInfoHeight = showDebugInfo ? 95 : 0;
     // キーボードの開始位置
     const keyboardTop = toolbarHeight + debugInfoHeight;
     // キーを正方形にする（画面幅基準）
@@ -685,7 +701,7 @@ export function FaceFlickCanvas() {
   ) {
     // レイアウト計算
     const toolbarHeight = 50;
-    const debugInfoHeight = showDebugInfo ? 80 : 0; // デバッグ情報エリアの高さ
+    const debugInfoHeight = showDebugInfo ? 95 : 0; // デバッグ情報エリアの高さ（Roll差分用に拡大）
     const keySize = width / 3;
     const keyboardHeight = keySize * 4;
     const keyboardTop = toolbarHeight + debugInfoHeight;
@@ -726,6 +742,18 @@ export function FaceFlickCanvas() {
         10,
         toolbarHeight + 55
       );
+
+      // Roll差分（首かしげ検出用）
+      if (headTiltBaseRollRef.current !== null) {
+        const rollDiff = Math.abs(debugInfo.headRotation.roll - headTiltBaseRollRef.current);
+        ctx.fillText(
+          `Roll差分: ${rollDiff.toFixed(1)}° (基準: ${headTiltBaseRollRef.current.toFixed(1)}°, 閾値: 15°)`,
+          10,
+          toolbarHeight + 70
+        );
+      } else {
+        ctx.fillText('Roll差分: (基準値未設定)', 10, toolbarHeight + 70);
+      }
     }
 
     // 入力テキストエリアの背景
