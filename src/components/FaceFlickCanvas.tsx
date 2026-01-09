@@ -556,27 +556,20 @@ export function FaceFlickCanvas() {
 
       if (!lm0 || !lm1 || !lm2) continue;
 
-      // 3D座標を取得
-      const p0 = {
-        x: width - lm0.x * width, // 反転
-        y: lm0.y * height,
-        z: lm0.z || 0
+      // 法線ベクトルを正規化された3D座標系で計算（スクリーン変換前）
+      // MediaPipeのz座標は正規化された深度値なので、そのまま使用
+      const v1 = {
+        x: lm1.x - lm0.x,
+        y: lm1.y - lm0.y,
+        z: (lm1.z || 0) - (lm0.z || 0)
       };
-      const p1 = {
-        x: width - lm1.x * width,
-        y: lm1.y * height,
-        z: lm1.z || 0
-      };
-      const p2 = {
-        x: width - lm2.x * width,
-        y: lm2.y * height,
-        z: lm2.z || 0
+      const v2 = {
+        x: lm2.x - lm0.x,
+        y: lm2.y - lm0.y,
+        z: (lm2.z || 0) - (lm0.z || 0)
       };
 
-      // 法線ベクトルを計算（外積）
-      const v1 = { x: p1.x - p0.x, y: p1.y - p0.y, z: p1.z - p0.z };
-      const v2 = { x: p2.x - p0.x, y: p2.y - p0.y, z: p2.z - p0.z };
-
+      // 外積で法線ベクトルを計算
       const normal = {
         x: v1.y * v2.z - v1.z * v2.y,
         y: v1.z * v2.x - v1.x * v2.z,
@@ -601,6 +594,20 @@ export function FaceFlickCanvas() {
       const r = Math.floor(baseColor.r * diffuse);
       const g = Math.floor(baseColor.g * diffuse);
       const b = Math.floor(baseColor.b * diffuse);
+
+      // スクリーン座標に変換（描画用）
+      const p0 = {
+        x: width - lm0.x * width, // 反転
+        y: lm0.y * height
+      };
+      const p1 = {
+        x: width - lm1.x * width,
+        y: lm1.y * height
+      };
+      const p2 = {
+        x: width - lm2.x * width,
+        y: lm2.y * height
+      };
 
       // 三角形を塗りつぶし（フラットシェーディング）
       ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
