@@ -46,7 +46,7 @@ export function FaceFlickCanvas() {
   const [gestureFeedback, setGestureFeedback] = useState<{ type: 'backspace' | 'newline'; timestamp: number } | null>(null);
   const [calibrationSettings, setCalibrationSettings] = useState<CalibrationSettings>({
     yawRange: { min: -30, max: 30 },
-    pitchRange: { min: -30, max: 30 },
+    pitchRange: { min: -1, max: 15 },
     mouthOpenThreshold: MOUTH_OPEN_THRESHOLD,
     mouthPuckerThreshold: MOUTH_PUCKER_THRESHOLD,
     earThreshold: EAR_THRESHOLD,
@@ -679,35 +679,53 @@ export function FaceFlickCanvas() {
       textY += lineHeight;
     });
 
+    // カーソル表示（CLI風の点滅）
+    const cursorVisible = Math.floor(Date.now() / 500) % 2 === 0; // 0.5秒ごとに点滅
+    if (cursorVisible) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '24px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+
+      // 最後の行の終わりにカーソルを表示
+      const cursorX = displayLines.length > 0
+        ? 20 + ctx.measureText(displayLines[displayLines.length - 1]).width
+        : 20;
+      const cursorY = textY - lineHeight + (displayLines.length === 0 ? 0 : 0);
+      ctx.fillText('|', cursorX, cursorY);
+    }
+
     // 入力状態表示
+    const statusY = inputAreaTop + inputAreaHeight - 30;
+
     if (inputState.type === 'selecting') {
       ctx.fillStyle = '#ffff00';
       ctx.font = '16px sans-serif';
-      ctx.fillText('選択中...', 20, inputAreaTop + inputAreaHeight - 30);
+      ctx.fillText('選択中...', 20, statusY);
     } else if (inputState.type === 'flicking') {
       ctx.fillStyle = '#00ff00';
       ctx.font = '16px sans-serif';
       const directionText = getDirectionDisplayText(inputState.direction);
-      ctx.fillText(`フリック: ${directionText}`, 20, inputAreaTop + inputAreaHeight - 30);
+      ctx.fillText(`フリック: ${directionText}`, 20, statusY);
     }
 
-    // ジェスチャーフィードバック表示（画面中央）
+    // ジェスチャーフィードバック表示（テキストエリア内の右側）
     if (gestureFeedback) {
       const feedbackAge = Date.now() - gestureFeedback.timestamp;
       const opacity = Math.max(0, 1 - feedbackAge / 1000); // 1秒かけてフェードアウト
 
       ctx.save();
       ctx.fillStyle = `rgba(0, 255, 255, ${opacity})`;
-      ctx.font = 'bold 48px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
       ctx.shadowColor = `rgba(0, 0, 0, ${opacity * 0.8})`;
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 4;
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
 
       const text = gestureFeedback.type === 'backspace' ? '⌫ 削除' : '↵ 改行';
-      ctx.fillText(text, width / 2, height / 2);
+      ctx.fillText(text, width - 20, statusY);
       ctx.restore();
     }
   }
