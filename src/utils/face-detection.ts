@@ -34,6 +34,8 @@ export function analyzeFace(
   const mouthPuckered = mouthPucker > mouthPuckerThreshold;
   const winkLeft = ear.left < earThreshold && ear.right > earThreshold;
   const winkRight = ear.right < earThreshold && ear.left > earThreshold;
+  // 両目閉じは通常のまばたきと区別するため、より厳しい条件（閾値の半分以下）
+  const bothEyesClosed = ear.left < earThreshold * 0.5 && ear.right < earThreshold * 0.5;
 
   // どのトリガーがアクティブか判定（優先順位あり）
   let isTriggered = false;
@@ -65,6 +67,7 @@ export function analyzeFace(
     mouthPuckered,
     winkLeft,
     winkRight,
+    bothEyesClosed,
     isTriggered,
     triggerType,
     headRotation,
@@ -170,6 +173,7 @@ function calculateMouthPucker(landmarks: NormalizedLandmark[]): number {
 function calculateHeadRotation(landmarks: NormalizedLandmark[]): {
   yaw: number;
   pitch: number;
+  roll: number;
 } {
   // 鼻の先端
   const noseTip = landmarks[1];
@@ -190,7 +194,13 @@ function calculateHeadRotation(landmarks: NormalizedLandmark[]): {
   const pitchOffset = noseTip.y - faceCenter.y;
   const pitch = pitchOffset * 90; // -90 to 90 度に変換
 
-  return { yaw, pitch };
+  // Roll (傾き): 両目の高さの差から計算
+  const eyeHeightDiff = rightEye.y - leftEye.y;
+  const eyeWidth = Math.abs(rightEye.x - leftEye.x);
+  const rollAngle = eyeWidth > 0 ? Math.atan2(eyeHeightDiff, eyeWidth) : 0;
+  const roll = rollAngle * (180 / Math.PI); // ラジアンから度に変換
+
+  return { yaw, pitch, roll };
 }
 
 /**

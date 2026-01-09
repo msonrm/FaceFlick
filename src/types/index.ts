@@ -18,6 +18,7 @@ export interface FaceState {
   mouthPuckered: boolean;
   winkLeft: boolean;
   winkRight: boolean;
+  bothEyesClosed: boolean;
   // どのトリガーがアクティブか
   isTriggered: boolean;
   triggerType: TriggerType;
@@ -25,6 +26,7 @@ export interface FaceState {
   headRotation: {
     yaw: number;   // 左右の回転 (-180 to 180)
     pitch: number; // 上下の回転 (-90 to 90)
+    roll: number;  // 傾き (-180 to 180)
   };
 }
 
