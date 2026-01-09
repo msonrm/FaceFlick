@@ -66,7 +66,6 @@ export function FaceFlickCanvas() {
   const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number }[]>([]);
   const baseYawRef = useRef<number | null>(null);
   const basePitchRef = useRef<number | null>(null);
-  const lastHoveredKeyRef = useRef<string | null>(null);
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -329,18 +328,6 @@ export function FaceFlickCanvas() {
     }
 
     if (inputState.type === 'idle') {
-      // ホバー時の音声発声（キーが変わったときのみ）
-      if (selectedKey && !faceState.isTriggered) {
-        const currentKeyBase = selectedKey.base;
-        if (lastHoveredKeyRef.current !== currentKeyBase) {
-          lastHoveredKeyRef.current = currentKeyBase;
-          speakText(currentKeyBase, 'robot_low');
-        }
-      } else if (!selectedKey) {
-        // キーから離れたらリセット
-        lastHoveredKeyRef.current = null;
-      }
-
       // トリガーがアクティブでキーが選択されている
       if (faceState.isTriggered && selectedKey) {
         // トリガー開始時刻を記録
@@ -351,8 +338,6 @@ export function FaceFlickCanvas() {
         // 0.8秒経過したかチェック
         const elapsedTime = Date.now() - triggerStartTimeRef.current;
         if (elapsedTime >= HOLD_DELAY_MS) {
-          // ホールド開始時に中央の文字を発声
-          speakText(selectedKey.base, 'robot_normal');
           setInputState({
             type: 'selecting',
             key: selectedKey,
@@ -372,8 +357,6 @@ export function FaceFlickCanvas() {
       // トリガーが解除された = 入力確定
       if (!faceState.isTriggered || faceState.triggerType !== inputState.triggerType) {
         const char = getCharFromFlick(inputState.key, null);
-        // 確定時に人間の少し高めの声で発声
-        speakText(char, 'human_high');
         addCharacter(char);
         setInputState({ type: 'idle' });
       } else {
@@ -396,8 +379,6 @@ export function FaceFlickCanvas() {
       // トリガーが解除された = フリック入力確定
       if (!faceState.isTriggered || faceState.triggerType !== inputState.triggerType) {
         const char = getCharFromFlick(inputState.key, inputState.direction);
-        // 確定時に人間の少し高めの声で発声
-        speakText(char, 'human_high');
         addCharacter(char);
         setInputState({ type: 'idle' });
       }
