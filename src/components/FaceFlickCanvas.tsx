@@ -33,6 +33,7 @@ export function FaceFlickCanvas() {
   const [inputState, setInputState] = useState<InputState>({ type: 'idle' });
   const [inputText, setInputText] = useState('');
   const [currentFaceState, setCurrentFaceState] = useState<any>(null);
+  const [smoothedFaceState, setSmoothedFaceState] = useState<any>(null);
   const [debugInfo, setDebugInfo] = useState<{
     ear: { left: number; right: number };
     mar: number;
@@ -48,7 +49,7 @@ export function FaceFlickCanvas() {
   const [calibrationProgress, setCalibrationProgress] = useState(0);
   const [calibrationSettings, setCalibrationSettings] = useState<CalibrationSettings>({
     yawRange: { min: -30, max: 30 },
-    pitchRange: { min: -1, max: 15 },
+    pitchRange: { min: -1, max: 10 },
     mouthOpenThreshold: MOUTH_OPEN_THRESHOLD,
     mouthPuckerThreshold: MOUTH_PUCKER_THRESHOLD,
     earThreshold: EAR_THRESHOLD,
@@ -59,13 +60,13 @@ export function FaceFlickCanvas() {
   const triggerStartTimeRef = useRef<number | null>(null);
   const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>>([]);
   const lastGestureTimeRef = useRef<number>(0);
-  const bothEyesClosedStartTimeRef = useRef<number | null>(null);
   const headTiltStartTimeRef = useRef<number | null>(null);
   const headTiltBaseRollRef = useRef<number | null>(null);
   const calibrationStartTimeRef = useRef<number | null>(null);
   const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number }[]>([]);
   const baseYawRef = useRef<number | null>(null);
   const basePitchRef = useRef<number | null>(null);
+  const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number; roll: number } | null>(null);
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -90,15 +91,19 @@ export function FaceFlickCanvas() {
     function animate(timestamp: number) {
       if (!ctx || !canvas || !video) return;
 
-      // キャンバスサイズをビューポートサイズに合わせる
+      // キャンバスサイズをビューポートサイズに合わせる（高DPI対応）
       const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+
+      // 高DPI用にスケーリング
+      ctx.scale(dpr, dpr);
 
       // ビデオを描画（反転）
       ctx.save();
       ctx.scale(-1, 1);
-      ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, -rect.width, 0, rect.width, rect.height);
       ctx.restore();
 
       // 顔検出
@@ -123,16 +128,16 @@ export function FaceFlickCanvas() {
 
           // 顔のランドマークを描画（モードに応じて）
           if (faceDisplayMode !== 'none') {
-            drawFaceLandmarks(ctx, faceState.landmarks, canvas.width, canvas.height, result);
+            drawFaceLandmarks(ctx, faceState.landmarks, rect.width, rect.height, result);
           }
         }
       }
 
       // キーボードオーバーレイを描画
-      drawKeyboard(ctx, canvas.width, canvas.height);
+      drawKeyboard(ctx, rect.width, rect.height);
 
       // 入力テキストを描画
-      drawInputText(ctx, canvas.width, canvas.height);
+      drawInputText(ctx, rect.width, rect.height);
 
       animationFrameRef.current = requestAnimationFrame(animate);
     }
@@ -176,8 +181,8 @@ export function FaceFlickCanvas() {
       return 'head_shake';
     }
 
-    // ノッド検出（頷く）
-    // pitch値の変化を見て、下→上の動きがあるかチェック
+    // ノッド検出（2回連続の頷き）
+    // pitch値の変化を見て、下→上→下→上の動きがあるかチェック
     let pitchDirectionChanges = 0;
     let lastPitchDirection: 'down' | 'up' | null = null;
     let maxPitchDown = -Infinity;
@@ -196,8 +201,8 @@ export function FaceFlickCanvas() {
       }
     }
 
-    // 下→上の動きが少なくとも1回あり、十分な振り幅があればノッド
-    if (pitchDirectionChanges >= 1 && maxPitchDown > 5) {
+    // 2回連続の頷き = 下→上→下→上 = 3回の方向転換
+    if (pitchDirectionChanges >= 3 && maxPitchDown > 5) {
       return 'nod';
     }
 
@@ -205,11 +210,36 @@ export function FaceFlickCanvas() {
   }
 
   function processInput(faceState: any) {
-    const selectedKey = getSelectedKey(faceState, calibrationSettings);
     const HOLD_DELAY_MS = 800; // 0.8秒のホールド遅延
-
-    // 頭の回転履歴を更新（ジェスチャー検出用）
     const now = Date.now();
+
+    // 頭の回転に平滑化を適用（EMA: 指数移動平均）
+    const alpha = 0.3; // 平滑化係数（0に近いほど平滑、1に近いほど反応が早い）
+    if (smoothedHeadRotationRef.current === null) {
+      // 初回は現在値をそのまま使用
+      smoothedHeadRotationRef.current = {
+        yaw: faceState.headRotation.yaw,
+        pitch: faceState.headRotation.pitch,
+        roll: faceState.headRotation.roll,
+      };
+    } else {
+      // EMAで平滑化
+      smoothedHeadRotationRef.current = {
+        yaw: alpha * faceState.headRotation.yaw + (1 - alpha) * smoothedHeadRotationRef.current.yaw,
+        pitch: alpha * faceState.headRotation.pitch + (1 - alpha) * smoothedHeadRotationRef.current.pitch,
+        roll: alpha * faceState.headRotation.roll + (1 - alpha) * smoothedHeadRotationRef.current.roll,
+      };
+    }
+
+    // キー選択には平滑化された頭の位置を使用
+    const smoothedState = {
+      ...faceState,
+      headRotation: smoothedHeadRotationRef.current,
+    };
+    setSmoothedFaceState(smoothedState);
+    const selectedKey = getSelectedKey(smoothedState, calibrationSettings);
+
+    // 頭の回転履歴を更新（ジェスチャー検出用：生の値を使用）
     headRotationHistoryRef.current.push({
       yaw: faceState.headRotation.yaw,
       pitch: faceState.headRotation.pitch,
@@ -261,25 +291,7 @@ export function FaceFlickCanvas() {
       return;
     }
 
-    // 両目閉じジェスチャー検出（3秒保持で読み上げ）
-    if (faceState.bothEyesClosed) {
-      if (bothEyesClosedStartTimeRef.current === null) {
-        bothEyesClosedStartTimeRef.current = now;
-      } else {
-        const elapsedTime = now - bothEyesClosedStartTimeRef.current;
-        if (elapsedTime >= 3000 && now - lastGestureTimeRef.current > 1000) {
-          // 読み上げ
-          speakText(inputText, 'robot');
-          setGestureFeedback({ type: 'readback' as any, timestamp: now });
-          lastGestureTimeRef.current = now;
-          bothEyesClosedStartTimeRef.current = null;
-        }
-      }
-    } else {
-      bothEyesClosedStartTimeRef.current = null;
-    }
-
-    // 首かしげジェスチャー検出（相対値、1.5秒保持でコピー&発声&クリア）
+    // 首かしげジェスチャー検出（相対値、1.5秒保持で発声&クリア）
     // 基準値からの相対的な傾きを計算（キャリブレーションで設定済み）
     const rollDiff = headTiltBaseRollRef.current !== null
       ? Math.abs(faceState.headRotation.roll - headTiltBaseRollRef.current)
@@ -292,9 +304,8 @@ export function FaceFlickCanvas() {
       } else {
         const elapsedTime = now - headTiltStartTimeRef.current;
         if (elapsedTime >= 1500 && now - lastGestureTimeRef.current > 1000) {
-          // コピー&発声&クリア
-          copyToClipboard(inputText);
-          speakText(inputText, 'human');
+          // 発声&クリア
+          speakText(inputText, 'human_high');
           setInputText('');
           setGestureFeedback({ type: 'copy_speak_clear' as any, timestamp: now });
           lastGestureTimeRef.current = now;
@@ -309,20 +320,16 @@ export function FaceFlickCanvas() {
     if (inputState.type === 'idle' && now - lastGestureTimeRef.current > 1000) {
       const gesture = detectGesture(headRotationHistoryRef.current);
       if (gesture === 'head_shake') {
-        // バックスペース or 全消去（口を開けている場合）
-        if (faceState.mouthOpen) {
-          setInputText('');
-          setGestureFeedback({ type: 'clear_all' as any, timestamp: now });
-        } else {
-          setInputText((prev) => prev.slice(0, -1));
-          setGestureFeedback({ type: 'backspace', timestamp: now });
-        }
+        // バックスペース
+        setInputText((prev) => prev.slice(0, -1));
+        setGestureFeedback({ type: 'backspace', timestamp: now });
         lastGestureTimeRef.current = now;
         headRotationHistoryRef.current = []; // 履歴をクリア
       } else if (gesture === 'nod') {
-        // 改行
-        setInputText((prev) => prev + '\n');
-        setGestureFeedback({ type: 'newline', timestamp: now });
+        // 発声&クリア
+        speakText(inputText, 'human_high');
+        setInputText('');
+        setGestureFeedback({ type: 'copy_speak_clear' as any, timestamp: now });
         lastGestureTimeRef.current = now;
         headRotationHistoryRef.current = []; // 履歴をクリア
       }
@@ -344,8 +351,8 @@ export function FaceFlickCanvas() {
             key: selectedKey,
             triggerType: faceState.triggerType,
             holdPosition: {
-              yaw: faceState.headRotation.yaw,
-              pitch: faceState.headRotation.pitch,
+              yaw: smoothedHeadRotationRef.current!.yaw,
+              pitch: smoothedHeadRotationRef.current!.pitch,
             },
           });
           triggerStartTimeRef.current = null; // リセット
@@ -361,8 +368,8 @@ export function FaceFlickCanvas() {
         addCharacter(char);
         setInputState({ type: 'idle' });
       } else {
-        // トリガーを維持したまま = フリック判定（ホールド位置を基準に）
-        const direction = getFlickDirection(faceState, inputState.holdPosition, calibrationSettings);
+        // トリガーを維持したまま = フリック判定（ホールド位置を基準に、平滑化された値を使用）
+        const direction = getFlickDirection(smoothedState, inputState.holdPosition, calibrationSettings);
         if (direction) {
           setInputState({
             type: 'flicking',
@@ -380,9 +387,9 @@ export function FaceFlickCanvas() {
         addCharacter(char);
         setInputState({ type: 'idle' });
       }
-      // フリック中に方向が変わったら更新（ホールド位置を基準に）
+      // フリック中に方向が変わったら更新（ホールド位置を基準に、平滑化された値を使用）
       else {
-        const direction = getFlickDirection(faceState, inputState.holdPosition, calibrationSettings);
+        const direction = getFlickDirection(smoothedState, inputState.holdPosition, calibrationSettings);
         if (direction && direction !== inputState.direction) {
           setInputState({
             type: 'flicking',
@@ -485,15 +492,24 @@ export function FaceFlickCanvas() {
     _result: any
   ) {
     if (faceDisplayMode === 'points') {
-      // ポイント表示（Instagram風）
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      // ポイント表示（Instagram風 with glow）
       for (const landmark of landmarks) {
         const x = width - landmark.x * width; // 反転
         const y = landmark.y * height;
+
+        // Glowエフェクト
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+
         ctx.beginPath();
-        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
         ctx.fill();
       }
+
+      // Shadowをリセット
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
     } else if (faceDisplayMode === 'mesh') {
       // メッシュ表示（Max Headroom風ワイヤーフレーム）
       drawFaceMesh(ctx, landmarks, width, height);
@@ -510,7 +526,7 @@ export function FaceFlickCanvas() {
     // MediaPipe公式のFACE_LANDMARKS_TESSELATIONデータを使用
 
     // 光源方向（正規化されたベクトル）: 左上から
-    const lightDir = { x: -0.5, y: -0.8, z: 0.3 };
+    const lightDir = { x: 0.5, y: -0.8, z: 0.3 };
     const lightMag = Math.sqrt(lightDir.x ** 2 + lightDir.y ** 2 + lightDir.z ** 2);
     const light = {
       x: lightDir.x / lightMag,
@@ -610,6 +626,8 @@ export function FaceFlickCanvas() {
 
       // 三角形を塗りつぶし（フラットシェーディング）
       ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      ctx.strokeStyle = 'transparent';
+      ctx.lineWidth = 0;
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y);
       ctx.lineTo(p1.x, p1.y);
@@ -633,9 +651,9 @@ export function FaceFlickCanvas() {
     // キーを正方形にする（画面幅基準）
     const keySize = width / 3;
 
-    // 現在顔が向いているキーを取得（idle状態のみ）
-    const currentKey = (inputState.type === 'idle' && currentFaceState)
-      ? getSelectedKey(currentFaceState, calibrationSettings)
+    // 現在顔が向いているキーを取得（idle状態のみ、平滑化された値を使用）
+    const currentKey = (inputState.type === 'idle' && smoothedFaceState)
+      ? getSelectedKey(smoothedFaceState, calibrationSettings)
       : null;
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
@@ -861,7 +879,9 @@ export function FaceFlickCanvas() {
       const cursorX = displayLines.length > 0
         ? 20 + ctx.measureText(displayLines[displayLines.length - 1]).width
         : 20;
-      const cursorY = textY - lineHeight + (displayLines.length === 0 ? 0 : 0);
+      const cursorY = displayLines.length > 0
+        ? textY - lineHeight
+        : inputAreaTop + 10;
       ctx.fillText('|', cursorX, cursorY);
     }
 
@@ -909,7 +929,7 @@ export function FaceFlickCanvas() {
           text = '🔊 読み上げ';
           break;
         case 'copy_speak_clear':
-          text = '📋 コピー完了';
+          text = '🔊 発声&クリア';
           break;
       }
       ctx.fillText(text, width - 20, statusY);
@@ -947,31 +967,33 @@ export function FaceFlickCanvas() {
     }
   }
 
-  function speakText(text: string, voice: 'robot' | 'human') {
+  function speakText(text: string, voice: 'robot_low' | 'robot_normal' | 'human_high') {
     if (!text || !window.speechSynthesis) return;
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    // 特殊文字の読み替え
+    let spokenText = text;
+    if (text === '゛゜小') {
+      spokenText = 'てん';
+    } else if (text === '、') {
+      spokenText = 'くとうてん';
+    }
+
+    const utterance = new SpeechSynthesisUtterance(spokenText);
     utterance.lang = 'ja-JP';
 
-    if (voice === 'robot') {
-      utterance.rate = 1.2; // 速め
-      utterance.pitch = 1.5; // 高め
-    } else {
+    if (voice === 'robot_low') {
+      utterance.rate = 1.0; // 普通
+      utterance.pitch = 0.8; // 低め
+    } else if (voice === 'robot_normal') {
       utterance.rate = 1.0; // 普通
       utterance.pitch = 1.0; // 普通
+    } else {
+      // human_high
+      utterance.rate = 1.0; // 普通
+      utterance.pitch = 1.2; // 少し高め
     }
 
     window.speechSynthesis.speak(utterance);
-  }
-
-  function copyToClipboard(text: string) {
-    if (!text) return;
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch((err) => {
-        console.error('クリップボードへのコピーに失敗しました:', err);
-      });
-    }
   }
 
   function handleRecordToggle() {
