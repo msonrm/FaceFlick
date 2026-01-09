@@ -34,7 +34,8 @@ export function analyzeFace(
   const mouthPuckered = mouthPucker > mouthPuckerThreshold;
   const winkLeft = ear.left < earThreshold && ear.right > earThreshold;
   const winkRight = ear.right < earThreshold && ear.left > earThreshold;
-  const bothEyesClosed = ear.left < earThreshold && ear.right < earThreshold;
+  // 両目閉じは通常のまばたきと区別するため、より厳しい条件（閾値の半分以下）
+  const bothEyesClosed = ear.left < earThreshold * 0.5 && ear.right < earThreshold * 0.5;
 
   // どのトリガーがアクティブか判定（優先順位あり）
   let isTriggered = false;

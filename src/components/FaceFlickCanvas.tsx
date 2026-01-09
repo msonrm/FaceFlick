@@ -216,13 +216,13 @@ export function FaceFlickCanvas() {
       (h) => now - h.timestamp < 1000
     );
 
-    // 両目閉じジェスチャー検出（2秒保持で読み上げ）
+    // 両目閉じジェスチャー検出（3秒保持で読み上げ）
     if (faceState.bothEyesClosed) {
       if (bothEyesClosedStartTimeRef.current === null) {
         bothEyesClosedStartTimeRef.current = now;
       } else {
         const elapsedTime = now - bothEyesClosedStartTimeRef.current;
-        if (elapsedTime >= 2000 && now - lastGestureTimeRef.current > 1000) {
+        if (elapsedTime >= 3000 && now - lastGestureTimeRef.current > 1000) {
           // 読み上げ
           speakText(inputText, 'robot');
           setGestureFeedback({ type: 'readback' as any, timestamp: now });
