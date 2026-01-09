@@ -33,6 +33,7 @@ export function FaceFlickCanvas() {
   const [inputState, setInputState] = useState<InputState>({ type: 'idle' });
   const [inputText, setInputText] = useState('');
   const [currentFaceState, setCurrentFaceState] = useState<any>(null);
+  const [smoothedFaceState, setSmoothedFaceState] = useState<any>(null);
   const [debugInfo, setDebugInfo] = useState<{
     ear: { left: number; right: number };
     mar: number;
@@ -65,6 +66,7 @@ export function FaceFlickCanvas() {
   const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number }[]>([]);
   const baseYawRef = useRef<number | null>(null);
   const basePitchRef = useRef<number | null>(null);
+  const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number; roll: number } | null>(null);
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -179,8 +181,8 @@ export function FaceFlickCanvas() {
       return 'head_shake';
     }
 
-    // ノッド検出（頷く）
-    // pitch値の変化を見て、下→上の動きがあるかチェック
+    // ノッド検出（2回連続の頷き）
+    // pitch値の変化を見て、下→上→下→上の動きがあるかチェック
     let pitchDirectionChanges = 0;
     let lastPitchDirection: 'down' | 'up' | null = null;
     let maxPitchDown = -Infinity;
@@ -199,8 +201,8 @@ export function FaceFlickCanvas() {
       }
     }
 
-    // 下→上の動きが少なくとも1回あり、十分な振り幅があればノッド
-    if (pitchDirectionChanges >= 1 && maxPitchDown > 5) {
+    // 2回連続の頷き = 下→上→下→上 = 3回の方向転換
+    if (pitchDirectionChanges >= 3 && maxPitchDown > 5) {
       return 'nod';
     }
 
@@ -208,11 +210,36 @@ export function FaceFlickCanvas() {
   }
 
   function processInput(faceState: any) {
-    const selectedKey = getSelectedKey(faceState, calibrationSettings);
     const HOLD_DELAY_MS = 800; // 0.8秒のホールド遅延
-
-    // 頭の回転履歴を更新（ジェスチャー検出用）
     const now = Date.now();
+
+    // 頭の回転に平滑化を適用（EMA: 指数移動平均）
+    const alpha = 0.3; // 平滑化係数（0に近いほど平滑、1に近いほど反応が早い）
+    if (smoothedHeadRotationRef.current === null) {
+      // 初回は現在値をそのまま使用
+      smoothedHeadRotationRef.current = {
+        yaw: faceState.headRotation.yaw,
+        pitch: faceState.headRotation.pitch,
+        roll: faceState.headRotation.roll,
+      };
+    } else {
+      // EMAで平滑化
+      smoothedHeadRotationRef.current = {
+        yaw: alpha * faceState.headRotation.yaw + (1 - alpha) * smoothedHeadRotationRef.current.yaw,
+        pitch: alpha * faceState.headRotation.pitch + (1 - alpha) * smoothedHeadRotationRef.current.pitch,
+        roll: alpha * faceState.headRotation.roll + (1 - alpha) * smoothedHeadRotationRef.current.roll,
+      };
+    }
+
+    // キー選択には平滑化された頭の位置を使用
+    const smoothedState = {
+      ...faceState,
+      headRotation: smoothedHeadRotationRef.current,
+    };
+    setSmoothedFaceState(smoothedState);
+    const selectedKey = getSelectedKey(smoothedState, calibrationSettings);
+
+    // 頭の回転履歴を更新（ジェスチャー検出用：生の値を使用）
     headRotationHistoryRef.current.push({
       yaw: faceState.headRotation.yaw,
       pitch: faceState.headRotation.pitch,
@@ -324,8 +351,8 @@ export function FaceFlickCanvas() {
             key: selectedKey,
             triggerType: faceState.triggerType,
             holdPosition: {
-              yaw: faceState.headRotation.yaw,
-              pitch: faceState.headRotation.pitch,
+              yaw: smoothedHeadRotationRef.current!.yaw,
+              pitch: smoothedHeadRotationRef.current!.pitch,
             },
           });
           triggerStartTimeRef.current = null; // リセット
@@ -341,8 +368,8 @@ export function FaceFlickCanvas() {
         addCharacter(char);
         setInputState({ type: 'idle' });
       } else {
-        // トリガーを維持したまま = フリック判定（ホールド位置を基準に）
-        const direction = getFlickDirection(faceState, inputState.holdPosition, calibrationSettings);
+        // トリガーを維持したまま = フリック判定（ホールド位置を基準に、平滑化された値を使用）
+        const direction = getFlickDirection(smoothedState, inputState.holdPosition, calibrationSettings);
         if (direction) {
           setInputState({
             type: 'flicking',
@@ -360,9 +387,9 @@ export function FaceFlickCanvas() {
         addCharacter(char);
         setInputState({ type: 'idle' });
       }
-      // フリック中に方向が変わったら更新（ホールド位置を基準に）
+      // フリック中に方向が変わったら更新（ホールド位置を基準に、平滑化された値を使用）
       else {
-        const direction = getFlickDirection(faceState, inputState.holdPosition, calibrationSettings);
+        const direction = getFlickDirection(smoothedState, inputState.holdPosition, calibrationSettings);
         if (direction && direction !== inputState.direction) {
           setInputState({
             type: 'flicking',
@@ -624,9 +651,9 @@ export function FaceFlickCanvas() {
     // キーを正方形にする（画面幅基準）
     const keySize = width / 3;
 
-    // 現在顔が向いているキーを取得（idle状態のみ）
-    const currentKey = (inputState.type === 'idle' && currentFaceState)
-      ? getSelectedKey(currentFaceState, calibrationSettings)
+    // 現在顔が向いているキーを取得（idle状態のみ、平滑化された値を使用）
+    const currentKey = (inputState.type === 'idle' && smoothedFaceState)
+      ? getSelectedKey(smoothedFaceState, calibrationSettings)
       : null;
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
