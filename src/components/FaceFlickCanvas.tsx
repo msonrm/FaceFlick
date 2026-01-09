@@ -66,6 +66,7 @@ export function FaceFlickCanvas() {
   const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number }[]>([]);
   const baseYawRef = useRef<number | null>(null);
   const basePitchRef = useRef<number | null>(null);
+  const lastHoveredKeyRef = useRef<string | null>(null);
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -269,7 +270,7 @@ export function FaceFlickCanvas() {
         const elapsedTime = now - bothEyesClosedStartTimeRef.current;
         if (elapsedTime >= 3000 && now - lastGestureTimeRef.current > 1000) {
           // 読み上げ
-          speakText(inputText, 'robot');
+          speakText(inputText, 'robot_normal');
           setGestureFeedback({ type: 'readback' as any, timestamp: now });
           lastGestureTimeRef.current = now;
           bothEyesClosedStartTimeRef.current = null;
@@ -292,9 +293,8 @@ export function FaceFlickCanvas() {
       } else {
         const elapsedTime = now - headTiltStartTimeRef.current;
         if (elapsedTime >= 1500 && now - lastGestureTimeRef.current > 1000) {
-          // コピー&発声&クリア
-          copyToClipboard(inputText);
-          speakText(inputText, 'human');
+          // 発声&クリア
+          speakText(inputText, 'human_high');
           setInputText('');
           setGestureFeedback({ type: 'copy_speak_clear' as any, timestamp: now });
           lastGestureTimeRef.current = now;
@@ -329,6 +329,18 @@ export function FaceFlickCanvas() {
     }
 
     if (inputState.type === 'idle') {
+      // ホバー時の音声発声（キーが変わったときのみ）
+      if (selectedKey && !faceState.isTriggered) {
+        const currentKeyBase = selectedKey.base;
+        if (lastHoveredKeyRef.current !== currentKeyBase) {
+          lastHoveredKeyRef.current = currentKeyBase;
+          speakText(currentKeyBase, 'robot_low');
+        }
+      } else if (!selectedKey) {
+        // キーから離れたらリセット
+        lastHoveredKeyRef.current = null;
+      }
+
       // トリガーがアクティブでキーが選択されている
       if (faceState.isTriggered && selectedKey) {
         // トリガー開始時刻を記録
@@ -339,6 +351,8 @@ export function FaceFlickCanvas() {
         // 0.8秒経過したかチェック
         const elapsedTime = Date.now() - triggerStartTimeRef.current;
         if (elapsedTime >= HOLD_DELAY_MS) {
+          // ホールド開始時に中央の文字を発声
+          speakText(selectedKey.base, 'robot_normal');
           setInputState({
             type: 'selecting',
             key: selectedKey,
@@ -358,12 +372,17 @@ export function FaceFlickCanvas() {
       // トリガーが解除された = 入力確定
       if (!faceState.isTriggered || faceState.triggerType !== inputState.triggerType) {
         const char = getCharFromFlick(inputState.key, null);
+        // 確定時に人間の少し高めの声で発声
+        speakText(char, 'human_high');
         addCharacter(char);
         setInputState({ type: 'idle' });
       } else {
         // トリガーを維持したまま = フリック判定（ホールド位置を基準に）
         const direction = getFlickDirection(faceState, inputState.holdPosition, calibrationSettings);
         if (direction) {
+          // フリック開始時にフリック先の文字を発声
+          const char = getCharFromFlick(inputState.key, direction);
+          speakText(char, 'robot_normal');
           setInputState({
             type: 'flicking',
             key: inputState.key,
@@ -377,6 +396,8 @@ export function FaceFlickCanvas() {
       // トリガーが解除された = フリック入力確定
       if (!faceState.isTriggered || faceState.triggerType !== inputState.triggerType) {
         const char = getCharFromFlick(inputState.key, inputState.direction);
+        // 確定時に人間の少し高めの声で発声
+        speakText(char, 'human_high');
         addCharacter(char);
         setInputState({ type: 'idle' });
       }
@@ -384,6 +405,9 @@ export function FaceFlickCanvas() {
       else {
         const direction = getFlickDirection(faceState, inputState.holdPosition, calibrationSettings);
         if (direction && direction !== inputState.direction) {
+          // 方向が変わったときも新しい文字を発声
+          const char = getCharFromFlick(inputState.key, direction);
+          speakText(char, 'robot_normal');
           setInputState({
             type: 'flicking',
             key: inputState.key,
@@ -947,31 +971,33 @@ export function FaceFlickCanvas() {
     }
   }
 
-  function speakText(text: string, voice: 'robot' | 'human') {
+  function speakText(text: string, voice: 'robot_low' | 'robot_normal' | 'human_high') {
     if (!text || !window.speechSynthesis) return;
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    // 特殊文字の読み替え
+    let spokenText = text;
+    if (text === '゛゜小') {
+      spokenText = 'てん';
+    } else if (text === '、') {
+      spokenText = 'くとうてん';
+    }
+
+    const utterance = new SpeechSynthesisUtterance(spokenText);
     utterance.lang = 'ja-JP';
 
-    if (voice === 'robot') {
-      utterance.rate = 1.2; // 速め
-      utterance.pitch = 1.5; // 高め
-    } else {
+    if (voice === 'robot_low') {
+      utterance.rate = 1.0; // 普通
+      utterance.pitch = 0.8; // 低め
+    } else if (voice === 'robot_normal') {
       utterance.rate = 1.0; // 普通
       utterance.pitch = 1.0; // 普通
+    } else {
+      // human_high
+      utterance.rate = 1.0; // 普通
+      utterance.pitch = 1.2; // 少し高め
     }
 
     window.speechSynthesis.speak(utterance);
-  }
-
-  function copyToClipboard(text: string) {
-    if (!text) return;
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch((err) => {
-        console.error('クリップボードへのコピーに失敗しました:', err);
-      });
-    }
   }
 
   function handleRecordToggle() {

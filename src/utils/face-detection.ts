@@ -2,7 +2,7 @@ import { NormalizedLandmark, FaceLandmarkerResult } from '@mediapipe/tasks-visio
 import { FaceState, TriggerType, CalibrationSettings } from '../types';
 
 // デフォルト閾値
-const DEFAULT_MOUTH_OPEN_THRESHOLD = 0.5;
+const DEFAULT_MOUTH_OPEN_THRESHOLD = 0.3;
 const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.3;
 const DEFAULT_EAR_THRESHOLD = 0.2;
 
