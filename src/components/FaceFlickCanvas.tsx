@@ -363,9 +363,6 @@ export function FaceFlickCanvas() {
         // トリガーを維持したまま = フリック判定（ホールド位置を基準に）
         const direction = getFlickDirection(faceState, inputState.holdPosition, calibrationSettings);
         if (direction) {
-          // フリック開始時にフリック先の文字を発声
-          const char = getCharFromFlick(inputState.key, direction);
-          speakText(char, 'robot_normal');
           setInputState({
             type: 'flicking',
             key: inputState.key,
@@ -386,9 +383,6 @@ export function FaceFlickCanvas() {
       else {
         const direction = getFlickDirection(faceState, inputState.holdPosition, calibrationSettings);
         if (direction && direction !== inputState.direction) {
-          // 方向が変わったときも新しい文字を発声
-          const char = getCharFromFlick(inputState.key, direction);
-          speakText(char, 'robot_normal');
           setInputState({
             type: 'flicking',
             key: inputState.key,
