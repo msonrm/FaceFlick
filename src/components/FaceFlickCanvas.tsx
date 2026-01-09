@@ -18,7 +18,6 @@ import {
 } from '../utils/keyboard-layout';
 import { InputState, CalibrationSettings } from '../types';
 import { CalibrationModal } from './CalibrationModal';
-import { FaceLandmarker } from '@mediapipe/tasks-vision';
 
 export function FaceFlickCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -284,7 +283,7 @@ export function FaceFlickCanvas() {
     const rollDiff = headTiltBaseRollRef.current !== null
       ? Math.abs(faceState.headRotation.roll - headTiltBaseRollRef.current)
       : 0;
-    const isHeadTilted = rollDiff > 15; // 基準位置から15度以上傾いている
+    const isHeadTilted = rollDiff > 10; // 基準位置から10度以上傾いている
 
     if (isHeadTilted) {
       if (headTiltStartTimeRef.current === null) {
@@ -506,56 +505,105 @@ export function FaceFlickCanvas() {
     width: number,
     height: number
   ) {
-    // MediaPipe公式のFACE_LANDMARKS_TESSELATIONデータを使用
-    const connections = FaceLandmarker.FACE_LANDMARKS_TESSELATION;
+    // SNES風ローポリスタイル：フラットシェーディング + ランバート反射
 
-    // まず顔全体をシルバーグレーで覆う（アンドルフ風）
-    // 顔の輪郭ポイントを使用（MediaPipe Face Meshの顔輪郭インデックス）
-    const faceOvalIndices = [
-      10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109
+    // 光源方向（正規化されたベクトル）: カメラ正面から斜め上
+    const lightDir = { x: 0.3, y: -0.5, z: 1.0 };
+    const lightMag = Math.sqrt(lightDir.x ** 2 + lightDir.y ** 2 + lightDir.z ** 2);
+    const light = {
+      x: lightDir.x / lightMag,
+      y: lightDir.y / lightMag,
+      z: lightDir.z / lightMag
+    };
+
+    // 基本色（シルバーグレー）
+    const baseColor = { r: 180, g: 180, b: 180 };
+
+    // ローポリメッシュ用の三角形定義（顔の主要領域を覆う）
+    // 各三角形は3つのランドマークインデックスで構成
+    const triangles = [
+      // 額
+      [10, 338, 297], [10, 297, 109], [10, 109, 67], [10, 67, 109],
+      // 左目周辺
+      [463, 414, 286], [286, 258, 257], [257, 259, 260],
+      // 右目周辺
+      [243, 190, 56], [56, 28, 27], [27, 29, 30],
+      // 左頬
+      [234, 93, 132], [132, 58, 172], [172, 136, 150],
+      // 右頬
+      [454, 323, 361], [361, 288, 397], [397, 365, 379],
+      // 鼻
+      [168, 6, 197], [197, 195, 5], [5, 4, 1],
+      // 口周辺
+      [61, 185, 40], [40, 39, 37], [291, 409, 270], [270, 269, 267],
+      // 下顔
+      [172, 136, 150], [150, 149, 176], [176, 148, 152],
+      [152, 377, 400], [400, 378, 379], [379, 365, 397],
+      // 顔の中央部分
+      [10, 151, 9], [9, 8, 168], [168, 6, 197],
+      // 左側面
+      [234, 127, 162], [162, 21, 54], [54, 103, 67],
+      // 右側面
+      [454, 356, 389], [389, 251, 284], [284, 332, 297],
     ];
 
-    ctx.fillStyle = 'rgba(180, 180, 180, 0.5)'; // シルバーグレー
-    ctx.beginPath();
-    faceOvalIndices.forEach((idx, i) => {
-      if (idx < landmarks.length) {
-        const landmark = landmarks[idx];
-        const x = width - landmark.x * width; // 反転
-        const y = landmark.y * height;
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      }
+    // 座標変換ヘルパー
+    const getScreenCoords = (landmark: any) => ({
+      x: width - landmark.x * width, // 反転
+      y: landmark.y * height,
+      z: landmark.z || 0
     });
-    ctx.closePath();
-    ctx.fill();
 
-    // その上に白いワイヤーフレームを描画（アンドルフ風）
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; // 白
-    ctx.lineWidth = 1;
+    // 各三角形を描画
+    for (const [i0, i1, i2] of triangles) {
+      if (i0 >= landmarks.length || i1 >= landmarks.length || i2 >= landmarks.length) continue;
 
-    // 各接続を線で描画
-    for (const connection of connections) {
-      const startIdx = connection.start;
-      const endIdx = connection.end;
+      const p0 = getScreenCoords(landmarks[i0]);
+      const p1 = getScreenCoords(landmarks[i1]);
+      const p2 = getScreenCoords(landmarks[i2]);
 
-      if (startIdx < landmarks.length && endIdx < landmarks.length) {
-        const p0 = landmarks[startIdx];
-        const p1 = landmarks[endIdx];
+      // 法線ベクトルを計算（外積）
+      const v1 = { x: p1.x - p0.x, y: p1.y - p0.y, z: p1.z - p0.z };
+      const v2 = { x: p2.x - p0.x, y: p2.y - p0.y, z: p2.z - p0.z };
 
-        const x0 = width - p0.x * width; // 反転
-        const y0 = p0.y * height;
-        const x1 = width - p1.x * width;
-        const y1 = p1.y * height;
+      const normal = {
+        x: v1.y * v2.z - v1.z * v2.y,
+        y: v1.z * v2.x - v1.x * v2.z,
+        z: v1.x * v2.y - v1.y * v2.x
+      };
 
-        // 線を描画
-        ctx.beginPath();
-        ctx.moveTo(x0, y0);
-        ctx.lineTo(x1, y1);
-        ctx.stroke();
-      }
+      // 法線を正規化
+      const normalMag = Math.sqrt(normal.x ** 2 + normal.y ** 2 + normal.z ** 2);
+      if (normalMag < 0.0001) continue; // 退化した三角形をスキップ
+
+      const n = {
+        x: normal.x / normalMag,
+        y: normal.y / normalMag,
+        z: normal.z / normalMag
+      };
+
+      // ランバート反射：内積を計算（0〜1にクランプ）
+      let diffuse = n.x * light.x + n.y * light.y + n.z * light.z;
+      diffuse = Math.max(0.2, Math.min(1.0, diffuse)); // アンビエント 0.2
+
+      // 最終色を計算
+      const r = Math.floor(baseColor.r * diffuse);
+      const g = Math.floor(baseColor.g * diffuse);
+      const b = Math.floor(baseColor.b * diffuse);
+
+      // 三角形を塗りつぶし
+      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.closePath();
+      ctx.fill();
+
+      // ワイヤーフレーム（白い線）
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
     }
   }
 
@@ -732,7 +780,7 @@ export function FaceFlickCanvas() {
       if (headTiltBaseRollRef.current !== null) {
         const rollDiff = Math.abs(debugInfo.headRotation.roll - headTiltBaseRollRef.current);
         ctx.fillText(
-          `Roll差分: ${rollDiff.toFixed(1)}° (基準: ${headTiltBaseRollRef.current.toFixed(1)}°, 閾値: 15°)`,
+          `Roll差分: ${rollDiff.toFixed(1)}° (基準: ${headTiltBaseRollRef.current.toFixed(1)}°, 閾値: 10°)`,
           10,
           toolbarHeight + 70
         );
