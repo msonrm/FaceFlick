@@ -164,7 +164,7 @@ export function FaceFlickCanvas() {
 
   function detectGesture(
     history: Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>
-  ): 'head_shake' | 'nod' | null {
+  ): 'head_shake' | null {
     // 最低0.5秒のデータが必要
     if (history.length < 10) return null;
 
@@ -190,31 +190,6 @@ export function FaceFlickCanvas() {
     // 2回以上方向転換があればヘッドシェイク
     if (yawDirectionChanges >= 2) {
       return 'head_shake';
-    }
-
-    // ノッド検出（2回連続の頷き）
-    // pitch値の変化を見て、下→上→下→上の動きがあるかチェック
-    let pitchDirectionChanges = 0;
-    let lastPitchDirection: 'down' | 'up' | null = null;
-    let maxPitchDown = -Infinity;
-
-    for (let i = 1; i < history.length; i++) {
-      const pitchDiff = history[i].pitch - history[i - 1].pitch;
-      if (Math.abs(pitchDiff) > 2) { // 2度以上の変化
-        const currentDirection = pitchDiff > 0 ? 'down' : 'up';
-        if (lastPitchDirection && lastPitchDirection !== currentDirection) {
-          pitchDirectionChanges++;
-        }
-        lastPitchDirection = currentDirection;
-        if (currentDirection === 'down') {
-          maxPitchDown = Math.max(maxPitchDown, history[i].pitch);
-        }
-      }
-    }
-
-    // 2回連続の頷き = 下→上→下→上 = 3回の方向転換
-    if (pitchDirectionChanges >= 3 && maxPitchDown > 5) {
-      return 'nod';
     }
 
     return null;
@@ -321,13 +296,6 @@ export function FaceFlickCanvas() {
         // バックスペース
         setInputText((prev) => prev.slice(0, -1));
         setGestureFeedback({ type: 'backspace', timestamp: now });
-        lastGestureTimeRef.current = now;
-        headRotationHistoryRef.current = []; // 履歴をクリア
-      } else if (gesture === 'nod') {
-        // 発声&クリア
-        speakText(inputText, 'human_high');
-        setInputText('');
-        setGestureFeedback({ type: 'copy_speak_clear' as any, timestamp: now });
         lastGestureTimeRef.current = now;
         headRotationHistoryRef.current = []; // 履歴をクリア
       }
