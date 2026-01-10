@@ -38,9 +38,6 @@ export function FaceFlickCanvas() {
     blendshapes: {
       jawOpen: number;
       mouthPucker: number;
-      browInnerUp: number;
-      eyeSquintLeft: number;
-      eyeSquintRight: number;
       mouthSmileLeft: number;
       mouthSmileRight: number;
     };
@@ -638,7 +635,7 @@ export function FaceFlickCanvas() {
     // ツールバーの高さ
     const toolbarHeight = 50;
     // デバッグ情報エリアの高さ
-    const debugInfoHeight = showDebugInfo ? 95 : 0;
+    const debugInfoHeight = showDebugInfo ? 70 : 0;
     // キーボードの開始位置
     const keyboardTop = toolbarHeight + debugInfoHeight;
     // キーを正方形にする（画面幅基準）
@@ -757,7 +754,7 @@ export function FaceFlickCanvas() {
   ) {
     // レイアウト計算
     const toolbarHeight = 50;
-    const debugInfoHeight = showDebugInfo ? 95 : 0; // デバッグ情報エリアの高さ
+    const debugInfoHeight = showDebugInfo ? 70 : 0; // デバッグ情報エリアの高さ
     const keySize = width / 3;
     const keyboardHeight = keySize * 4;
     const keyboardTop = toolbarHeight + debugInfoHeight;
@@ -778,25 +775,18 @@ export function FaceFlickCanvas() {
       const triggerText = getTriggerDisplayText(debugInfo.triggerType);
       ctx.fillText(`トリガー: ${triggerText}`, 10, toolbarHeight + 10);
 
-      // Blendshapes (1行目)
+      // Blendshapes
       ctx.fillText(
         `jaw: ${debugInfo.blendshapes.jawOpen.toFixed(2)} pucker: ${debugInfo.blendshapes.mouthPucker.toFixed(2)} smile: ${debugInfo.blendshapes.mouthSmileLeft.toFixed(2)}`,
         10,
         toolbarHeight + 25
       );
 
-      // Blendshapes (2行目)
-      ctx.fillText(
-        `brow: ${debugInfo.blendshapes.browInnerUp.toFixed(2)} squint: L=${debugInfo.blendshapes.eyeSquintLeft.toFixed(2)} R=${debugInfo.blendshapes.eyeSquintRight.toFixed(2)}`,
-        10,
-        toolbarHeight + 40
-      );
-
       // 頭の向き
       ctx.fillText(
         `Yaw: ${debugInfo.headRotation.yaw.toFixed(1)}° Pitch: ${debugInfo.headRotation.pitch.toFixed(1)}° Roll: ${debugInfo.headRotation.roll.toFixed(1)}°`,
         10,
-        toolbarHeight + 55
+        toolbarHeight + 40
       );
     }
 
@@ -924,8 +914,6 @@ export function FaceFlickCanvas() {
         return '口を開ける 👄';
       case 'mouth_pucker':
         return '口すぼめ 💋';
-      case 'eyes_wide':
-        return '目を見開く 👀';
       default:
         return 'なし';
     }
@@ -1117,7 +1105,7 @@ export function FaceFlickCanvas() {
       {showDebugInfo && debugInfo && debugInfo.allBlendshapes.length > 0 && (
         <div
           className="absolute left-2 w-72 h-96 bg-black/80 backdrop-blur-sm rounded-lg p-3 overflow-y-auto text-white text-xs font-mono"
-          style={{ top: `${50 + 95}px` }} // toolbarHeight + debugInfoHeight
+          style={{ top: `${50 + 70}px` }} // toolbarHeight + debugInfoHeight
         >
           <div className="font-bold mb-2 text-sm bg-black/90 pb-1">
             全Blendshapes ({debugInfo.allBlendshapes.length})

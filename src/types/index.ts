@@ -1,6 +1,6 @@
 import { NormalizedLandmark } from '@mediapipe/tasks-vision';
 
-export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'eyes_wide' | null;
+export type TriggerType = 'mouth_open' | 'mouth_pucker' | null;
 
 export interface FaceState {
   landmarks: NormalizedLandmark[];
@@ -8,9 +8,6 @@ export interface FaceState {
   blendshapes: {
     jawOpen: number;        // 口を開ける (0-1)
     mouthPucker: number;    // 口すぼめ (0-1)
-    browInnerUp: number;    // 眉を上げる (0-1)
-    eyeSquintLeft: number;  // 左目を細める (0-1)
-    eyeSquintRight: number; // 右目を細める (0-1)
     mouthSmileLeft: number; // 左笑顔 (0-1)
     mouthSmileRight: number;// 右笑顔 (0-1)
   };
