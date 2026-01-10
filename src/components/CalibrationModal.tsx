@@ -9,9 +9,15 @@ interface CalibrationModalProps {
   currentValues: {
     yaw: number;
     pitch: number;
-    mar: number;
-    mouthPucker: number;
-    ear: { left: number; right: number };
+    blendshapes: {
+      jawOpen: number;
+      mouthPucker: number;
+      browInnerUp: number;
+      eyeSquintLeft: number;
+      eyeSquintRight: number;
+      mouthSmileLeft: number;
+      mouthSmileRight: number;
+    };
   } | null;
 }
 
@@ -84,14 +90,17 @@ export function CalibrationModal({
         {/* 現在の値表示 */}
         {currentValues && (
           <div className="mb-6 p-4 bg-gray-700 rounded">
-            <h3 className="font-bold mb-2">現在の値</h3>
+            <h3 className="font-bold mb-2">現在のBlendshapes値</h3>
             <div className="grid grid-cols-2 gap-2 text-sm font-mono">
               <div>Yaw: {currentValues.yaw.toFixed(1)}°</div>
               <div>Pitch: {currentValues.pitch.toFixed(1)}°</div>
-              <div>MAR: {currentValues.mar.toFixed(2)}</div>
-              <div>Pucker: {currentValues.mouthPucker.toFixed(2)}</div>
-              <div>EAR L: {currentValues.ear.left.toFixed(2)}</div>
-              <div>EAR R: {currentValues.ear.right.toFixed(2)}</div>
+              <div>jawOpen: {currentValues.blendshapes.jawOpen.toFixed(2)}</div>
+              <div>mouthPucker: {currentValues.blendshapes.mouthPucker.toFixed(2)}</div>
+              <div>browInnerUp: {currentValues.blendshapes.browInnerUp.toFixed(2)}</div>
+              <div>eyeSquint L: {currentValues.blendshapes.eyeSquintLeft.toFixed(2)}</div>
+              <div>eyeSquint R: {currentValues.blendshapes.eyeSquintRight.toFixed(2)}</div>
+              <div>smile L: {currentValues.blendshapes.mouthSmileLeft.toFixed(2)}</div>
+              <div>smile R: {currentValues.blendshapes.mouthSmileRight.toFixed(2)}</div>
             </div>
           </div>
         )}
@@ -189,24 +198,24 @@ export function CalibrationModal({
 
         {/* トリガー閾値設定 */}
         <div className="mb-6">
-          <h3 className="font-bold mb-2">トリガー閾値</h3>
+          <h3 className="font-bold mb-2">トリガー閾値 (Blendshapes: 0-1)</h3>
 
           <div className="space-y-3">
-            {/* 口開け */}
+            {/* 口を開ける */}
             <div>
               <label className="block text-sm mb-1">
-                口開け (MAR): {localSettings.mouthOpenThreshold.toFixed(2)}
+                口を開ける (jawOpen): {localSettings.jawOpenThreshold.toFixed(2)}
               </label>
               <input
                 type="range"
                 min="0.1"
-                max="1.0"
+                max="0.9"
                 step="0.05"
-                value={localSettings.mouthOpenThreshold}
+                value={localSettings.jawOpenThreshold}
                 onChange={(e) =>
                   setLocalSettings({
                     ...localSettings,
-                    mouthOpenThreshold: parseFloat(e.target.value),
+                    jawOpenThreshold: parseFloat(e.target.value),
                   })
                 }
                 className="w-full"
@@ -216,12 +225,12 @@ export function CalibrationModal({
             {/* キス顔 */}
             <div>
               <label className="block text-sm mb-1">
-                キス顔 (Pucker): {localSettings.mouthPuckerThreshold.toFixed(2)}
+                キス顔 (mouthPucker): {localSettings.mouthPuckerThreshold.toFixed(2)}
               </label>
               <input
                 type="range"
                 min="0.1"
-                max="1.0"
+                max="0.9"
                 step="0.05"
                 value={localSettings.mouthPuckerThreshold}
                 onChange={(e) =>
@@ -234,25 +243,28 @@ export function CalibrationModal({
               />
             </div>
 
-            {/* ウィンク */}
+            {/* 笑顔（読み上げ&クリア用） */}
             <div>
               <label className="block text-sm mb-1">
-                ウィンク (EAR): {localSettings.earThreshold.toFixed(2)}
+                笑顔 - 読み上げ&クリア (smile): {localSettings.smileThreshold.toFixed(2)}
               </label>
               <input
                 type="range"
-                min="0.05"
-                max="0.3"
-                step="0.01"
-                value={localSettings.earThreshold}
+                min="0.1"
+                max="0.9"
+                step="0.05"
+                value={localSettings.smileThreshold}
                 onChange={(e) =>
                   setLocalSettings({
                     ...localSettings,
-                    earThreshold: parseFloat(e.target.value),
+                    smileThreshold: parseFloat(e.target.value),
                   })
                 }
                 className="w-full"
               />
+              <p className="text-xs text-gray-400 mt-1">
+                ※ 目を見開くはbrow≥0.4かつsquint≤0.3で判定（固定）
+              </p>
             </div>
           </div>
         </div>

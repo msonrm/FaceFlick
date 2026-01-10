@@ -1,24 +1,19 @@
 import { NormalizedLandmark } from '@mediapipe/tasks-vision';
 
-export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'wink_left' | 'wink_right' | null;
+export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'eyes_wide' | null;
 
 export interface FaceState {
   landmarks: NormalizedLandmark[];
-  // EAR: Eye Aspect Ratio (目の開閉度)
-  ear: {
-    left: number;
-    right: number;
+  // Blendshapes (MediaPipe Face Landmarker)
+  blendshapes: {
+    jawOpen: number;        // 口を開ける (0-1)
+    mouthPucker: number;    // キス顔 (0-1)
+    browInnerUp: number;    // 眉を上げる (0-1)
+    eyeSquintLeft: number;  // 左目を細める (0-1)
+    eyeSquintRight: number; // 右目を細める (0-1)
+    mouthSmileLeft: number; // 左笑顔 (0-1)
+    mouthSmileRight: number;// 右笑顔 (0-1)
   };
-  // MAR: Mouth Aspect Ratio (口の開き具合)
-  mar: number;
-  // 口をすぼめている（キス顔）
-  mouthPucker: number; // 0-1の値
-  // 個別の検出結果
-  mouthOpen: boolean;
-  mouthPuckered: boolean;
-  winkLeft: boolean;
-  winkRight: boolean;
-  bothEyesClosed: boolean;
   // どのトリガーがアクティブか
   isTriggered: boolean;
   triggerType: TriggerType;
@@ -53,10 +48,10 @@ export interface CalibrationSettings {
   // 顔の向きの範囲
   yawRange: { min: number; max: number };
   pitchRange: { min: number; max: number };
-  // トリガーの閾値
-  mouthOpenThreshold: number;
-  mouthPuckerThreshold: number;
-  earThreshold: number;
+  // トリガーの閾値 (Blendshapes: 0-1)
+  jawOpenThreshold: number;       // 口を開ける (デフォルト: 0.5)
+  mouthPuckerThreshold: number;   // キス顔 (デフォルト: 0.4)
+  smileThreshold: number;         // 笑顔 (デフォルト: 0.6) - 読み上げ&クリア用
   // グリッド・フリック感度
   gridSensitivity: number;
   flickSensitivity: number;
