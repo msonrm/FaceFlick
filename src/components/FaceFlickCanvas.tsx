@@ -70,8 +70,6 @@ export function FaceFlickCanvas() {
   const triggerStartTimeRef = useRef<number | null>(null);
   const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>>([]);
   const lastGestureTimeRef = useRef<number>(0);
-  const headTiltStartTimeRef = useRef<number | null>(null);
-  const headTiltBaseRollRef = useRef<number | null>(null);
   const calibrationStartTimeRef = useRef<number | null>(null);
   const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number }[]>([]);
   const baseYawRef = useRef<number | null>(null);
