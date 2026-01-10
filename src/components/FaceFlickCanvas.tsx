@@ -10,9 +10,11 @@ import {
 } from '../utils/input-logic';
 import {
   KEYBOARD_LAYOUT,
-  MOUTH_OPEN_THRESHOLD,
+  JAW_OPEN_THRESHOLD,
   MOUTH_PUCKER_THRESHOLD,
-  EAR_THRESHOLD,
+  EYES_WIDE_THRESHOLD,
+  SMILE_THRESHOLD,
+  CHEEK_PUFF_THRESHOLD,
   GRID_SENSITIVITY,
   FLICK_SENSITIVITY,
 } from '../utils/keyboard-layout';
@@ -35,9 +37,15 @@ export function FaceFlickCanvas() {
   const [currentFaceState, setCurrentFaceState] = useState<any>(null);
   const [smoothedFaceState, setSmoothedFaceState] = useState<any>(null);
   const [debugInfo, setDebugInfo] = useState<{
-    ear: { left: number; right: number };
-    mar: number;
-    mouthPucker: number;
+    blendshapes: {
+      jawOpen: number;
+      mouthPucker: number;
+      eyeWideLeft: number;
+      eyeWideRight: number;
+      mouthSmileLeft: number;
+      mouthSmileRight: number;
+      cheekPuff: number;
+    };
     triggerType: string;
     headRotation: { yaw: number; pitch: number; roll: number };
   } | null>(null);
@@ -50,10 +58,11 @@ export function FaceFlickCanvas() {
   const [calibrationSettings, setCalibrationSettings] = useState<CalibrationSettings>({
     yawRange: { min: -30, max: 30 },
     pitchRange: { min: -1, max: 10 },
-    mouthOpenThreshold: MOUTH_OPEN_THRESHOLD,
+    jawOpenThreshold: JAW_OPEN_THRESHOLD,
     mouthPuckerThreshold: MOUTH_PUCKER_THRESHOLD,
-    earThreshold: EAR_THRESHOLD,
-    eyesWideMultiplier: 1.3,
+    eyesWideThreshold: EYES_WIDE_THRESHOLD,
+    smileThreshold: SMILE_THRESHOLD,
+    cheekPuffThreshold: CHEEK_PUFF_THRESHOLD,
     gridSensitivity: GRID_SENSITIVITY,
     flickSensitivity: FLICK_SENSITIVITY,
   });
@@ -64,7 +73,7 @@ export function FaceFlickCanvas() {
   const headTiltStartTimeRef = useRef<number | null>(null);
   const headTiltBaseRollRef = useRef<number | null>(null);
   const calibrationStartTimeRef = useRef<number | null>(null);
-  const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number; ear: { left: number; right: number } }[]>([]);
+  const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number }[]>([]);
   const baseYawRef = useRef<number | null>(null);
   const basePitchRef = useRef<number | null>(null);
   const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number; roll: number } | null>(null);
@@ -117,9 +126,7 @@ export function FaceFlickCanvas() {
 
           // デバッグ情報を更新
           setDebugInfo({
-            ear: faceState.ear,
-            mar: faceState.mar,
-            mouthPucker: faceState.mouthPucker,
+            blendshapes: faceState.blendshapes,
             triggerType: faceState.triggerType || 'none',
             headRotation: faceState.headRotation,
           });
@@ -263,15 +270,11 @@ export function FaceFlickCanvas() {
       const progress = Math.min(100, (elapsedTime / 3000) * 100);
       setCalibrationProgress(progress);
 
-      // yaw, pitch, roll, ear値をサンプリング
+      // yaw, pitch, roll値をサンプリング
       calibrationSamplesRef.current.push({
         yaw: faceState.headRotation.yaw,
         pitch: faceState.headRotation.pitch,
         roll: faceState.headRotation.roll,
-        ear: {
-          left: faceState.ear.left,
-          right: faceState.ear.right,
-        },
       });
 
       if (elapsedTime >= 3000) {
@@ -280,57 +283,36 @@ export function FaceFlickCanvas() {
         const avgYaw = samples.reduce((sum, s) => sum + s.yaw, 0) / samples.length;
         const avgPitch = samples.reduce((sum, s) => sum + s.pitch, 0) / samples.length;
         const avgRoll = samples.reduce((sum, s) => sum + s.roll, 0) / samples.length;
-        const avgEARLeft = samples.reduce((sum, s) => sum + s.ear.left, 0) / samples.length;
-        const avgEARRight = samples.reduce((sum, s) => sum + s.ear.right, 0) / samples.length;
 
         baseYawRef.current = avgYaw;
         basePitchRef.current = avgPitch;
         headTiltBaseRollRef.current = avgRoll;
-
-        // キャリブレーション設定にbaseEARを保存
-        setCalibrationSettings((prev) => ({
-          ...prev,
-          baseEAR: {
-            left: avgEARLeft,
-            right: avgEARRight,
-          },
-        }));
 
         setIsCalibrating(false);
         console.log('キャリブレーション完了:');
         console.log('  基準Yaw =', avgYaw.toFixed(2), '度');
         console.log('  基準Pitch =', avgPitch.toFixed(2), '度');
         console.log('  基準Roll =', avgRoll.toFixed(2), '度');
-        console.log('  基準EAR = L:', avgEARLeft.toFixed(3), 'R:', avgEARRight.toFixed(3));
       }
 
       // キャリブレーション中は通常の入力処理をスキップ
       return;
     }
 
-    // 首かしげジェスチャー検出（相対値、1.5秒保持で発声&クリア）
-    // 基準値からの相対的な傾きを計算（キャリブレーションで設定済み）
-    const rollDiff = headTiltBaseRollRef.current !== null
-      ? Math.abs(faceState.headRotation.roll - headTiltBaseRollRef.current)
-      : 0;
-    const isHeadTilted = rollDiff > 10; // 基準位置から10度以上傾いている
-
-    if (isHeadTilted) {
-      if (headTiltStartTimeRef.current === null) {
-        headTiltStartTimeRef.current = now;
+    // cheek_puffトリガーで半角スペースを入力（idle状態のみ）
+    if (inputState.type === 'idle' && faceState.triggerType === 'cheek_puff') {
+      if (triggerStartTimeRef.current === null) {
+        triggerStartTimeRef.current = now;
       } else {
-        const elapsedTime = now - headTiltStartTimeRef.current;
-        if (elapsedTime >= 1500 && now - lastGestureTimeRef.current > 1000) {
-          // 発声&クリア
-          speakText(inputText, 'human_high');
-          setInputText('');
-          setGestureFeedback({ type: 'copy_speak_clear' as any, timestamp: now });
-          lastGestureTimeRef.current = now;
-          headTiltStartTimeRef.current = null;
+        const elapsedTime = now - triggerStartTimeRef.current;
+        if (elapsedTime >= HOLD_DELAY_MS) {
+          // スペースを入力
+          setInputText((prev) => prev + ' ');
+          setInputState({ type: 'idle' });
+          triggerStartTimeRef.current = null;
+          return;
         }
       }
-    } else {
-      headTiltStartTimeRef.current = null;
     }
 
     // ジェスチャー検出（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
@@ -353,14 +335,14 @@ export function FaceFlickCanvas() {
     }
 
     if (inputState.type === 'idle') {
-      // トリガーがアクティブでキーが選択されている
-      if (faceState.isTriggered && selectedKey) {
+      // トリガーがアクティブでキーが選択されている（cheek_puffは除く）
+      if (faceState.isTriggered && faceState.triggerType !== 'cheek_puff' && selectedKey) {
         // トリガー開始時刻を記録
         if (triggerStartTimeRef.current === null) {
           triggerStartTimeRef.current = Date.now();
         }
 
-        // 0.8秒経過したかチェック
+        // 0.4秒経過したかチェック
         const elapsedTime = Date.now() - triggerStartTimeRef.current;
         if (elapsedTime >= HOLD_DELAY_MS) {
           setInputState({
@@ -375,8 +357,10 @@ export function FaceFlickCanvas() {
           triggerStartTimeRef.current = null; // リセット
         }
       } else {
-        // トリガーが解除されたらタイマーリセット
-        triggerStartTimeRef.current = null;
+        // トリガーが解除されたらタイマーリセット（cheek_puffは除く）
+        if (faceState.triggerType !== 'cheek_puff') {
+          triggerStartTimeRef.current = null;
+        }
       }
     } else if (inputState.type === 'selecting') {
       // トリガーが解除された = 入力確定
@@ -792,7 +776,7 @@ export function FaceFlickCanvas() {
   ) {
     // レイアウト計算
     const toolbarHeight = 50;
-    const debugInfoHeight = showDebugInfo ? 95 : 0; // デバッグ情報エリアの高さ（Roll差分用に拡大）
+    const debugInfoHeight = showDebugInfo ? 95 : 0; // デバッグ情報エリアの高さ
     const keySize = width / 3;
     const keyboardHeight = keySize * 4;
     const keyboardTop = toolbarHeight + debugInfoHeight;
@@ -813,16 +797,16 @@ export function FaceFlickCanvas() {
       const triggerText = getTriggerDisplayText(debugInfo.triggerType);
       ctx.fillText(`トリガー: ${triggerText}`, 10, toolbarHeight + 10);
 
-      // EAR値
+      // Blendshapes (1行目)
       ctx.fillText(
-        `EAR: L=${debugInfo.ear.left.toFixed(2)} R=${debugInfo.ear.right.toFixed(2)}`,
+        `jawOpen: ${debugInfo.blendshapes.jawOpen.toFixed(2)} pucker: ${debugInfo.blendshapes.mouthPucker.toFixed(2)} smile: ${debugInfo.blendshapes.mouthSmileLeft.toFixed(2)}`,
         10,
         toolbarHeight + 25
       );
 
-      // MAR/Pucker値
+      // Blendshapes (2行目)
       ctx.fillText(
-        `MAR: ${debugInfo.mar.toFixed(2)} Pucker: ${debugInfo.mouthPucker.toFixed(2)}`,
+        `eyeWide: L=${debugInfo.blendshapes.eyeWideLeft.toFixed(2)} R=${debugInfo.blendshapes.eyeWideRight.toFixed(2)} cheek: ${debugInfo.blendshapes.cheekPuff.toFixed(2)}`,
         10,
         toolbarHeight + 40
       );
@@ -833,18 +817,6 @@ export function FaceFlickCanvas() {
         10,
         toolbarHeight + 55
       );
-
-      // Roll差分（首かしげ検出用）
-      if (headTiltBaseRollRef.current !== null) {
-        const rollDiff = Math.abs(debugInfo.headRotation.roll - headTiltBaseRollRef.current);
-        ctx.fillText(
-          `Roll差分: ${rollDiff.toFixed(1)}° (基準: ${headTiltBaseRollRef.current.toFixed(1)}°, 閾値: 10°)`,
-          10,
-          toolbarHeight + 70
-        );
-      } else {
-        ctx.fillText('Roll差分: (基準値未設定)', 10, toolbarHeight + 70);
-      }
     }
 
     // 入力テキストエリアの背景
@@ -973,6 +945,10 @@ export function FaceFlickCanvas() {
         return 'キス顔 💋';
       case 'eyes_wide':
         return '目を見開く 👀';
+      case 'smile':
+        return '笑顔 😊';
+      case 'cheek_puff':
+        return '頬を膨らませる 😤';
       default:
         return 'なし';
     }
@@ -1171,9 +1147,7 @@ export function FaceFlickCanvas() {
             ? {
                 yaw: debugInfo.headRotation.yaw,
                 pitch: debugInfo.headRotation.pitch,
-                mar: debugInfo.mar,
-                mouthPucker: debugInfo.mouthPucker,
-                ear: debugInfo.ear,
+                blendshapes: debugInfo.blendshapes,
               }
             : null
         }

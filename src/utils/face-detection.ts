@@ -1,10 +1,12 @@
 import { NormalizedLandmark, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
 import { FaceState, TriggerType, CalibrationSettings } from '../types';
 
-// デフォルト閾値
-const DEFAULT_MOUTH_OPEN_THRESHOLD = 0.3;
-const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.3;
-const DEFAULT_EAR_THRESHOLD = 0.2;
+// デフォルト閾値（Blendshapes: 0-1）
+const DEFAULT_JAW_OPEN_THRESHOLD = 0.5;
+const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.4;
+const DEFAULT_EYES_WIDE_THRESHOLD = 0.3;
+const DEFAULT_SMILE_THRESHOLD = 0.6;
+const DEFAULT_CHEEK_PUFF_THRESHOLD = 0.4;
 
 export function analyzeFace(
   result: FaceLandmarkerResult,
@@ -16,45 +18,52 @@ export function analyzeFace(
 
   const landmarks = result.faceLandmarks[0];
 
-  // EAR（Eye Aspect Ratio）を計算
-  const ear = calculateEAR(landmarks);
+  // Blendshapesを取得
+  let jawOpen = 0;
+  let mouthPucker = 0;
+  let eyeWideLeft = 0;
+  let eyeWideRight = 0;
+  let mouthSmileLeft = 0;
+  let mouthSmileRight = 0;
+  let cheekPuff = 0;
 
-  // MAR（Mouth Aspect Ratio）を計算
-  const mar = calculateMAR(landmarks);
+  if (result.faceBlendshapes && result.faceBlendshapes.length > 0) {
+    const blendshapes = result.faceBlendshapes[0].categories;
+    jawOpen = blendshapes.find(b => b.categoryName === 'jawOpen')?.score ?? 0;
+    mouthPucker = blendshapes.find(b => b.categoryName === 'mouthPucker')?.score ?? 0;
+    eyeWideLeft = blendshapes.find(b => b.categoryName === 'eyeWideLeft')?.score ?? 0;
+    eyeWideRight = blendshapes.find(b => b.categoryName === 'eyeWideRight')?.score ?? 0;
+    mouthSmileLeft = blendshapes.find(b => b.categoryName === 'mouthSmileLeft')?.score ?? 0;
+    mouthSmileRight = blendshapes.find(b => b.categoryName === 'mouthSmileRight')?.score ?? 0;
+    cheekPuff = blendshapes.find(b => b.categoryName === 'cheekPuff')?.score ?? 0;
+  }
 
-  // 口をすぼめる度合いを計算
-  const mouthPucker = calculateMouthPucker(landmarks);
-
-  // 各トリガーの検出（設定された閾値を使用）
-  const mouthOpenThreshold = settings?.mouthOpenThreshold ?? DEFAULT_MOUTH_OPEN_THRESHOLD;
+  // 各トリガーの閾値を取得
+  const jawOpenThreshold = settings?.jawOpenThreshold ?? DEFAULT_JAW_OPEN_THRESHOLD;
   const mouthPuckerThreshold = settings?.mouthPuckerThreshold ?? DEFAULT_MOUTH_PUCKER_THRESHOLD;
-  const earThreshold = settings?.earThreshold ?? DEFAULT_EAR_THRESHOLD;
-
-  const mouthOpen = mar > mouthOpenThreshold;
-  const mouthPuckered = mouthPucker > mouthPuckerThreshold;
-  const winkLeft = ear.left < earThreshold && ear.right > earThreshold;
-  const winkRight = ear.right < earThreshold && ear.left > earThreshold;
-  // 両目閉じは通常のまばたきと区別するため、より厳しい条件（閾値の半分以下）
-  const bothEyesClosed = ear.left < earThreshold * 0.5 && ear.right < earThreshold * 0.5;
-  // 目を見開く（baseEARのeyesWideMultiplier倍以上）
-  const eyesWideMultiplier = settings?.eyesWideMultiplier ?? 1.3;
-  const eyesWide = settings?.baseEAR
-    ? (ear.left >= settings.baseEAR.left * eyesWideMultiplier && ear.right >= settings.baseEAR.right * eyesWideMultiplier)
-    : false;
+  const eyesWideThreshold = settings?.eyesWideThreshold ?? DEFAULT_EYES_WIDE_THRESHOLD;
+  const smileThreshold = settings?.smileThreshold ?? DEFAULT_SMILE_THRESHOLD;
+  const cheekPuffThreshold = settings?.cheekPuffThreshold ?? DEFAULT_CHEEK_PUFF_THRESHOLD;
 
   // どのトリガーがアクティブか判定（優先順位あり）
   let isTriggered = false;
   let triggerType: TriggerType = null;
 
-  if (mouthOpen) {
+  if (jawOpen > jawOpenThreshold) {
     isTriggered = true;
     triggerType = 'mouth_open';
-  } else if (mouthPuckered) {
+  } else if (mouthPucker > mouthPuckerThreshold) {
     isTriggered = true;
     triggerType = 'mouth_pucker';
-  } else if (eyesWide) {
+  } else if (eyeWideLeft > eyesWideThreshold && eyeWideRight > eyesWideThreshold) {
     isTriggered = true;
     triggerType = 'eyes_wide';
+  } else if (mouthSmileLeft > smileThreshold && mouthSmileRight > smileThreshold) {
+    isTriggered = true;
+    triggerType = 'smile';
+  } else if (cheekPuff > cheekPuffThreshold) {
+    isTriggered = true;
+    triggerType = 'cheek_puff';
   }
 
   // 頭の回転を計算
@@ -62,111 +71,19 @@ export function analyzeFace(
 
   return {
     landmarks,
-    ear,
-    mar,
-    mouthPucker,
-    mouthOpen,
-    mouthPuckered,
-    winkLeft,
-    winkRight,
-    bothEyesClosed,
+    blendshapes: {
+      jawOpen,
+      mouthPucker,
+      eyeWideLeft,
+      eyeWideRight,
+      mouthSmileLeft,
+      mouthSmileRight,
+      cheekPuff,
+    },
     isTriggered,
     triggerType,
     headRotation,
   };
-}
-
-/**
- * EAR（Eye Aspect Ratio）を計算
- * 目の開閉度を測定。値が小さいほど目が閉じている
- * 通常: 0.2-0.3以上、閉じている: 0.2以下
- */
-function calculateEAR(landmarks: NormalizedLandmark[]): {
-  left: number;
-  right: number;
-} {
-  // 左目のランドマーク
-  const leftEyeOuter = landmarks[33]; // 左目外側
-  const leftEyeInner = landmarks[133]; // 左目内側
-  const leftEyeTop1 = landmarks[159]; // 左目上部1
-  const leftEyeBottom1 = landmarks[145]; // 左目下部1
-  const leftEyeTop2 = landmarks[158]; // 左目上部2
-  const leftEyeBottom2 = landmarks[153]; // 左目下部2
-
-  // 右目のランドマーク
-  const rightEyeOuter = landmarks[362]; // 右目外側
-  const rightEyeInner = landmarks[263]; // 右目内側
-  const rightEyeTop1 = landmarks[386]; // 右目上部1
-  const rightEyeBottom1 = landmarks[374]; // 右目下部1
-  const rightEyeTop2 = landmarks[385]; // 右目上部2
-  const rightEyeBottom2 = landmarks[380]; // 右目下部2
-
-  // 左目のEARを計算
-  const leftVertical1 = distance(leftEyeTop1, leftEyeBottom1);
-  const leftVertical2 = distance(leftEyeTop2, leftEyeBottom2);
-  const leftHorizontal = distance(leftEyeOuter, leftEyeInner);
-  const leftEAR = (leftVertical1 + leftVertical2) / (2.0 * leftHorizontal);
-
-  // 右目のEARを計算
-  const rightVertical1 = distance(rightEyeTop1, rightEyeBottom1);
-  const rightVertical2 = distance(rightEyeTop2, rightEyeBottom2);
-  const rightHorizontal = distance(rightEyeOuter, rightEyeInner);
-  const rightEAR = (rightVertical1 + rightVertical2) / (2.0 * rightHorizontal);
-
-  return {
-    left: leftEAR,
-    right: rightEAR,
-  };
-}
-
-/**
- * MAR（Mouth Aspect Ratio）を計算
- * 口の開き具合を測定。値が大きいほど口が開いている
- */
-function calculateMAR(landmarks: NormalizedLandmark[]): number {
-  // 口のランドマーク
-  const upperLip = landmarks[13]; // 上唇上部
-  const lowerLip = landmarks[14]; // 下唇下部
-  const leftMouth = landmarks[61]; // 左口角
-  const rightMouth = landmarks[291]; // 右口角
-
-  // 垂直距離（口の開き）
-  const vertical = distance(upperLip, lowerLip);
-  // 水平距離（口の幅）
-  const horizontal = distance(leftMouth, rightMouth);
-
-  // MAR = 垂直距離 / 水平距離
-  return horizontal > 0 ? vertical / horizontal : 0;
-}
-
-/**
- * 口をすぼめる度合いを計算（キス顔検出）
- * 口角間の距離が短くなることに着目
- */
-function calculateMouthPucker(landmarks: NormalizedLandmark[]): number {
-  const leftMouth = landmarks[61]; // 左口角
-  const rightMouth = landmarks[291]; // 右口角
-
-  // 顔の基準サイズ（目と目の距離）
-  const leftEye = landmarks[33];
-  const rightEye = landmarks[263];
-  const eyeDistance = distance(leftEye, rightEye);
-
-  if (eyeDistance === 0) return 0;
-
-  // 口角間の距離（すぼめると短くなる）
-  const mouthWidth = distance(leftMouth, rightMouth);
-
-  // 正規化された口の幅
-  // 通常は0.45〜0.55、すぼめると0.25〜0.35
-  const normalizedMouthWidth = mouthWidth / eyeDistance;
-
-  // すぼめ度合いの計算（シンプルに口の幅だけで判定）
-  // normalizedMouthWidth が 0.48 以下でキス顔と判定（感度向上）
-  // 0.48 → 0, 0.40 → 0.48, 0.30 → 1.08 (clampで1.0)
-  const puckerScore = Math.max(0, (0.48 - normalizedMouthWidth) * 6.0);
-
-  return Math.max(0, Math.min(1, puckerScore));
 }
 
 /**
@@ -203,14 +120,4 @@ function calculateHeadRotation(landmarks: NormalizedLandmark[]): {
   const roll = rollAngle * (180 / Math.PI); // ラジアンから度に変換
 
   return { yaw, pitch, roll };
-}
-
-/**
- * 2つのランドマーク間の距離を計算
- */
-function distance(p1: NormalizedLandmark, p2: NormalizedLandmark): number {
-  const dx = p1.x - p2.x;
-  const dy = p1.y - p2.y;
-  const dz = (p1.z || 0) - (p2.z || 0);
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }

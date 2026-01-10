@@ -28,7 +28,9 @@ export const KEYBOARD_LAYOUT: KeyboardLayout = {
 export const GRID_SENSITIVITY = 15; // 度
 export const FLICK_SENSITIVITY = 20; // 度
 
-// トリガーの閾値
-export const MOUTH_OPEN_THRESHOLD = 0.3; // MAR: 口が開いていると判定（0.3以上で口を開けている）
-export const MOUTH_PUCKER_THRESHOLD = 0.3; // 口をすぼめている判定（0.3以上でキス顔）※シンプル計算式用
-export const EAR_THRESHOLD = 0.2; // EAR: 目が閉じていると判定（0.2以下でウィンク）
+// トリガーの閾値（Blendshapes: 0-1）
+export const JAW_OPEN_THRESHOLD = 0.5;       // 口を開ける
+export const MOUTH_PUCKER_THRESHOLD = 0.4;   // キス顔
+export const EYES_WIDE_THRESHOLD = 0.3;      // 目を見開く
+export const SMILE_THRESHOLD = 0.6;          // 笑顔
+export const CHEEK_PUFF_THRESHOLD = 0.4;     // 頬を膨らませる

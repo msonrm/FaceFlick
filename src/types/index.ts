@@ -1,24 +1,19 @@
 import { NormalizedLandmark } from '@mediapipe/tasks-vision';
 
-export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'eyes_wide' | null;
+export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'eyes_wide' | 'smile' | 'cheek_puff' | null;
 
 export interface FaceState {
   landmarks: NormalizedLandmark[];
-  // EAR: Eye Aspect Ratio (目の開閉度)
-  ear: {
-    left: number;
-    right: number;
+  // Blendshapes (MediaPipe Face Landmarker)
+  blendshapes: {
+    jawOpen: number;        // 口を開ける (0-1)
+    mouthPucker: number;    // キス顔 (0-1)
+    eyeWideLeft: number;    // 左目を見開く (0-1)
+    eyeWideRight: number;   // 右目を見開く (0-1)
+    mouthSmileLeft: number; // 左笑顔 (0-1)
+    mouthSmileRight: number;// 右笑顔 (0-1)
+    cheekPuff: number;      // 頬を膨らませる (0-1)
   };
-  // MAR: Mouth Aspect Ratio (口の開き具合)
-  mar: number;
-  // 口をすぼめている（キス顔）
-  mouthPucker: number; // 0-1の値
-  // 個別の検出結果
-  mouthOpen: boolean;
-  mouthPuckered: boolean;
-  winkLeft: boolean;
-  winkRight: boolean;
-  bothEyesClosed: boolean;
   // どのトリガーがアクティブか
   isTriggered: boolean;
   triggerType: TriggerType;
@@ -53,13 +48,12 @@ export interface CalibrationSettings {
   // 顔の向きの範囲
   yawRange: { min: number; max: number };
   pitchRange: { min: number; max: number };
-  // トリガーの閾値
-  mouthOpenThreshold: number;
-  mouthPuckerThreshold: number;
-  earThreshold: number;
-  // 目を見開く検出用の基準EAR値と倍率
-  baseEAR?: { left: number; right: number };
-  eyesWideMultiplier: number; // 目を見開く検出の倍率（デフォルト: 1.3）
+  // トリガーの閾値 (Blendshapes: 0-1)
+  jawOpenThreshold: number;       // 口を開ける (デフォルト: 0.5)
+  mouthPuckerThreshold: number;   // キス顔 (デフォルト: 0.4)
+  eyesWideThreshold: number;      // 目を見開く (デフォルト: 0.3)
+  smileThreshold: number;         // 笑顔 (デフォルト: 0.6)
+  cheekPuffThreshold: number;     // 頬を膨らませる (デフォルト: 0.4)
   // グリッド・フリック感度
   gridSensitivity: number;
   flickSensitivity: number;
