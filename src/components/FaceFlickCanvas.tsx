@@ -53,6 +53,7 @@ export function FaceFlickCanvas() {
     mouthOpenThreshold: MOUTH_OPEN_THRESHOLD,
     mouthPuckerThreshold: MOUTH_PUCKER_THRESHOLD,
     earThreshold: EAR_THRESHOLD,
+    eyesWideMultiplier: 1.3,
     gridSensitivity: GRID_SENSITIVITY,
     flickSensitivity: FLICK_SENSITIVITY,
   });

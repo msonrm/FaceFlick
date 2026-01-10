@@ -57,8 +57,9 @@ export interface CalibrationSettings {
   mouthOpenThreshold: number;
   mouthPuckerThreshold: number;
   earThreshold: number;
-  // 目を見開く検出用の基準EAR値
+  // 目を見開く検出用の基準EAR値と倍率
   baseEAR?: { left: number; right: number };
+  eyesWideMultiplier: number; // 目を見開く検出の倍率（デフォルト: 1.3）
   // グリッド・フリック感度
   gridSensitivity: number;
   flickSensitivity: number;

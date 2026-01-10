@@ -90,8 +90,20 @@ export function CalibrationModal({
               <div>Pitch: {currentValues.pitch.toFixed(1)}°</div>
               <div>MAR: {currentValues.mar.toFixed(2)}</div>
               <div>Pucker: {currentValues.mouthPucker.toFixed(2)}</div>
-              <div>EAR L: {currentValues.ear.left.toFixed(2)}</div>
-              <div>EAR R: {currentValues.ear.right.toFixed(2)}</div>
+              <div>EAR L: {currentValues.ear.left.toFixed(3)}</div>
+              <div>EAR R: {currentValues.ear.right.toFixed(3)}</div>
+              {settings.baseEAR && (
+                <>
+                  <div className="text-xs text-gray-400">基準EAR L: {settings.baseEAR.left.toFixed(3)}</div>
+                  <div className="text-xs text-gray-400">基準EAR R: {settings.baseEAR.right.toFixed(3)}</div>
+                  <div className="text-xs text-green-400">
+                    倍率 L: {(currentValues.ear.left / settings.baseEAR.left).toFixed(2)}x
+                  </div>
+                  <div className="text-xs text-green-400">
+                    倍率 R: {(currentValues.ear.right / settings.baseEAR.right).toFixed(2)}x
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -234,21 +246,26 @@ export function CalibrationModal({
               />
             </div>
 
-            {/* ウィンク */}
+            {/* 目を見開く */}
             <div>
               <label className="block text-sm mb-1">
-                ウィンク (EAR): {localSettings.earThreshold.toFixed(2)}
+                目を見開く倍率: {localSettings.eyesWideMultiplier.toFixed(2)}x
+                {settings.baseEAR && (
+                  <span className="text-xs text-gray-400 ml-2">
+                    (基準EAR: L={settings.baseEAR.left.toFixed(2)}, R={settings.baseEAR.right.toFixed(2)})
+                  </span>
+                )}
               </label>
               <input
                 type="range"
-                min="0.05"
-                max="0.3"
-                step="0.01"
-                value={localSettings.earThreshold}
+                min="1.1"
+                max="1.8"
+                step="0.05"
+                value={localSettings.eyesWideMultiplier}
                 onChange={(e) =>
                   setLocalSettings({
                     ...localSettings,
-                    earThreshold: parseFloat(e.target.value),
+                    eyesWideMultiplier: parseFloat(e.target.value),
                   })
                 }
                 className="w-full"
