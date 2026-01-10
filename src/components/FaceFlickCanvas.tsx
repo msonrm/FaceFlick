@@ -73,6 +73,8 @@ export function FaceFlickCanvas() {
   const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number; roll: number } | null>(null);
   const eyeClosedStartTimeRef = useRef<number | null>(null);
   const hasVibratedRef = useRef<boolean>(false);
+  const smileStartTimeRef = useRef<number | null>(null);
+  const hasVibratedSmileRef = useRef<boolean>(false);
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -112,6 +114,40 @@ export function FaceFlickCanvas() {
       ctx.drawImage(video, -rect.width, 0, rect.width, rect.height);
       ctx.restore();
 
+      // 初期キャリブレーション処理（顔検出の前に実行）
+      if (isCalibrating) {
+        const now = Date.now();
+        if (calibrationStartTimeRef.current === null) {
+          calibrationStartTimeRef.current = now;
+        }
+
+        const elapsedTime = now - calibrationStartTimeRef.current;
+        const progress = Math.min(100, (elapsedTime / 3000) * 100);
+        setCalibrationProgress(progress);
+
+        if (elapsedTime >= 3000) {
+          // 3秒経過：平均値を計算して基準値として設定
+          const samples = calibrationSamplesRef.current;
+          if (samples.length > 0) {
+            const avgYaw = samples.reduce((sum, s) => sum + s.yaw, 0) / samples.length;
+            const avgPitch = samples.reduce((sum, s) => sum + s.pitch, 0) / samples.length;
+
+            baseYawRef.current = avgYaw;
+            basePitchRef.current = avgPitch;
+
+            console.log('キャリブレーション完了:');
+            console.log('  基準Yaw =', avgYaw.toFixed(2), '度');
+            console.log('  基準Pitch =', avgPitch.toFixed(2), '度');
+          } else {
+            console.log('キャリブレーション完了（サンプルなし・デフォルト値を使用）');
+            baseYawRef.current = 0;
+            basePitchRef.current = 0;
+          }
+
+          setIsCalibrating(false);
+        }
+      }
+
       // 顔検出
       const result = detectFace(video, timestamp);
       if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
@@ -135,8 +171,17 @@ export function FaceFlickCanvas() {
             headRotation: faceState.headRotation,
           });
 
-          // 入力ロジック
-          processInput(faceState);
+          // キャリブレーション中はサンプリングのみ実行
+          if (isCalibrating) {
+            calibrationSamplesRef.current.push({
+              yaw: faceState.headRotation.yaw,
+              pitch: faceState.headRotation.pitch,
+              roll: faceState.headRotation.roll,
+            });
+          } else {
+            // 入力ロジック
+            processInput(faceState);
+          }
 
           // 顔のランドマークを描画（モードに応じて）
           if (faceDisplayMode !== 'none') {
@@ -239,106 +284,26 @@ export function FaceFlickCanvas() {
       (h) => now - h.timestamp < 1000
     );
 
-    // 初期キャリブレーション（起動後3秒間）
-    if (isCalibrating) {
-      if (calibrationStartTimeRef.current === null) {
-        calibrationStartTimeRef.current = now;
-      }
+    // ===== 優先度付きトリガー・ジェスチャー検出 =====
+    // 優先度: 1.口開け/口すぼめ > 2.首振り > 3.笑顔 > 4.目閉じ
 
-      const elapsedTime = now - calibrationStartTimeRef.current;
-      const progress = Math.min(100, (elapsedTime / 3000) * 100);
-      setCalibrationProgress(progress);
-
-      // yaw, pitch, roll値をサンプリング
-      calibrationSamplesRef.current.push({
-        yaw: faceState.headRotation.yaw,
-        pitch: faceState.headRotation.pitch,
-        roll: faceState.headRotation.roll,
-      });
-
-      if (elapsedTime >= 3000) {
-        // 3秒経過：平均値を計算して基準値として設定
-        const samples = calibrationSamplesRef.current;
-        const avgYaw = samples.reduce((sum, s) => sum + s.yaw, 0) / samples.length;
-        const avgPitch = samples.reduce((sum, s) => sum + s.pitch, 0) / samples.length;
-
-        baseYawRef.current = avgYaw;
-        basePitchRef.current = avgPitch;
-
-        setIsCalibrating(false);
-        console.log('キャリブレーション完了:');
-        console.log('  基準Yaw =', avgYaw.toFixed(2), '度');
-        console.log('  基準Pitch =', avgPitch.toFixed(2), '度');
-      }
-
-      // キャリブレーション中は通常の入力処理をスキップ
-      return;
-    }
-
-    // 目を閉じた検出（両目が閾値以上）
-    const EYE_BLINK_THRESHOLD = 0.5;
-    const isEyesClosed =
-      faceState.blendshapes.eyeBlinkLeft >= EYE_BLINK_THRESHOLD &&
-      faceState.blendshapes.eyeBlinkRight >= EYE_BLINK_THRESHOLD;
-
-    // 目を閉じて1.5秒保持で読み上げ&クリア（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
-    if (
-      inputState.type === 'idle' &&
-      now - lastGestureTimeRef.current > 1000 &&
-      isEyesClosed
-    ) {
-      if (eyeClosedStartTimeRef.current === null) {
-        // 目を閉じ始めた時刻を記録
-        eyeClosedStartTimeRef.current = now;
-        hasVibratedRef.current = false;
-      } else {
-        // 1.5秒経過したら発声&クリア
-        const closedDuration = now - eyeClosedStartTimeRef.current;
-        if (closedDuration >= 1500 && !hasVibratedRef.current) {
-          // 読み上げ&クリア
-          speakText(inputText, 'human_high');
-          setInputText('');
-          setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
-          lastGestureTimeRef.current = now;
-          // 振動を発生
-          if (navigator.vibrate) {
-            navigator.vibrate(200); // 200ms振動
-          }
-          hasVibratedRef.current = true;
-          eyeClosedStartTimeRef.current = null; // リセット
-          return;
-        }
-      }
-    } else {
-      // 目を開いたらリセット
+    // 【優先度1】口開け/口すぼめ（キー入力トリガー）がアクティブな場合
+    // → 他のすべてのジェスチャータイマーをリセット
+    if (faceState.isTriggered) {
       eyeClosedStartTimeRef.current = null;
       hasVibratedRef.current = false;
+      smileStartTimeRef.current = null;
+      hasVibratedSmileRef.current = false;
+      // キー入力処理は後続の処理で実行される
     }
 
-    // 笑顔ジェスチャーで読み上げ&クリア（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
-    if (
-      inputState.type === 'idle' &&
-      now - lastGestureTimeRef.current > 1000 &&
-      faceState.blendshapes.mouthSmileLeft >= calibrationSettings.smileThreshold &&
-      faceState.blendshapes.mouthSmileRight >= calibrationSettings.smileThreshold
-    ) {
-      // 読み上げ&クリア
-      speakText(inputText, 'human_high');
-      setInputText('');
-      setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
-      lastGestureTimeRef.current = now;
-      // 振動を発生
-      if (navigator.vibrate) {
-        navigator.vibrate(200); // 200ms振動
-      }
-      return;
-    }
+    // idle状態かつトリガーなしの場合のみ、ジェスチャー検出を行う
+    if (inputState.type === 'idle' && !faceState.isTriggered && now - lastGestureTimeRef.current > 1000) {
 
-    // ジェスチャー検出（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
-    if (inputState.type === 'idle' && now - lastGestureTimeRef.current > 1000) {
+      // 【優先度2】首を振る（バックスペース）
       const gesture = detectGesture(headRotationHistoryRef.current);
       if (gesture === 'head_shake') {
-        // バックスペース
+        // バックスペース実行
         setInputText((prev) => prev.slice(0, -1));
         setGestureFeedback({ type: 'backspace', timestamp: now });
         lastGestureTimeRef.current = now;
@@ -346,6 +311,86 @@ export function FaceFlickCanvas() {
         // 振動を発生
         if (navigator.vibrate) {
           navigator.vibrate(100); // 100ms振動
+        }
+        // 首振りが検出されたので、笑顔と目閉じのタイマーをリセット
+        smileStartTimeRef.current = null;
+        hasVibratedSmileRef.current = false;
+        eyeClosedStartTimeRef.current = null;
+        hasVibratedRef.current = false;
+      } else {
+        // 首振りがない場合のみ、笑顔と目閉じをチェック
+
+        // 【優先度3】笑顔ジェスチャー（読み上げ&クリア）
+        const isSmiling =
+          faceState.blendshapes.mouthSmileLeft >= calibrationSettings.smileThreshold &&
+          faceState.blendshapes.mouthSmileRight >= calibrationSettings.smileThreshold;
+
+        if (isSmiling) {
+          if (smileStartTimeRef.current === null) {
+            // 笑顔を始めた時刻を記録
+            smileStartTimeRef.current = now;
+            hasVibratedSmileRef.current = false;
+            // 笑顔が始まったので目閉じタイマーをリセット
+            eyeClosedStartTimeRef.current = null;
+            hasVibratedRef.current = false;
+          } else {
+            // 1秒経過したら発声&クリア
+            const smileDuration = now - smileStartTimeRef.current;
+            if (smileDuration >= 1000 && !hasVibratedSmileRef.current) {
+              // 読み上げ&クリア
+              speakText(inputText, 'human_high');
+              setInputText('');
+              setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
+              lastGestureTimeRef.current = now;
+              // 振動を発生
+              if (navigator.vibrate) {
+                navigator.vibrate(200); // 200ms振動
+              }
+              hasVibratedSmileRef.current = true;
+              smileStartTimeRef.current = null; // リセット
+              return;
+            }
+          }
+        } else {
+          // 笑顔をやめたらリセット
+          smileStartTimeRef.current = null;
+          hasVibratedSmileRef.current = false;
+
+          // 【優先度4】目を閉じる（読み上げ&クリア）
+          // 笑顔がない場合のみチェック
+          const EYE_BLINK_THRESHOLD = 0.5;
+          const isEyesClosed =
+            faceState.blendshapes.eyeBlinkLeft >= EYE_BLINK_THRESHOLD &&
+            faceState.blendshapes.eyeBlinkRight >= EYE_BLINK_THRESHOLD;
+
+          if (isEyesClosed) {
+            if (eyeClosedStartTimeRef.current === null) {
+              // 目を閉じ始めた時刻を記録
+              eyeClosedStartTimeRef.current = now;
+              hasVibratedRef.current = false;
+            } else {
+              // 1秒経過したら発声&クリア
+              const closedDuration = now - eyeClosedStartTimeRef.current;
+              if (closedDuration >= 1000 && !hasVibratedRef.current) {
+                // 読み上げ&クリア
+                speakText(inputText, 'human_high');
+                setInputText('');
+                setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
+                lastGestureTimeRef.current = now;
+                // 振動を発生
+                if (navigator.vibrate) {
+                  navigator.vibrate(200); // 200ms振動
+                }
+                hasVibratedRef.current = true;
+                eyeClosedStartTimeRef.current = null; // リセット
+                return;
+              }
+            }
+          } else {
+            // 目を開いたらリセット
+            eyeClosedStartTimeRef.current = null;
+            hasVibratedRef.current = false;
+          }
         }
       }
     }
