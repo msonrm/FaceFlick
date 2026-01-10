@@ -75,6 +75,7 @@ export function FaceFlickCanvas() {
   const hasVibratedRef = useRef<boolean>(false);
   const smileStartTimeRef = useRef<number | null>(null);
   const hasVibratedSmileRef = useRef<boolean>(false);
+  const lastConfirmTimeRef = useRef<number | null>(null); // 文字確定時刻を記録（連続入力防止用）
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -398,28 +399,38 @@ export function FaceFlickCanvas() {
     if (inputState.type === 'idle') {
       // トリガーがアクティブでキーが選択されている
       if (faceState.isTriggered && selectedKey) {
-        // トリガー開始時刻を記録
-        if (triggerStartTimeRef.current === null) {
-          triggerStartTimeRef.current = Date.now();
-        }
+        // 文字確定後のクールダウン期間をチェック（連続入力防止）
+        const COOLDOWN_MS = 300; // 300ms のクールダウン
+        const timeSinceLastConfirm = lastConfirmTimeRef.current ? now - lastConfirmTimeRef.current : Infinity;
 
-        // 0.4秒経過したかチェック
-        const elapsedTime = Date.now() - triggerStartTimeRef.current;
-        if (elapsedTime >= HOLD_DELAY_MS) {
-          setInputState({
-            type: 'selecting',
-            key: selectedKey,
-            triggerType: faceState.triggerType,
-            holdPosition: {
-              yaw: smoothedHeadRotationRef.current!.yaw,
-              pitch: smoothedHeadRotationRef.current!.pitch,
-            },
-          });
-          triggerStartTimeRef.current = null; // リセット
+        if (timeSinceLastConfirm < COOLDOWN_MS) {
+          // クールダウン期間中は新しい入力を開始しない
+          triggerStartTimeRef.current = null;
+        } else {
+          // トリガー開始時刻を記録
+          if (triggerStartTimeRef.current === null) {
+            triggerStartTimeRef.current = Date.now();
+          }
+
+          // 0.4秒経過したかチェック
+          const elapsedTime = Date.now() - triggerStartTimeRef.current;
+          if (elapsedTime >= HOLD_DELAY_MS) {
+            setInputState({
+              type: 'selecting',
+              key: selectedKey,
+              triggerType: faceState.triggerType,
+              holdPosition: {
+                yaw: smoothedHeadRotationRef.current!.yaw,
+                pitch: smoothedHeadRotationRef.current!.pitch,
+              },
+            });
+            triggerStartTimeRef.current = null; // リセット
+          }
         }
       } else {
-        // トリガーが解除されたらタイマーリセット
+        // トリガーが解除されたらタイマーと確定時刻をリセット
         triggerStartTimeRef.current = null;
+        lastConfirmTimeRef.current = null;
       }
     } else if (inputState.type === 'selecting') {
       // トリガーが解除された = 入力確定
@@ -427,6 +438,7 @@ export function FaceFlickCanvas() {
         const char = getCharFromFlick(inputState.key, null);
         addCharacter(char);
         setInputState({ type: 'idle' });
+        triggerStartTimeRef.current = null; // 保持時間をリセット
       } else {
         // トリガーを維持したまま = フリック判定（ホールド位置を基準に、平滑化された値を使用）
         const direction = getFlickDirection(smoothedState, inputState.holdPosition, calibrationSettings);
@@ -446,6 +458,7 @@ export function FaceFlickCanvas() {
         const char = getCharFromFlick(inputState.key, inputState.direction);
         addCharacter(char);
         setInputState({ type: 'idle' });
+        triggerStartTimeRef.current = null; // 保持時間をリセット
       }
       // フリック中に方向が変わったら更新（ホールド位置を基準に、平滑化された値を使用）
       else {
@@ -501,6 +514,8 @@ export function FaceFlickCanvas() {
         navigator.vibrate(100); // 100ms振動
       }
     }
+    // 文字確定時刻を記録（連続入力防止用）
+    lastConfirmTimeRef.current = Date.now();
   }
 
   function toggleCharacter(char: string): string {
