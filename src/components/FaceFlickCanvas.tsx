@@ -1119,7 +1119,7 @@ export function FaceFlickCanvas() {
           className="absolute left-2 w-72 h-96 bg-black/80 backdrop-blur-sm rounded-lg p-3 overflow-y-auto text-white text-xs font-mono"
           style={{ top: `${50 + 95}px` }} // toolbarHeight + debugInfoHeight
         >
-          <div className="font-bold mb-2 text-sm sticky top-0 bg-black/90 pb-1">
+          <div className="font-bold mb-2 text-sm bg-black/90 pb-1">
             全Blendshapes ({debugInfo.allBlendshapes.length})
           </div>
           <div className="space-y-1">
