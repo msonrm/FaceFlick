@@ -76,6 +76,9 @@ export function FaceFlickCanvas() {
   const smileStartTimeRef = useRef<number | null>(null);
   const hasVibratedSmileRef = useRef<boolean>(false);
   const lastConfirmTimeRef = useRef<number | null>(null); // 文字確定時刻を記録（連続入力防止用）
+  const faceDetectionLostTimeRef = useRef<number | null>(null); // 顔認識が切れた時刻
+  const lastDetectedFaceStateRef = useRef<any>(null); // 最後に検出された顔の状態（表示保持用）
+  const lastDetectedResultRef = useRef<any>(null); // 最後に検出された result（表示保持用）
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -151,9 +154,18 @@ export function FaceFlickCanvas() {
 
       // 顔検出
       const result = detectFace(video, timestamp);
+      const now = Date.now();
+
       if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
         const faceState = analyzeFace(result, calibrationSettings);
         if (faceState) {
+          // 顔が検出されたので、認識切れタイマーをリセット
+          faceDetectionLostTimeRef.current = null;
+
+          // 最後に検出された状態を保存（表示保持用）
+          lastDetectedFaceStateRef.current = faceState;
+          lastDetectedResultRef.current = result;
+
           // 現在の顔の状態を保存
           setCurrentFaceState(faceState);
 
@@ -189,10 +201,60 @@ export function FaceFlickCanvas() {
             drawFaceLandmarks(ctx, faceState.landmarks, rect.width, rect.height, result);
           }
         }
+      } else {
+        // 顔が検出されない場合
+        if (faceDetectionLostTimeRef.current === null) {
+          // 初めて認識が切れた時刻を記録
+          faceDetectionLostTimeRef.current = now;
+        } else {
+          // 0.3秒経過したら入力状態をリセット
+          const lostDuration = now - faceDetectionLostTimeRef.current;
+          if (lostDuration >= 300) {
+            // 入力状態をリセット（キャンセル）
+            if (inputState.type !== 'idle') {
+              setInputState({ type: 'idle' });
+            }
+            // 各種タイマーをリセット
+            triggerStartTimeRef.current = null;
+            eyeClosedStartTimeRef.current = null;
+            smileStartTimeRef.current = null;
+            lastConfirmTimeRef.current = null;
+            hasVibratedRef.current = false;
+            hasVibratedSmileRef.current = false;
+
+            // デバッグ情報をクリア
+            setDebugInfo({
+              blendshapes: {
+                jawOpen: 0,
+                mouthPucker: 0,
+                mouthSmileLeft: 0,
+                mouthSmileRight: 0,
+                eyeBlinkLeft: 0,
+                eyeBlinkRight: 0,
+              },
+              allBlendshapes: [],
+              triggerType: 'none',
+              headRotation: { yaw: 0, pitch: 0, roll: 0 },
+            });
+          }
+        }
+
+        // 最後に検出された顔の状態で描画を保持（プライバシー保護）
+        if (lastDetectedFaceStateRef.current && lastDetectedResultRef.current && faceDisplayMode !== 'none') {
+          drawFaceLandmarks(
+            ctx,
+            lastDetectedFaceStateRef.current.landmarks,
+            rect.width,
+            rect.height,
+            lastDetectedResultRef.current
+          );
+        }
       }
 
-      // キーボードオーバーレイを描画
-      drawKeyboard(ctx, rect.width, rect.height);
+      // キーボードオーバーレイを描画（顔検出の有無に関わらず描画）
+      // ただし、顔が検出されていない場合はハイライトなし
+      const isFaceDetected = !!(result && result.faceLandmarks && result.faceLandmarks.length > 0);
+      drawKeyboard(ctx, rect.width, rect.height, isFaceDetected);
 
       // 入力テキストを描画
       drawInputText(ctx, rect.width, rect.height);
@@ -765,7 +827,8 @@ export function FaceFlickCanvas() {
   function drawKeyboard(
     ctx: CanvasRenderingContext2D,
     width: number,
-    _height: number
+    _height: number,
+    isFaceDetected: boolean = true
   ) {
     // ツールバーの高さ
     const toolbarHeight = 50;
@@ -777,7 +840,8 @@ export function FaceFlickCanvas() {
     const keySize = width / 3;
 
     // 現在顔が向いているキーを取得（idle状態のみ、平滑化された値を使用）
-    const currentKey = (inputState.type === 'idle' && smoothedFaceState)
+    // 顔が検出されていない場合はハイライトを表示しない
+    const currentKey = (inputState.type === 'idle' && smoothedFaceState && isFaceDetected)
       ? getSelectedKey(smoothedFaceState, calibrationSettings)
       : null;
 
