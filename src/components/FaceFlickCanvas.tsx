@@ -280,17 +280,14 @@ export function FaceFlickCanvas() {
         const samples = calibrationSamplesRef.current;
         const avgYaw = samples.reduce((sum, s) => sum + s.yaw, 0) / samples.length;
         const avgPitch = samples.reduce((sum, s) => sum + s.pitch, 0) / samples.length;
-        const avgRoll = samples.reduce((sum, s) => sum + s.roll, 0) / samples.length;
 
         baseYawRef.current = avgYaw;
         basePitchRef.current = avgPitch;
-        headTiltBaseRollRef.current = avgRoll;
 
         setIsCalibrating(false);
         console.log('キャリブレーション完了:');
         console.log('  基準Yaw =', avgYaw.toFixed(2), '度');
         console.log('  基準Pitch =', avgPitch.toFixed(2), '度');
-        console.log('  基準Roll =', avgRoll.toFixed(2), '度');
       }
 
       // キャリブレーション中は通常の入力処理をスキップ
