@@ -49,13 +49,13 @@ export function FaceFlickCanvas() {
     headRotation: { yaw: number; pitch: number; roll: number };
   } | null>(null);
   const [showCalibration, setShowCalibration] = useState(false);
-  const [showDebugInfo, setShowDebugInfo] = useState(true);
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
   const [faceDisplayMode, setFaceDisplayMode] = useState<'none' | 'points' | 'mesh'>('points');
   const [gestureFeedback, setGestureFeedback] = useState<{ type: 'backspace' | 'newline' | 'clear_all' | 'readback' | 'copy_speak_clear'; timestamp: number } | null>(null);
   const [isCalibrating, setIsCalibrating] = useState(true);
   const [calibrationProgress, setCalibrationProgress] = useState(0);
   const [calibrationSettings, setCalibrationSettings] = useState<CalibrationSettings>({
-    yawRange: { min: -30, max: 30 },
+    yawRange: { min: -20, max: 20 },
     pitchRange: { min: -1, max: 10 },
     jawOpenThreshold: JAW_OPEN_THRESHOLD,
     mouthPuckerThreshold: MOUTH_PUCKER_THRESHOLD,
@@ -1074,7 +1074,7 @@ export function FaceFlickCanvas() {
             title={showDebugInfo ? 'デバッグ情報を非表示' : 'デバッグ情報を表示'}
           >
             <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>
-              {showDebugInfo ? 'bug_report' : 'code_off'}
+              {showDebugInfo ? 'code' : 'code_off'}
             </span>
           </button>
 
