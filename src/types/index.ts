@@ -10,6 +10,8 @@ export interface FaceState {
     mouthPucker: number;    // 口すぼめ (0-1)
     mouthSmileLeft: number; // 左笑顔 (0-1)
     mouthSmileRight: number;// 右笑顔 (0-1)
+    eyeBlinkLeft: number;   // 左目を閉じる (0-1)
+    eyeBlinkRight: number;  // 右目を閉じる (0-1)
   };
   // どのトリガーがアクティブか
   isTriggered: boolean;

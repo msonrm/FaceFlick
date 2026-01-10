@@ -40,6 +40,8 @@ export function FaceFlickCanvas() {
       mouthPucker: number;
       mouthSmileLeft: number;
       mouthSmileRight: number;
+      eyeBlinkLeft: number;
+      eyeBlinkRight: number;
     };
     allBlendshapes: Array<{ name: string; value: number }>;
     triggerType: string;
@@ -69,6 +71,8 @@ export function FaceFlickCanvas() {
   const baseYawRef = useRef<number | null>(null);
   const basePitchRef = useRef<number | null>(null);
   const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number; roll: number } | null>(null);
+  const eyeClosedStartTimeRef = useRef<number | null>(null);
+  const hasVibratedRef = useRef<boolean>(false);
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -269,6 +273,35 @@ export function FaceFlickCanvas() {
 
       // キャリブレーション中は通常の入力処理をスキップ
       return;
+    }
+
+    // 目を閉じた検出（両目が閾値以上）
+    const EYE_BLINK_THRESHOLD = 0.5;
+    const isEyesClosed =
+      faceState.blendshapes.eyeBlinkLeft >= EYE_BLINK_THRESHOLD &&
+      faceState.blendshapes.eyeBlinkRight >= EYE_BLINK_THRESHOLD;
+
+    if (isEyesClosed) {
+      if (eyeClosedStartTimeRef.current === null) {
+        // 目を閉じ始めた時刻を記録
+        eyeClosedStartTimeRef.current = now;
+        hasVibratedRef.current = false;
+      } else {
+        // 2秒経過したら振動
+        const closedDuration = now - eyeClosedStartTimeRef.current;
+        if (closedDuration >= 2000 && !hasVibratedRef.current) {
+          // 振動を発生
+          if (navigator.vibrate) {
+            navigator.vibrate(200); // 200ms振動
+          }
+          hasVibratedRef.current = true;
+          console.log('目を2秒間閉じました - 振動');
+        }
+      }
+    } else {
+      // 目を開いたらリセット
+      eyeClosedStartTimeRef.current = null;
+      hasVibratedRef.current = false;
     }
 
     // 笑顔ジェスチャーで読み上げ&クリア（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
