@@ -480,7 +480,7 @@ export function FaceFlickCanvas() {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
 
         ctx.beginPath();
-        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.arc(x, y, 0.5, 0, 2 * Math.PI);
         ctx.fill();
       }
 
@@ -511,8 +511,8 @@ export function FaceFlickCanvas() {
       z: lightDir.z / lightMag
     };
 
-    // 基本色（白〜シルバー）
-    const baseColor = { r: 240, g: 240, b: 245 };
+    // 基本色（完全な白）
+    const baseColor = { r: 255, g: 255, b: 255 };
 
     const connections = FaceLandmarker.FACE_LANDMARKS_TESSELATION;
 
@@ -580,7 +580,7 @@ export function FaceFlickCanvas() {
 
       // ランバート反射：内積を計算
       let diffuse = n.x * light.x + n.y * light.y + n.z * light.z;
-      diffuse = Math.max(0.4, Math.min(1.0, diffuse)); // アンビエント 0.4（明るめ）
+      diffuse = Math.max(0.7, Math.min(1.0, diffuse)); // アンビエント 0.7（より明るく）
 
       // 最終色を計算
       const r = Math.floor(baseColor.r * diffuse);
