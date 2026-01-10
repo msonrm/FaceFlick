@@ -475,12 +475,12 @@ export function FaceFlickCanvas() {
         const y = landmark.y * height;
 
         // Glowエフェクト
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+        ctx.shadowBlur = 40;
+        ctx.shadowColor = 'rgba(255, 255, 255, 1.0)';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
 
         ctx.beginPath();
-        ctx.arc(x, y, 0.5, 0, 2 * Math.PI);
+        ctx.arc(x, y, 0.8, 0, 2 * Math.PI);
         ctx.fill();
       }
 
