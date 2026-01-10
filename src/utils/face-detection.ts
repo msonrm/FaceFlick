@@ -4,9 +4,11 @@ import { FaceState, TriggerType, CalibrationSettings } from '../types';
 // デフォルト閾値（Blendshapes: 0-1）
 const DEFAULT_JAW_OPEN_THRESHOLD = 0.5;
 const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.4;
-const DEFAULT_EYES_WIDE_THRESHOLD = 0.3;
 const DEFAULT_SMILE_THRESHOLD = 0.6;
-const DEFAULT_CHEEK_PUFF_THRESHOLD = 0.4;
+
+// 目の見開き判定（固定値）
+const BROW_INNER_UP_THRESHOLD = 0.4;
+const EYE_SQUINT_THRESHOLD = 0.3;
 
 export function analyzeFace(
   result: FaceLandmarkerResult,
@@ -21,30 +23,27 @@ export function analyzeFace(
   // Blendshapesを取得
   let jawOpen = 0;
   let mouthPucker = 0;
-  let eyeWideLeft = 0;
-  let eyeWideRight = 0;
+  let browInnerUp = 0;
+  let eyeSquintLeft = 0;
+  let eyeSquintRight = 0;
   let mouthSmileLeft = 0;
   let mouthSmileRight = 0;
-  let cheekPuff = 0;
 
   if (result.faceBlendshapes && result.faceBlendshapes.length > 0) {
     const blendshapes = result.faceBlendshapes[0].categories;
 
     jawOpen = blendshapes.find(b => b.categoryName === 'jawOpen')?.score ?? 0;
     mouthPucker = blendshapes.find(b => b.categoryName === 'mouthPucker')?.score ?? 0;
-    eyeWideLeft = blendshapes.find(b => b.categoryName === 'eyeWideLeft')?.score ?? 0;
-    eyeWideRight = blendshapes.find(b => b.categoryName === 'eyeWideRight')?.score ?? 0;
+    browInnerUp = blendshapes.find(b => b.categoryName === 'browInnerUp')?.score ?? 0;
+    eyeSquintLeft = blendshapes.find(b => b.categoryName === 'eyeSquintLeft')?.score ?? 0;
+    eyeSquintRight = blendshapes.find(b => b.categoryName === 'eyeSquintRight')?.score ?? 0;
     mouthSmileLeft = blendshapes.find(b => b.categoryName === 'mouthSmileLeft')?.score ?? 0;
     mouthSmileRight = blendshapes.find(b => b.categoryName === 'mouthSmileRight')?.score ?? 0;
-    cheekPuff = blendshapes.find(b => b.categoryName === 'cheekPuff')?.score ?? 0;
   }
 
   // 各トリガーの閾値を取得
   const jawOpenThreshold = settings?.jawOpenThreshold ?? DEFAULT_JAW_OPEN_THRESHOLD;
   const mouthPuckerThreshold = settings?.mouthPuckerThreshold ?? DEFAULT_MOUTH_PUCKER_THRESHOLD;
-  const eyesWideThreshold = settings?.eyesWideThreshold ?? DEFAULT_EYES_WIDE_THRESHOLD;
-  const smileThreshold = settings?.smileThreshold ?? DEFAULT_SMILE_THRESHOLD;
-  const cheekPuffThreshold = settings?.cheekPuffThreshold ?? DEFAULT_CHEEK_PUFF_THRESHOLD;
 
   // どのトリガーがアクティブか判定（優先順位あり）
   let isTriggered = false;
@@ -56,15 +55,13 @@ export function analyzeFace(
   } else if (mouthPucker > mouthPuckerThreshold) {
     isTriggered = true;
     triggerType = 'mouth_pucker';
-  } else if (eyeWideLeft > eyesWideThreshold && eyeWideRight > eyesWideThreshold) {
+  } else if (
+    browInnerUp >= BROW_INNER_UP_THRESHOLD &&
+    eyeSquintLeft <= EYE_SQUINT_THRESHOLD &&
+    eyeSquintRight <= EYE_SQUINT_THRESHOLD
+  ) {
     isTriggered = true;
     triggerType = 'eyes_wide';
-  } else if (mouthSmileLeft > smileThreshold && mouthSmileRight > smileThreshold) {
-    isTriggered = true;
-    triggerType = 'smile';
-  } else if (cheekPuff > cheekPuffThreshold) {
-    isTriggered = true;
-    triggerType = 'cheek_puff';
   }
 
   // 頭の回転を計算
@@ -75,11 +72,11 @@ export function analyzeFace(
     blendshapes: {
       jawOpen,
       mouthPucker,
-      eyeWideLeft,
-      eyeWideRight,
+      browInnerUp,
+      eyeSquintLeft,
+      eyeSquintRight,
       mouthSmileLeft,
       mouthSmileRight,
-      cheekPuff,
     },
     isTriggered,
     triggerType,

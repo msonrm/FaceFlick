@@ -12,9 +12,7 @@ import {
   KEYBOARD_LAYOUT,
   JAW_OPEN_THRESHOLD,
   MOUTH_PUCKER_THRESHOLD,
-  EYES_WIDE_THRESHOLD,
   SMILE_THRESHOLD,
-  CHEEK_PUFF_THRESHOLD,
   GRID_SENSITIVITY,
   FLICK_SENSITIVITY,
 } from '../utils/keyboard-layout';
@@ -40,11 +38,11 @@ export function FaceFlickCanvas() {
     blendshapes: {
       jawOpen: number;
       mouthPucker: number;
-      eyeWideLeft: number;
-      eyeWideRight: number;
+      browInnerUp: number;
+      eyeSquintLeft: number;
+      eyeSquintRight: number;
       mouthSmileLeft: number;
       mouthSmileRight: number;
-      cheekPuff: number;
     };
     allBlendshapes: Array<{ name: string; value: number }>;
     triggerType: string;
@@ -61,9 +59,7 @@ export function FaceFlickCanvas() {
     pitchRange: { min: -1, max: 10 },
     jawOpenThreshold: JAW_OPEN_THRESHOLD,
     mouthPuckerThreshold: MOUTH_PUCKER_THRESHOLD,
-    eyesWideThreshold: EYES_WIDE_THRESHOLD,
     smileThreshold: SMILE_THRESHOLD,
-    cheekPuffThreshold: CHEEK_PUFF_THRESHOLD,
     gridSensitivity: GRID_SENSITIVITY,
     flickSensitivity: FLICK_SENSITIVITY,
   });
@@ -303,20 +299,19 @@ export function FaceFlickCanvas() {
       return;
     }
 
-    // cheek_puffトリガーで半角スペースを入力（idle状態のみ）
-    if (inputState.type === 'idle' && faceState.triggerType === 'cheek_puff') {
-      if (triggerStartTimeRef.current === null) {
-        triggerStartTimeRef.current = now;
-      } else {
-        const elapsedTime = now - triggerStartTimeRef.current;
-        if (elapsedTime >= HOLD_DELAY_MS) {
-          // スペースを入力
-          setInputText((prev) => prev + ' ');
-          setInputState({ type: 'idle' });
-          triggerStartTimeRef.current = null;
-          return;
-        }
-      }
+    // 笑顔ジェスチャーで読み上げ&クリア（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
+    if (
+      inputState.type === 'idle' &&
+      now - lastGestureTimeRef.current > 1000 &&
+      faceState.blendshapes.mouthSmileLeft >= calibrationSettings.smileThreshold &&
+      faceState.blendshapes.mouthSmileRight >= calibrationSettings.smileThreshold
+    ) {
+      // 読み上げ&クリア
+      speakText(inputText, 'human_high');
+      setInputText('');
+      setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
+      lastGestureTimeRef.current = now;
+      return;
     }
 
     // ジェスチャー検出（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
@@ -339,8 +334,8 @@ export function FaceFlickCanvas() {
     }
 
     if (inputState.type === 'idle') {
-      // トリガーがアクティブでキーが選択されている（cheek_puffは除く）
-      if (faceState.isTriggered && faceState.triggerType !== 'cheek_puff' && selectedKey) {
+      // トリガーがアクティブでキーが選択されている
+      if (faceState.isTriggered && selectedKey) {
         // トリガー開始時刻を記録
         if (triggerStartTimeRef.current === null) {
           triggerStartTimeRef.current = Date.now();
@@ -361,10 +356,8 @@ export function FaceFlickCanvas() {
           triggerStartTimeRef.current = null; // リセット
         }
       } else {
-        // トリガーが解除されたらタイマーリセット（cheek_puffは除く）
-        if (faceState.triggerType !== 'cheek_puff') {
-          triggerStartTimeRef.current = null;
-        }
+        // トリガーが解除されたらタイマーリセット
+        triggerStartTimeRef.current = null;
       }
     } else if (inputState.type === 'selecting') {
       // トリガーが解除された = 入力確定
@@ -803,14 +796,14 @@ export function FaceFlickCanvas() {
 
       // Blendshapes (1行目)
       ctx.fillText(
-        `jawOpen: ${debugInfo.blendshapes.jawOpen.toFixed(2)} pucker: ${debugInfo.blendshapes.mouthPucker.toFixed(2)} smile: ${debugInfo.blendshapes.mouthSmileLeft.toFixed(2)}`,
+        `jaw: ${debugInfo.blendshapes.jawOpen.toFixed(2)} pucker: ${debugInfo.blendshapes.mouthPucker.toFixed(2)} smile: ${debugInfo.blendshapes.mouthSmileLeft.toFixed(2)}`,
         10,
         toolbarHeight + 25
       );
 
       // Blendshapes (2行目)
       ctx.fillText(
-        `eyeWide: L=${debugInfo.blendshapes.eyeWideLeft.toFixed(2)} R=${debugInfo.blendshapes.eyeWideRight.toFixed(2)} cheek: ${debugInfo.blendshapes.cheekPuff.toFixed(2)}`,
+        `brow: ${debugInfo.blendshapes.browInnerUp.toFixed(2)} squint: L=${debugInfo.blendshapes.eyeSquintLeft.toFixed(2)} R=${debugInfo.blendshapes.eyeSquintRight.toFixed(2)}`,
         10,
         toolbarHeight + 40
       );
@@ -949,10 +942,6 @@ export function FaceFlickCanvas() {
         return 'キス顔 💋';
       case 'eyes_wide':
         return '目を見開く 👀';
-      case 'smile':
-        return '笑顔 😊';
-      case 'cheek_puff':
-        return '頬を膨らませる 😤';
       default:
         return 'なし';
     }

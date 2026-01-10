@@ -12,11 +12,11 @@ interface CalibrationModalProps {
     blendshapes: {
       jawOpen: number;
       mouthPucker: number;
-      eyeWideLeft: number;
-      eyeWideRight: number;
+      browInnerUp: number;
+      eyeSquintLeft: number;
+      eyeSquintRight: number;
       mouthSmileLeft: number;
       mouthSmileRight: number;
-      cheekPuff: number;
     };
   } | null;
 }
@@ -96,11 +96,11 @@ export function CalibrationModal({
               <div>Pitch: {currentValues.pitch.toFixed(1)}°</div>
               <div>jawOpen: {currentValues.blendshapes.jawOpen.toFixed(2)}</div>
               <div>mouthPucker: {currentValues.blendshapes.mouthPucker.toFixed(2)}</div>
-              <div>eyeWide L: {currentValues.blendshapes.eyeWideLeft.toFixed(2)}</div>
-              <div>eyeWide R: {currentValues.blendshapes.eyeWideRight.toFixed(2)}</div>
+              <div>browInnerUp: {currentValues.blendshapes.browInnerUp.toFixed(2)}</div>
+              <div>eyeSquint L: {currentValues.blendshapes.eyeSquintLeft.toFixed(2)}</div>
+              <div>eyeSquint R: {currentValues.blendshapes.eyeSquintRight.toFixed(2)}</div>
               <div>smile L: {currentValues.blendshapes.mouthSmileLeft.toFixed(2)}</div>
               <div>smile R: {currentValues.blendshapes.mouthSmileRight.toFixed(2)}</div>
-              <div className="col-span-2">cheekPuff: {currentValues.blendshapes.cheekPuff.toFixed(2)}</div>
             </div>
           </div>
         )}
@@ -243,31 +243,10 @@ export function CalibrationModal({
               />
             </div>
 
-            {/* 目を見開く */}
+            {/* 笑顔（読み上げ&クリア用） */}
             <div>
               <label className="block text-sm mb-1">
-                目を見開く (eyeWide): {localSettings.eyesWideThreshold.toFixed(2)}
-              </label>
-              <input
-                type="range"
-                min="0.1"
-                max="0.9"
-                step="0.05"
-                value={localSettings.eyesWideThreshold}
-                onChange={(e) =>
-                  setLocalSettings({
-                    ...localSettings,
-                    eyesWideThreshold: parseFloat(e.target.value),
-                  })
-                }
-                className="w-full"
-              />
-            </div>
-
-            {/* 笑顔 */}
-            <div>
-              <label className="block text-sm mb-1">
-                笑顔 (smile): {localSettings.smileThreshold.toFixed(2)}
+                笑顔 - 読み上げ&クリア (smile): {localSettings.smileThreshold.toFixed(2)}
               </label>
               <input
                 type="range"
@@ -283,27 +262,9 @@ export function CalibrationModal({
                 }
                 className="w-full"
               />
-            </div>
-
-            {/* 頬を膨らませる */}
-            <div>
-              <label className="block text-sm mb-1">
-                頬を膨らませる (cheekPuff): {localSettings.cheekPuffThreshold.toFixed(2)}
-              </label>
-              <input
-                type="range"
-                min="0.1"
-                max="0.9"
-                step="0.05"
-                value={localSettings.cheekPuffThreshold}
-                onChange={(e) =>
-                  setLocalSettings({
-                    ...localSettings,
-                    cheekPuffThreshold: parseFloat(e.target.value),
-                  })
-                }
-                className="w-full"
-              />
+              <p className="text-xs text-gray-400 mt-1">
+                ※ 目を見開くはbrow≥0.4かつsquint≤0.3で判定（固定）
+              </p>
             </div>
           </div>
         </div>

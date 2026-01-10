@@ -31,6 +31,4 @@ export const FLICK_SENSITIVITY = 20; // 度
 // トリガーの閾値（Blendshapes: 0-1）
 export const JAW_OPEN_THRESHOLD = 0.5;       // 口を開ける
 export const MOUTH_PUCKER_THRESHOLD = 0.4;   // キス顔
-export const EYES_WIDE_THRESHOLD = 0.3;      // 目を見開く
-export const SMILE_THRESHOLD = 0.6;          // 笑顔
-export const CHEEK_PUFF_THRESHOLD = 0.4;     // 頬を膨らませる
+export const SMILE_THRESHOLD = 0.6;          // 笑顔（読み上げ&クリア用）
