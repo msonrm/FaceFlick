@@ -407,14 +407,25 @@ export function FaceFlickCanvas() {
       // フリック中に方向が変わったら更新（ホールド位置を基準に、平滑化された値を使用）
       else {
         const direction = getFlickDirection(smoothedState, inputState.holdPosition, calibrationSettings);
-        if (direction && direction !== inputState.direction) {
-          setInputState({
-            type: 'flicking',
-            key: inputState.key,
-            direction,
-            triggerType: inputState.triggerType,
-            holdPosition: inputState.holdPosition,
-          });
+        if (direction !== inputState.direction) {
+          if (direction) {
+            // 方向が変わった場合
+            setInputState({
+              type: 'flicking',
+              key: inputState.key,
+              direction,
+              triggerType: inputState.triggerType,
+              holdPosition: inputState.holdPosition,
+            });
+          } else {
+            // 中央に戻った場合
+            setInputState({
+              type: 'selecting',
+              key: inputState.key,
+              triggerType: inputState.triggerType,
+              holdPosition: inputState.holdPosition,
+            });
+          }
         }
       }
     }
@@ -717,7 +728,7 @@ export function FaceFlickCanvas() {
         ctx.shadowOffsetY = 0;
         if (isCenterActive) {
           ctx.font = '36px sans-serif'; // ホールド時は大きく
-          ctx.fillStyle = '#00ffff'; // シアン
+          ctx.fillStyle = '#ffa500'; // オレンジ
         } else {
           ctx.font = '32px sans-serif';
           ctx.fillStyle = '#ffffff';
