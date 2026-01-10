@@ -73,6 +73,8 @@ export function FaceFlickCanvas() {
   const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number; roll: number } | null>(null);
   const eyeClosedStartTimeRef = useRef<number | null>(null);
   const hasVibratedRef = useRef<boolean>(false);
+  const smileStartTimeRef = useRef<number | null>(null);
+  const hasVibratedSmileRef = useRef<boolean>(false);
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -281,7 +283,7 @@ export function FaceFlickCanvas() {
       faceState.blendshapes.eyeBlinkLeft >= EYE_BLINK_THRESHOLD &&
       faceState.blendshapes.eyeBlinkRight >= EYE_BLINK_THRESHOLD;
 
-    // 目を閉じて1.5秒保持で読み上げ&クリア（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
+    // 目を閉じて1秒保持で読み上げ&クリア（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
     if (
       inputState.type === 'idle' &&
       now - lastGestureTimeRef.current > 1000 &&
@@ -292,9 +294,9 @@ export function FaceFlickCanvas() {
         eyeClosedStartTimeRef.current = now;
         hasVibratedRef.current = false;
       } else {
-        // 1.5秒経過したら発声&クリア
+        // 1秒経過したら発声&クリア
         const closedDuration = now - eyeClosedStartTimeRef.current;
-        if (closedDuration >= 1500 && !hasVibratedRef.current) {
+        if (closedDuration >= 1000 && !hasVibratedRef.current) {
           // 読み上げ&クリア
           speakText(inputText, 'human_high');
           setInputText('');
@@ -316,22 +318,41 @@ export function FaceFlickCanvas() {
     }
 
     // 笑顔ジェスチャーで読み上げ&クリア（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
+    const isSmiling =
+      faceState.blendshapes.mouthSmileLeft >= calibrationSettings.smileThreshold &&
+      faceState.blendshapes.mouthSmileRight >= calibrationSettings.smileThreshold;
+
     if (
       inputState.type === 'idle' &&
       now - lastGestureTimeRef.current > 1000 &&
-      faceState.blendshapes.mouthSmileLeft >= calibrationSettings.smileThreshold &&
-      faceState.blendshapes.mouthSmileRight >= calibrationSettings.smileThreshold
+      isSmiling
     ) {
-      // 読み上げ&クリア
-      speakText(inputText, 'human_high');
-      setInputText('');
-      setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
-      lastGestureTimeRef.current = now;
-      // 振動を発生
-      if (navigator.vibrate) {
-        navigator.vibrate(200); // 200ms振動
+      if (smileStartTimeRef.current === null) {
+        // 笑顔を始めた時刻を記録
+        smileStartTimeRef.current = now;
+        hasVibratedSmileRef.current = false;
+      } else {
+        // 1秒経過したら発声&クリア
+        const smileDuration = now - smileStartTimeRef.current;
+        if (smileDuration >= 1000 && !hasVibratedSmileRef.current) {
+          // 読み上げ&クリア
+          speakText(inputText, 'human_high');
+          setInputText('');
+          setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
+          lastGestureTimeRef.current = now;
+          // 振動を発生
+          if (navigator.vibrate) {
+            navigator.vibrate(200); // 200ms振動
+          }
+          hasVibratedSmileRef.current = true;
+          smileStartTimeRef.current = null; // リセット
+          return;
+        }
       }
-      return;
+    } else {
+      // 笑顔をやめたらリセット
+      smileStartTimeRef.current = null;
+      hasVibratedSmileRef.current = false;
     }
 
     // ジェスチャー検出（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
