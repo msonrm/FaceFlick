@@ -46,6 +46,7 @@ export function FaceFlickCanvas() {
       mouthSmileRight: number;
       cheekPuff: number;
     };
+    allBlendshapes: Array<{ name: string; value: number }>;
     triggerType: string;
     headRotation: { yaw: number; pitch: number; roll: number };
   } | null>(null);
@@ -123,8 +124,16 @@ export function FaceFlickCanvas() {
           setCurrentFaceState(faceState);
 
           // デバッグ情報を更新
+          const allBlendshapes = result.faceBlendshapes && result.faceBlendshapes.length > 0
+            ? result.faceBlendshapes[0].categories.map(b => ({
+                name: b.categoryName,
+                value: b.score
+              }))
+            : [];
+
           setDebugInfo({
             blendshapes: faceState.blendshapes,
+            allBlendshapes,
             triggerType: faceState.triggerType || 'none',
             headRotation: faceState.headRotation,
           });
@@ -1130,6 +1139,25 @@ export function FaceFlickCanvas() {
         ref={canvasRef}
         className="w-full h-full object-cover"
       />
+
+      {/* 全Blendshapes表示パネル（スクロール可能） */}
+      {showDebugInfo && debugInfo && debugInfo.allBlendshapes.length > 0 && (
+        <div className="absolute top-16 left-2 w-72 h-96 bg-black/80 backdrop-blur-sm rounded-lg p-3 overflow-y-auto text-white text-xs font-mono">
+          <div className="font-bold mb-2 text-sm sticky top-0 bg-black/90 pb-1">
+            全Blendshapes ({debugInfo.allBlendshapes.length})
+          </div>
+          <div className="space-y-1">
+            {debugInfo.allBlendshapes.map((bs, idx) => (
+              <div key={idx} className="flex justify-between items-center">
+                <span className="text-cyan-300">{bs.name}</span>
+                <span className={bs.value > 0.3 ? 'text-yellow-400 font-bold' : 'text-gray-400'}>
+                  {bs.value.toFixed(3)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* キャリブレーションモーダル */}
       <CalibrationModal

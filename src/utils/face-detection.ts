@@ -30,12 +30,6 @@ export function analyzeFace(
   if (result.faceBlendshapes && result.faceBlendshapes.length > 0) {
     const blendshapes = result.faceBlendshapes[0].categories;
 
-    // デバッグ: 利用可能なBlendshapesをログ出力（初回のみ）
-    if (typeof window !== 'undefined' && !(window as any).__blendshapesLogged) {
-      console.log('Available Blendshapes:', blendshapes.map(b => `${b.categoryName}: ${b.score.toFixed(3)}`));
-      (window as any).__blendshapesLogged = true;
-    }
-
     jawOpen = blendshapes.find(b => b.categoryName === 'jawOpen')?.score ?? 0;
     mouthPucker = blendshapes.find(b => b.categoryName === 'mouthPucker')?.score ?? 0;
     eyeWideLeft = blendshapes.find(b => b.categoryName === 'eyeWideLeft')?.score ?? 0;
