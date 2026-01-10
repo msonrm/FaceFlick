@@ -360,9 +360,20 @@ export function FaceFlickCanvas() {
           // 【優先度4】目を閉じる（読み上げ&クリア）
           // 笑顔がない場合のみチェック
           const EYE_BLINK_THRESHOLD = 0.5;
+
+          // 初期位置からの距離をチェック（誤作動防止）
+          const POSITION_TOLERANCE_PITCH = 15; // pitch の許容範囲（度）
+          const POSITION_TOLERANCE_YAW = 20; // yaw の許容範囲（度）
+          const isNearInitialPosition =
+            baseYawRef.current !== null &&
+            basePitchRef.current !== null &&
+            Math.abs(faceState.headRotation.yaw - baseYawRef.current) <= POSITION_TOLERANCE_YAW &&
+            Math.abs(faceState.headRotation.pitch - basePitchRef.current) <= POSITION_TOLERANCE_PITCH;
+
           const isEyesClosed =
             faceState.blendshapes.eyeBlinkLeft >= EYE_BLINK_THRESHOLD &&
-            faceState.blendshapes.eyeBlinkRight >= EYE_BLINK_THRESHOLD;
+            faceState.blendshapes.eyeBlinkRight >= EYE_BLINK_THRESHOLD &&
+            isNearInitialPosition; // 初期位置に近い場合のみ判定
 
           if (isEyesClosed) {
             if (eyeClosedStartTimeRef.current === null) {
@@ -388,7 +399,7 @@ export function FaceFlickCanvas() {
               }
             }
           } else {
-            // 目を開いたらリセット
+            // 目を開いたら、または初期位置から外れたらリセット
             eyeClosedStartTimeRef.current = null;
             hasVibratedRef.current = false;
           }
