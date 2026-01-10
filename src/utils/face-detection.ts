@@ -20,6 +20,8 @@ export function analyzeFace(
   let mouthPucker = 0;
   let mouthSmileLeft = 0;
   let mouthSmileRight = 0;
+  let eyeBlinkLeft = 0;
+  let eyeBlinkRight = 0;
 
   if (result.faceBlendshapes && result.faceBlendshapes.length > 0) {
     const blendshapes = result.faceBlendshapes[0].categories;
@@ -28,6 +30,8 @@ export function analyzeFace(
     mouthPucker = blendshapes.find(b => b.categoryName === 'mouthPucker')?.score ?? 0;
     mouthSmileLeft = blendshapes.find(b => b.categoryName === 'mouthSmileLeft')?.score ?? 0;
     mouthSmileRight = blendshapes.find(b => b.categoryName === 'mouthSmileRight')?.score ?? 0;
+    eyeBlinkLeft = blendshapes.find(b => b.categoryName === 'eyeBlinkLeft')?.score ?? 0;
+    eyeBlinkRight = blendshapes.find(b => b.categoryName === 'eyeBlinkRight')?.score ?? 0;
   }
 
   // 各トリガーの閾値を取得
@@ -56,6 +60,8 @@ export function analyzeFace(
       mouthPucker,
       mouthSmileLeft,
       mouthSmileRight,
+      eyeBlinkLeft,
+      eyeBlinkRight,
     },
     isTriggered,
     triggerType,

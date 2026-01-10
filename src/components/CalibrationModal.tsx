@@ -14,6 +14,8 @@ interface CalibrationModalProps {
       mouthPucker: number;
       mouthSmileLeft: number;
       mouthSmileRight: number;
+      eyeBlinkLeft: number;
+      eyeBlinkRight: number;
     };
   } | null;
 }
