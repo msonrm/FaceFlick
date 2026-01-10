@@ -1099,7 +1099,10 @@ export function FaceFlickCanvas() {
 
       {/* 全Blendshapes表示パネル（スクロール可能） */}
       {showDebugInfo && debugInfo && debugInfo.allBlendshapes.length > 0 && (
-        <div className="absolute top-16 left-2 w-72 h-96 bg-black/80 backdrop-blur-sm rounded-lg p-3 overflow-y-auto text-white text-xs font-mono">
+        <div
+          className="absolute left-2 w-72 h-96 bg-black/80 backdrop-blur-sm rounded-lg p-3 overflow-y-auto text-white text-xs font-mono"
+          style={{ top: `${50 + 95}px` }} // toolbarHeight + debugInfoHeight
+        >
           <div className="font-bold mb-2 text-sm sticky top-0 bg-black/90 pb-1">
             全Blendshapes ({debugInfo.allBlendshapes.length})
           </div>
