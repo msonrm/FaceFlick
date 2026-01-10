@@ -281,21 +281,32 @@ export function FaceFlickCanvas() {
       faceState.blendshapes.eyeBlinkLeft >= EYE_BLINK_THRESHOLD &&
       faceState.blendshapes.eyeBlinkRight >= EYE_BLINK_THRESHOLD;
 
-    if (isEyesClosed) {
+    // 目を閉じて1.5秒保持で読み上げ&クリア（idle状態のみ、かつ前回のジェスチャーから1秒以上経過）
+    if (
+      inputState.type === 'idle' &&
+      now - lastGestureTimeRef.current > 1000 &&
+      isEyesClosed
+    ) {
       if (eyeClosedStartTimeRef.current === null) {
         // 目を閉じ始めた時刻を記録
         eyeClosedStartTimeRef.current = now;
         hasVibratedRef.current = false;
       } else {
-        // 2秒経過したら振動
+        // 1.5秒経過したら発声&クリア
         const closedDuration = now - eyeClosedStartTimeRef.current;
-        if (closedDuration >= 2000 && !hasVibratedRef.current) {
+        if (closedDuration >= 1500 && !hasVibratedRef.current) {
+          // 読み上げ&クリア
+          speakText(inputText, 'human_high');
+          setInputText('');
+          setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
+          lastGestureTimeRef.current = now;
           // 振動を発生
           if (navigator.vibrate) {
             navigator.vibrate(200); // 200ms振動
           }
           hasVibratedRef.current = true;
-          console.log('目を2秒間閉じました - 振動');
+          eyeClosedStartTimeRef.current = null; // リセット
+          return;
         }
       }
     } else {
@@ -316,6 +327,10 @@ export function FaceFlickCanvas() {
       setInputText('');
       setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
       lastGestureTimeRef.current = now;
+      // 振動を発生
+      if (navigator.vibrate) {
+        navigator.vibrate(200); // 200ms振動
+      }
       return;
     }
 
@@ -328,6 +343,10 @@ export function FaceFlickCanvas() {
         setGestureFeedback({ type: 'backspace', timestamp: now });
         lastGestureTimeRef.current = now;
         headRotationHistoryRef.current = []; // 履歴をクリア
+        // 振動を発生
+        if (navigator.vibrate) {
+          navigator.vibrate(100); // 100ms振動
+        }
       }
     }
 
@@ -413,6 +432,10 @@ export function FaceFlickCanvas() {
   function addCharacter(char: string) {
     if (char === '⌫') {
       setInputText((prev) => prev.slice(0, -1));
+      // 振動を発生
+      if (navigator.vibrate) {
+        navigator.vibrate(100); // 100ms振動
+      }
     } else if (char === '゛゜小') {
       // 直前の文字を濁点・半濁点・小文字・通常文字でトグル
       setInputText((prev) => {
@@ -422,8 +445,16 @@ export function FaceFlickCanvas() {
         const newChar = toggleCharacter(lastChar);
         return restText + newChar;
       });
+      // 振動を発生
+      if (navigator.vibrate) {
+        navigator.vibrate(100); // 100ms振動
+      }
     } else if (char) {
       setInputText((prev) => prev + char);
+      // 振動を発生
+      if (navigator.vibrate) {
+        navigator.vibrate(100); // 100ms振動
+      }
     }
   }
 
