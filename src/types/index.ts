@@ -1,16 +1,13 @@
 import { NormalizedLandmark } from '@mediapipe/tasks-vision';
 
-export type TriggerType = 'mouth_open' | 'mouth_pucker' | 'eyes_wide' | null;
+export type TriggerType = 'mouth_open' | 'mouth_pucker' | null;
 
 export interface FaceState {
   landmarks: NormalizedLandmark[];
   // Blendshapes (MediaPipe Face Landmarker)
   blendshapes: {
     jawOpen: number;        // 口を開ける (0-1)
-    mouthPucker: number;    // キス顔 (0-1)
-    browInnerUp: number;    // 眉を上げる (0-1)
-    eyeSquintLeft: number;  // 左目を細める (0-1)
-    eyeSquintRight: number; // 右目を細める (0-1)
+    mouthPucker: number;    // 口すぼめ (0-1)
     mouthSmileLeft: number; // 左笑顔 (0-1)
     mouthSmileRight: number;// 右笑顔 (0-1)
   };
@@ -50,7 +47,7 @@ export interface CalibrationSettings {
   pitchRange: { min: number; max: number };
   // トリガーの閾値 (Blendshapes: 0-1)
   jawOpenThreshold: number;       // 口を開ける (デフォルト: 0.5)
-  mouthPuckerThreshold: number;   // キス顔 (デフォルト: 0.4)
+  mouthPuckerThreshold: number;   // 口すぼめ (デフォルト: 0.4)
   smileThreshold: number;         // 笑顔 (デフォルト: 0.6) - 読み上げ&クリア用
   // グリッド・フリック感度
   gridSensitivity: number;

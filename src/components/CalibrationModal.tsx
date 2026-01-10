@@ -12,9 +12,6 @@ interface CalibrationModalProps {
     blendshapes: {
       jawOpen: number;
       mouthPucker: number;
-      browInnerUp: number;
-      eyeSquintLeft: number;
-      eyeSquintRight: number;
       mouthSmileLeft: number;
       mouthSmileRight: number;
     };
@@ -96,9 +93,6 @@ export function CalibrationModal({
               <div>Pitch: {currentValues.pitch.toFixed(1)}°</div>
               <div>jawOpen: {currentValues.blendshapes.jawOpen.toFixed(2)}</div>
               <div>mouthPucker: {currentValues.blendshapes.mouthPucker.toFixed(2)}</div>
-              <div>browInnerUp: {currentValues.blendshapes.browInnerUp.toFixed(2)}</div>
-              <div>eyeSquint L: {currentValues.blendshapes.eyeSquintLeft.toFixed(2)}</div>
-              <div>eyeSquint R: {currentValues.blendshapes.eyeSquintRight.toFixed(2)}</div>
               <div>smile L: {currentValues.blendshapes.mouthSmileLeft.toFixed(2)}</div>
               <div>smile R: {currentValues.blendshapes.mouthSmileRight.toFixed(2)}</div>
             </div>
@@ -222,10 +216,10 @@ export function CalibrationModal({
               />
             </div>
 
-            {/* キス顔 */}
+            {/* 口すぼめ */}
             <div>
               <label className="block text-sm mb-1">
-                キス顔 (mouthPucker): {localSettings.mouthPuckerThreshold.toFixed(2)}
+                口すぼめ (mouthPucker): {localSettings.mouthPuckerThreshold.toFixed(2)}
               </label>
               <input
                 type="range"
@@ -262,9 +256,6 @@ export function CalibrationModal({
                 }
                 className="w-full"
               />
-              <p className="text-xs text-gray-400 mt-1">
-                ※ 目を見開くはbrow≥0.4かつsquint≤0.3で判定（固定）
-              </p>
             </div>
           </div>
         </div>

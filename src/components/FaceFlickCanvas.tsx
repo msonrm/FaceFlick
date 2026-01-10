@@ -38,9 +38,6 @@ export function FaceFlickCanvas() {
     blendshapes: {
       jawOpen: number;
       mouthPucker: number;
-      browInnerUp: number;
-      eyeSquintLeft: number;
-      eyeSquintRight: number;
       mouthSmileLeft: number;
       mouthSmileRight: number;
     };
@@ -474,13 +471,29 @@ export function FaceFlickCanvas() {
         const x = width - landmark.x * width; // 反転
         const y = landmark.y * height;
 
-        // Glowエフェクト
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        // 多層グローエフェクト（外側から内側へ）
+        // 外側の大きなグロー
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.fill();
 
+        // 中間のグロー
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = 'rgba(255, 255, 255, 1.0)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.beginPath();
         ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // 中心の明るい点
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(255, 255, 255, 1.0)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+        ctx.beginPath();
+        ctx.arc(x, y, 0.8, 0, 2 * Math.PI);
         ctx.fill();
       }
 
@@ -511,8 +524,8 @@ export function FaceFlickCanvas() {
       z: lightDir.z / lightMag
     };
 
-    // 基本色（シルバーグレー）
-    const baseColor = { r: 180, g: 180, b: 180 };
+    // 基本色（完全な白）
+    const baseColor = { r: 255, g: 255, b: 255 };
 
     const connections = FaceLandmarker.FACE_LANDMARKS_TESSELATION;
 
@@ -580,7 +593,7 @@ export function FaceFlickCanvas() {
 
       // ランバート反射：内積を計算
       let diffuse = n.x * light.x + n.y * light.y + n.z * light.z;
-      diffuse = Math.max(0.4, Math.min(1.0, diffuse)); // アンビエント 0.4（明るめ）
+      diffuse = Math.max(0.7, Math.min(1.0, diffuse)); // アンビエント 0.7（より明るく）
 
       // 最終色を計算
       const r = Math.floor(baseColor.r * diffuse);
@@ -622,7 +635,7 @@ export function FaceFlickCanvas() {
     // ツールバーの高さ
     const toolbarHeight = 50;
     // デバッグ情報エリアの高さ
-    const debugInfoHeight = showDebugInfo ? 95 : 0;
+    const debugInfoHeight = showDebugInfo ? 70 : 0;
     // キーボードの開始位置
     const keyboardTop = toolbarHeight + debugInfoHeight;
     // キーを正方形にする（画面幅基準）
@@ -741,7 +754,7 @@ export function FaceFlickCanvas() {
   ) {
     // レイアウト計算
     const toolbarHeight = 50;
-    const debugInfoHeight = showDebugInfo ? 95 : 0; // デバッグ情報エリアの高さ
+    const debugInfoHeight = showDebugInfo ? 70 : 0; // デバッグ情報エリアの高さ
     const keySize = width / 3;
     const keyboardHeight = keySize * 4;
     const keyboardTop = toolbarHeight + debugInfoHeight;
@@ -762,25 +775,18 @@ export function FaceFlickCanvas() {
       const triggerText = getTriggerDisplayText(debugInfo.triggerType);
       ctx.fillText(`トリガー: ${triggerText}`, 10, toolbarHeight + 10);
 
-      // Blendshapes (1行目)
+      // Blendshapes
       ctx.fillText(
         `jaw: ${debugInfo.blendshapes.jawOpen.toFixed(2)} pucker: ${debugInfo.blendshapes.mouthPucker.toFixed(2)} smile: ${debugInfo.blendshapes.mouthSmileLeft.toFixed(2)}`,
         10,
         toolbarHeight + 25
       );
 
-      // Blendshapes (2行目)
-      ctx.fillText(
-        `brow: ${debugInfo.blendshapes.browInnerUp.toFixed(2)} squint: L=${debugInfo.blendshapes.eyeSquintLeft.toFixed(2)} R=${debugInfo.blendshapes.eyeSquintRight.toFixed(2)}`,
-        10,
-        toolbarHeight + 40
-      );
-
       // 頭の向き
       ctx.fillText(
         `Yaw: ${debugInfo.headRotation.yaw.toFixed(1)}° Pitch: ${debugInfo.headRotation.pitch.toFixed(1)}° Roll: ${debugInfo.headRotation.roll.toFixed(1)}°`,
         10,
-        toolbarHeight + 55
+        toolbarHeight + 40
       );
     }
 
@@ -907,9 +913,7 @@ export function FaceFlickCanvas() {
       case 'mouth_open':
         return '口を開ける 👄';
       case 'mouth_pucker':
-        return 'キス顔 💋';
-      case 'eyes_wide':
-        return '目を見開く 👀';
+        return '口すぼめ 💋';
       default:
         return 'なし';
     }
@@ -1101,9 +1105,9 @@ export function FaceFlickCanvas() {
       {showDebugInfo && debugInfo && debugInfo.allBlendshapes.length > 0 && (
         <div
           className="absolute left-2 w-72 h-96 bg-black/80 backdrop-blur-sm rounded-lg p-3 overflow-y-auto text-white text-xs font-mono"
-          style={{ top: `${50 + 95}px` }} // toolbarHeight + debugInfoHeight
+          style={{ top: `${50 + 70}px` }} // toolbarHeight + debugInfoHeight
         >
-          <div className="font-bold mb-2 text-sm sticky top-0 bg-black/90 pb-1">
+          <div className="font-bold mb-2 text-sm bg-black/90 pb-1">
             全Blendshapes ({debugInfo.allBlendshapes.length})
           </div>
           <div className="space-y-1">

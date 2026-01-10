@@ -5,10 +5,6 @@ import { FaceState, TriggerType, CalibrationSettings } from '../types';
 const DEFAULT_JAW_OPEN_THRESHOLD = 0.5;
 const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.4;
 
-// 目の見開き判定（固定値）
-const BROW_INNER_UP_THRESHOLD = 0.4;
-const EYE_SQUINT_THRESHOLD = 0.3;
-
 export function analyzeFace(
   result: FaceLandmarkerResult,
   settings?: CalibrationSettings
@@ -22,9 +18,6 @@ export function analyzeFace(
   // Blendshapesを取得
   let jawOpen = 0;
   let mouthPucker = 0;
-  let browInnerUp = 0;
-  let eyeSquintLeft = 0;
-  let eyeSquintRight = 0;
   let mouthSmileLeft = 0;
   let mouthSmileRight = 0;
 
@@ -33,9 +26,6 @@ export function analyzeFace(
 
     jawOpen = blendshapes.find(b => b.categoryName === 'jawOpen')?.score ?? 0;
     mouthPucker = blendshapes.find(b => b.categoryName === 'mouthPucker')?.score ?? 0;
-    browInnerUp = blendshapes.find(b => b.categoryName === 'browInnerUp')?.score ?? 0;
-    eyeSquintLeft = blendshapes.find(b => b.categoryName === 'eyeSquintLeft')?.score ?? 0;
-    eyeSquintRight = blendshapes.find(b => b.categoryName === 'eyeSquintRight')?.score ?? 0;
     mouthSmileLeft = blendshapes.find(b => b.categoryName === 'mouthSmileLeft')?.score ?? 0;
     mouthSmileRight = blendshapes.find(b => b.categoryName === 'mouthSmileRight')?.score ?? 0;
   }
@@ -54,13 +44,6 @@ export function analyzeFace(
   } else if (mouthPucker > mouthPuckerThreshold) {
     isTriggered = true;
     triggerType = 'mouth_pucker';
-  } else if (
-    browInnerUp >= BROW_INNER_UP_THRESHOLD &&
-    eyeSquintLeft <= EYE_SQUINT_THRESHOLD &&
-    eyeSquintRight <= EYE_SQUINT_THRESHOLD
-  ) {
-    isTriggered = true;
-    triggerType = 'eyes_wide';
   }
 
   // 頭の回転を計算
@@ -71,9 +54,6 @@ export function analyzeFace(
     blendshapes: {
       jawOpen,
       mouthPucker,
-      browInnerUp,
-      eyeSquintLeft,
-      eyeSquintRight,
       mouthSmileLeft,
       mouthSmileRight,
     },
