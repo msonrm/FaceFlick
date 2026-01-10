@@ -222,10 +222,10 @@ export function CalibrationModal({
               />
             </div>
 
-            {/* キス顔 */}
+            {/* 口すぼめ */}
             <div>
               <label className="block text-sm mb-1">
-                キス顔 (mouthPucker): {localSettings.mouthPuckerThreshold.toFixed(2)}
+                口すぼめ (mouthPucker): {localSettings.mouthPuckerThreshold.toFixed(2)}
               </label>
               <input
                 type="range"
