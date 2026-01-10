@@ -114,6 +114,40 @@ export function FaceFlickCanvas() {
       ctx.drawImage(video, -rect.width, 0, rect.width, rect.height);
       ctx.restore();
 
+      // 初期キャリブレーション処理（顔検出の前に実行）
+      if (isCalibrating) {
+        const now = Date.now();
+        if (calibrationStartTimeRef.current === null) {
+          calibrationStartTimeRef.current = now;
+        }
+
+        const elapsedTime = now - calibrationStartTimeRef.current;
+        const progress = Math.min(100, (elapsedTime / 3000) * 100);
+        setCalibrationProgress(progress);
+
+        if (elapsedTime >= 3000) {
+          // 3秒経過：平均値を計算して基準値として設定
+          const samples = calibrationSamplesRef.current;
+          if (samples.length > 0) {
+            const avgYaw = samples.reduce((sum, s) => sum + s.yaw, 0) / samples.length;
+            const avgPitch = samples.reduce((sum, s) => sum + s.pitch, 0) / samples.length;
+
+            baseYawRef.current = avgYaw;
+            basePitchRef.current = avgPitch;
+
+            console.log('キャリブレーション完了:');
+            console.log('  基準Yaw =', avgYaw.toFixed(2), '度');
+            console.log('  基準Pitch =', avgPitch.toFixed(2), '度');
+          } else {
+            console.log('キャリブレーション完了（サンプルなし・デフォルト値を使用）');
+            baseYawRef.current = 0;
+            basePitchRef.current = 0;
+          }
+
+          setIsCalibrating(false);
+        }
+      }
+
       // 顔検出
       const result = detectFace(video, timestamp);
       if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
@@ -137,8 +171,17 @@ export function FaceFlickCanvas() {
             headRotation: faceState.headRotation,
           });
 
-          // 入力ロジック
-          processInput(faceState);
+          // キャリブレーション中はサンプリングのみ実行
+          if (isCalibrating) {
+            calibrationSamplesRef.current.push({
+              yaw: faceState.headRotation.yaw,
+              pitch: faceState.headRotation.pitch,
+              roll: faceState.headRotation.roll,
+            });
+          } else {
+            // 入力ロジック
+            processInput(faceState);
+          }
 
           // 顔のランドマークを描画（モードに応じて）
           if (faceDisplayMode !== 'none') {
@@ -240,42 +283,6 @@ export function FaceFlickCanvas() {
     headRotationHistoryRef.current = headRotationHistoryRef.current.filter(
       (h) => now - h.timestamp < 1000
     );
-
-    // 初期キャリブレーション（起動後3秒間）
-    if (isCalibrating) {
-      if (calibrationStartTimeRef.current === null) {
-        calibrationStartTimeRef.current = now;
-      }
-
-      const elapsedTime = now - calibrationStartTimeRef.current;
-      const progress = Math.min(100, (elapsedTime / 3000) * 100);
-      setCalibrationProgress(progress);
-
-      // yaw, pitch, roll値をサンプリング
-      calibrationSamplesRef.current.push({
-        yaw: faceState.headRotation.yaw,
-        pitch: faceState.headRotation.pitch,
-        roll: faceState.headRotation.roll,
-      });
-
-      if (elapsedTime >= 3000) {
-        // 3秒経過：平均値を計算して基準値として設定
-        const samples = calibrationSamplesRef.current;
-        const avgYaw = samples.reduce((sum, s) => sum + s.yaw, 0) / samples.length;
-        const avgPitch = samples.reduce((sum, s) => sum + s.pitch, 0) / samples.length;
-
-        baseYawRef.current = avgYaw;
-        basePitchRef.current = avgPitch;
-
-        setIsCalibrating(false);
-        console.log('キャリブレーション完了:');
-        console.log('  基準Yaw =', avgYaw.toFixed(2), '度');
-        console.log('  基準Pitch =', avgPitch.toFixed(2), '度');
-      }
-
-      // キャリブレーション中は通常の入力処理をスキップ
-      return;
-    }
 
     // ===== 優先度付きトリガー・ジェスチャー検出 =====
     // 優先度: 1.口開け/口すぼめ > 2.首振り > 3.笑顔 > 4.目閉じ
