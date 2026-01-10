@@ -6,7 +6,7 @@ const DEFAULT_JAW_OPEN_THRESHOLD = 0.5;
 const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.4;
 
 // 目の見開き判定（固定値）
-const BROW_INNER_UP_THRESHOLD = 0.4;
+const BROW_INNER_UP_THRESHOLD = 0.5;
 const EYE_SQUINT_THRESHOLD = 0.3;
 
 export function analyzeFace(

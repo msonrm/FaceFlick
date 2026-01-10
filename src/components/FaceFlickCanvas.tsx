@@ -475,12 +475,12 @@ export function FaceFlickCanvas() {
         const y = landmark.y * height;
 
         // Glowエフェクト
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 20;
         ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
 
         ctx.beginPath();
-        ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
+        ctx.arc(x, y, 3, 0, 2 * Math.PI);
         ctx.fill();
       }
 
@@ -511,8 +511,8 @@ export function FaceFlickCanvas() {
       z: lightDir.z / lightMag
     };
 
-    // 基本色（シルバーグレー）
-    const baseColor = { r: 180, g: 180, b: 180 };
+    // 基本色（白〜シルバー）
+    const baseColor = { r: 240, g: 240, b: 245 };
 
     const connections = FaceLandmarker.FACE_LANDMARKS_TESSELATION;
 
