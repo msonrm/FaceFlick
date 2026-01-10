@@ -474,11 +474,27 @@ export function FaceFlickCanvas() {
         const x = width - landmark.x * width; // 反転
         const y = landmark.y * height;
 
-        // Glowエフェクト
-        ctx.shadowBlur = 40;
-        ctx.shadowColor = 'rgba(255, 255, 255, 1.0)';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        // 多層グローエフェクト（外側から内側へ）
+        // 外側の大きなグロー
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.fill();
 
+        // 中間のグロー
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = 'rgba(255, 255, 255, 1.0)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.beginPath();
+        ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // 中心の明るい点
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(255, 255, 255, 1.0)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
         ctx.beginPath();
         ctx.arc(x, y, 0.8, 0, 2 * Math.PI);
         ctx.fill();
