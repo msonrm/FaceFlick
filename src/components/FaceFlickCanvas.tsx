@@ -913,19 +913,14 @@ export function FaceFlickCanvas() {
     const toolbarHeight = 50;
     const keyWidth = width / 3;
     const keyHeight = keyWidth * 0.75;
-    const keyboardHeight = keyHeight * 4;
 
     // レイアウト計算（drawInputTextと同じ）
     const textInputHeight = 120;
     const triggerGestureHeight = 30;
     const flickFeedbackHeight = 30;
-    const instructionsHeight = 70;
 
-    const totalFixedHeight = toolbarHeight + textInputHeight + triggerGestureHeight + flickFeedbackHeight + keyboardHeight + instructionsHeight;
-    const remainingSpace = Math.max(0, _height - totalFixedHeight);
-    const topMargin = remainingSpace * 0.5;
-
-    const keyboardTop = toolbarHeight + textInputHeight + triggerGestureHeight + flickFeedbackHeight + topMargin;
+    // 余白なしでキーボードを上に詰める
+    const keyboardTop = toolbarHeight + textInputHeight + triggerGestureHeight + flickFeedbackHeight;
 
     // 現在顔が向いているキーを取得（idle状態のみ、平滑化された値を使用）
     // 顔が検出されていない場合はハイライトを表示しない
@@ -1060,7 +1055,7 @@ export function FaceFlickCanvas() {
   function drawInputText(
     ctx: CanvasRenderingContext2D,
     width: number,
-    height: number
+    _height: number
   ) {
     const toolbarHeight = 50;
     const keyWidth = width / 3;
@@ -1073,11 +1068,7 @@ export function FaceFlickCanvas() {
     const flickFeedbackHeight = 30; // フリック状態とジェスチャーフィードバック
     const instructionsHeight = 70; // 操作方法（またはデバッグ情報）
 
-    const totalFixedHeight = toolbarHeight + textInputHeight + triggerGestureHeight + flickFeedbackHeight + keyboardHeight + instructionsHeight;
-    const remainingSpace = Math.max(0, height - totalFixedHeight);
-    const topMargin = remainingSpace * 0.5; // 残りスペースの半分を上部余白に
-
-    // 各エリアの位置を計算
+    // 各エリアの位置を計算（余白なしでキーボードを上に詰める）
     let currentY = toolbarHeight;
 
     // 1. テキスト入力エリア
@@ -1092,10 +1083,7 @@ export function FaceFlickCanvas() {
     const flickAreaTop = currentY;
     currentY += flickFeedbackHeight;
 
-    // 余白を追加
-    currentY += topMargin;
-
-    // 4. キーボード（描画は drawKeyboard 関数で行う）
+    // 4. キーボード（描画は drawKeyboard 関数で行う、余白なし）
     currentY += keyboardHeight;
 
     // 5. 操作方法（またはデバッグ情報）
