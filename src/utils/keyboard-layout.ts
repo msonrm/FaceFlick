@@ -26,7 +26,7 @@ export const KEYBOARD_LAYOUT: KeyboardLayout = {
 };
 
 export const GRID_SENSITIVITY = 15; // 度
-export const FLICK_SENSITIVITY = 20; // 度
+export const FLICK_SENSITIVITY = 0.1; // 度
 
 // トリガーの閾値（Blendshapes: 0-1）
 export const JAW_OPEN_THRESHOLD = 0.5;       // 口を開ける
