@@ -164,9 +164,23 @@ export function FaceFlickCanvas() {
             // 眉を上げる閾値をベース値 + 0.2 で初期化
             const browInnerUpThreshold = browInnerUpBaseValue + 0.2;
 
+            // yawRange/pitchRangeを設定：avgYaw/avgPitchが「な」キー（中央列、2段目）の中央になるように調整
+            // yawRange: 幅40度を維持、avgYawを中央列の中央に配置
+            const yawRange = { min: avgYaw - 20, max: avgYaw + 20 };
+
+            // pitchRange: 幅11度を維持、avgPitchを2段目の中央に配置
+            // 2段目（row=1）は全体の3/8の位置（4分割の2番目の中央）
+            const pitchTotalRange = 11;
+            const pitchRange = {
+              min: avgPitch - pitchTotalRange * 3 / 8,  // avgPitch - 4.125
+              max: avgPitch + pitchTotalRange * 5 / 8,  // avgPitch + 6.875
+            };
+
             // CalibrationSettingsを更新
             setCalibrationSettings(prev => ({
               ...prev,
+              yawRange,
+              pitchRange,
               jawOpenBaseValue,
               mouthPuckerBaseValue,
               browInnerUpBaseValue,
@@ -178,6 +192,8 @@ export function FaceFlickCanvas() {
             console.log('キャリブレーション完了:');
             console.log('  基準Yaw =', avgYaw.toFixed(2), '度');
             console.log('  基準Pitch =', avgPitch.toFixed(2), '度');
+            console.log('  Yaw範囲 =', yawRange.min.toFixed(2), '〜', yawRange.max.toFixed(2), '度');
+            console.log('  Pitch範囲 =', pitchRange.min.toFixed(2), '〜', pitchRange.max.toFixed(2), '度');
             console.log('  口開けベース =', jawOpenBaseValue.toFixed(3));
             console.log('  口すぼめベース =', mouthPuckerBaseValue.toFixed(3));
             console.log('  口開け終了閾値 =', jawOpenEndThreshold.toFixed(3));
