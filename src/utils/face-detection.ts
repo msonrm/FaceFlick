@@ -23,6 +23,7 @@ export function analyzeFace(
   let mouthSmileRight = 0;
   let eyeBlinkLeft = 0;
   let eyeBlinkRight = 0;
+  let browInnerUp = 0;
 
   if (result.faceBlendshapes && result.faceBlendshapes.length > 0) {
     const blendshapes = result.faceBlendshapes[0].categories;
@@ -33,6 +34,7 @@ export function analyzeFace(
     mouthSmileRight = blendshapes.find(b => b.categoryName === 'mouthSmileRight')?.score ?? 0;
     eyeBlinkLeft = blendshapes.find(b => b.categoryName === 'eyeBlinkLeft')?.score ?? 0;
     eyeBlinkRight = blendshapes.find(b => b.categoryName === 'eyeBlinkRight')?.score ?? 0;
+    browInnerUp = blendshapes.find(b => b.categoryName === 'browInnerUp')?.score ?? 0;
   }
 
   // 開始閾値と終了閾値を取得
@@ -79,6 +81,7 @@ export function analyzeFace(
       mouthSmileRight,
       eyeBlinkLeft,
       eyeBlinkRight,
+      browInnerUp,
     },
     isTriggered,
     triggerType,
