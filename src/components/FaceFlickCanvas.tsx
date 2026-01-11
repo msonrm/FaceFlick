@@ -359,7 +359,7 @@ export function FaceFlickCanvas() {
     const now = Date.now();
 
     // 頭の回転に平滑化を適用（EMA: 指数移動平均）
-    const alpha = 0.3; // 平滑化係数（0に近いほど平滑、1に近いほど反応が早い）
+    const alpha = 0.6; // 平滑化係数（0に近いほど平滑、1に近いほど反応が早い）
     if (smoothedHeadRotationRef.current === null) {
       // 初回は現在値をそのまま使用
       smoothedHeadRotationRef.current = {
