@@ -17,6 +17,7 @@ interface CalibrationModalProps {
       mouthSmileRight: number;
       eyeBlinkLeft: number;
       eyeBlinkRight: number;
+      browInnerUp: number;
     };
   } | null;
 }
@@ -358,6 +359,11 @@ export function CalibrationModal({
               <label className="block text-sm mb-1">
                 笑顔 - 読み上げ&クリア (smile): {localSettings.smileThreshold.toFixed(2)}
               </label>
+              {currentValues && (
+                <div className="text-xs text-gray-400 mb-1">
+                  現在値: L={currentValues.blendshapes.mouthSmileLeft.toFixed(2)}, R={currentValues.blendshapes.mouthSmileRight.toFixed(2)}
+                </div>
+              )}
               <input
                 type="range"
                 min="0.1"
@@ -368,6 +374,32 @@ export function CalibrationModal({
                   setLocalSettings({
                     ...localSettings,
                     smileThreshold: parseFloat(e.target.value),
+                  })
+                }
+                className="w-full"
+              />
+            </div>
+
+            {/* 眉を上げる（読み上げ&クリア用） - 通常のスライダー */}
+            <div>
+              <label className="block text-sm mb-1">
+                眉を上げる - 読み上げ&クリア (browInnerUp): {(localSettings.browInnerUpThreshold ?? 0.5).toFixed(2)}
+              </label>
+              {currentValues && (
+                <div className="text-xs text-gray-400 mb-1">
+                  現在値: {currentValues.blendshapes.browInnerUp.toFixed(2)}
+                </div>
+              )}
+              <input
+                type="range"
+                min="0.1"
+                max="0.9"
+                step="0.05"
+                value={localSettings.browInnerUpThreshold ?? 0.5}
+                onChange={(e) =>
+                  setLocalSettings({
+                    ...localSettings,
+                    browInnerUpThreshold: parseFloat(e.target.value),
                   })
                 }
                 className="w-full"

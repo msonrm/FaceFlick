@@ -52,9 +52,11 @@ export interface CalibrationSettings {
   jawOpenThreshold: number;       // 口を開ける - 開始閾値 (デフォルト: 0.5)
   mouthPuckerThreshold: number;   // 口すぼめ - 開始閾値 (デフォルト: 0.4)
   smileThreshold: number;         // 笑顔 (デフォルト: 0.6) - 読み上げ&クリア用
+  browInnerUpThreshold?: number;  // 眉を上げる閾値（編集可能、デフォルト: 0.5）
   // 口のベース値（キャリブレーション時の閉じた口の値）
   jawOpenBaseValue?: number;      // 口を開ける - ベース値（キャリブレーション用）
   mouthPuckerBaseValue?: number;  // 口すぼめ - ベース値（キャリブレーション用）
+  browInnerUpBaseValue?: number;  // 眉を上げる - ベース値（キャリブレーション用）
   // トリガー終了閾値（ヒステリシス用）
   jawOpenEndThreshold?: number;      // 口を開ける - 終了閾値（編集可能）
   mouthPuckerEndThreshold?: number;  // 口すぼめ - 終了閾値（編集可能）

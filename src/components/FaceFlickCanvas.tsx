@@ -60,6 +60,7 @@ export function FaceFlickCanvas() {
     jawOpenThreshold: JAW_OPEN_THRESHOLD,
     mouthPuckerThreshold: MOUTH_PUCKER_THRESHOLD,
     smileThreshold: SMILE_THRESHOLD,
+    browInnerUpThreshold: 0.5,
     gridSensitivity: GRID_SENSITIVITY,
     flickSensitivity: FLICK_SENSITIVITY,
   });
@@ -68,7 +69,7 @@ export function FaceFlickCanvas() {
   const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>>([]);
   const lastGestureTimeRef = useRef<number>(0);
   const calibrationStartTimeRef = useRef<number | null>(null);
-  const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number; jawOpen: number; mouthPucker: number }[]>([]);
+  const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number; jawOpen: number; mouthPucker: number; browInnerUp: number }[]>([]);
   const baseYawRef = useRef<number | null>(null);
   const basePitchRef = useRef<number | null>(null);
   const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number; roll: number } | null>(null);
@@ -153,18 +154,24 @@ export function FaceFlickCanvas() {
 
             const jawOpenBaseValue = median(samples.map(s => s.jawOpen));
             const mouthPuckerBaseValue = median(samples.map(s => s.mouthPucker));
+            const browInnerUpBaseValue = median(samples.map(s => s.browInnerUp));
 
             // 終了閾値をベース値 + 0.1 で初期化
             const jawOpenEndThreshold = jawOpenBaseValue + 0.1;
             const mouthPuckerEndThreshold = mouthPuckerBaseValue + 0.1;
+
+            // 眉を上げる閾値をベース値 + 0.2 で初期化
+            const browInnerUpThreshold = browInnerUpBaseValue + 0.2;
 
             // CalibrationSettingsを更新
             setCalibrationSettings(prev => ({
               ...prev,
               jawOpenBaseValue,
               mouthPuckerBaseValue,
+              browInnerUpBaseValue,
               jawOpenEndThreshold,
               mouthPuckerEndThreshold,
+              browInnerUpThreshold,
             }));
 
             console.log('キャリブレーション完了:');
@@ -174,6 +181,8 @@ export function FaceFlickCanvas() {
             console.log('  口すぼめベース =', mouthPuckerBaseValue.toFixed(3));
             console.log('  口開け終了閾値 =', jawOpenEndThreshold.toFixed(3));
             console.log('  口すぼめ終了閾値 =', mouthPuckerEndThreshold.toFixed(3));
+            console.log('  眉上げベース =', browInnerUpBaseValue.toFixed(3));
+            console.log('  眉上げ閾値 =', browInnerUpThreshold.toFixed(3));
           } else {
             console.log('キャリブレーション完了（サンプルなし・デフォルト値を使用）');
             baseYawRef.current = 0;
@@ -229,6 +238,7 @@ export function FaceFlickCanvas() {
               roll: faceState.headRotation.roll,
               jawOpen: faceState.blendshapes.jawOpen,
               mouthPucker: faceState.blendshapes.mouthPucker,
+              browInnerUp: faceState.blendshapes.browInnerUp,
             });
           } else {
             // 入力ロジック
@@ -431,7 +441,9 @@ export function FaceFlickCanvas() {
         // 首振りがない場合のみ、笑顔と眉上げをチェック
 
         // 【優先度3】笑顔ジェスチャー（読み上げ&クリア）
+        // 「や」のキーにハイライトがあるときのみ発動
         const isSmiling =
+          selectedKey?.base === 'や' &&
           faceState.blendshapes.mouthSmileLeft >= calibrationSettings.smileThreshold &&
           faceState.blendshapes.mouthSmileRight >= calibrationSettings.smileThreshold;
 
@@ -444,9 +456,9 @@ export function FaceFlickCanvas() {
             browRaiseStartTimeRef.current = null;
             hasVibratedBrowRef.current = false;
           } else {
-            // 1秒経過したら発声&クリア
+            // 1.5秒経過したら発声&クリア
             const smileDuration = now - smileStartTimeRef.current;
-            if (smileDuration >= 1000 && !hasVibratedSmileRef.current) {
+            if (smileDuration >= 1500 && !hasVibratedSmileRef.current) {
               // 読み上げ&クリア
               speakText(inputText, 'human_high');
               setInputText('');
@@ -468,23 +480,10 @@ export function FaceFlickCanvas() {
 
           // 【優先度4】眉を上げる（読み上げ&クリア）
           // 笑顔がない場合のみチェック
-          const BROW_INNER_UP_THRESHOLD = 0.5;
-
-          // 初期位置からの距離をチェック（誤作動防止）
-          // 可動域の上下左右15%以内でのみ発動
-          const yawRange = calibrationSettings.yawRange;
-          const pitchRange = calibrationSettings.pitchRange;
-          const yawTolerance = (yawRange.max - yawRange.min) * 0.15;
-          const pitchTolerance = (pitchRange.max - pitchRange.min) * 0.15;
-          const isNearInitialPosition =
-            baseYawRef.current !== null &&
-            basePitchRef.current !== null &&
-            Math.abs(faceState.headRotation.yaw - baseYawRef.current) <= yawTolerance &&
-            Math.abs(faceState.headRotation.pitch - basePitchRef.current) <= pitchTolerance;
-
+          // 「や」のキーにハイライトがあるときのみ発動
           const isBrowRaised =
-            faceState.blendshapes.browInnerUp >= BROW_INNER_UP_THRESHOLD &&
-            isNearInitialPosition; // 初期位置に近い場合のみ判定
+            selectedKey?.base === 'や' &&
+            faceState.blendshapes.browInnerUp >= (calibrationSettings.browInnerUpThreshold ?? 0.5);
 
           if (isBrowRaised) {
             if (browRaiseStartTimeRef.current === null) {
@@ -492,9 +491,9 @@ export function FaceFlickCanvas() {
               browRaiseStartTimeRef.current = now;
               hasVibratedBrowRef.current = false;
             } else {
-              // 1秒経過したら発声&クリア
+              // 1.5秒経過したら発声&クリア
               const raiseDuration = now - browRaiseStartTimeRef.current;
-              if (raiseDuration >= 1000 && !hasVibratedBrowRef.current) {
+              if (raiseDuration >= 1500 && !hasVibratedBrowRef.current) {
                 // 読み上げ&クリア
                 speakText(inputText, 'human_high');
                 setInputText('');
@@ -510,7 +509,7 @@ export function FaceFlickCanvas() {
               }
             }
           } else {
-            // 眉を下げたら、または初期位置から外れたらリセット
+            // 眉を下げたら、または「や」キーから離れたらリセット
             browRaiseStartTimeRef.current = null;
             hasVibratedBrowRef.current = false;
           }
@@ -939,14 +938,37 @@ export function FaceFlickCanvas() {
         ctx.shadowBlur = 4;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
-        if (isCenterActive) {
-          ctx.font = '36px sans-serif'; // ホールド時は大きく
+
+        // 「や」のキー判定
+        const isYaKey = key.base === 'や';
+        // 「や」キーで笑顔/眉上げ認識中かどうか
+        const isGestureRecognizing = isYaKey && !isSelected && isHovered &&
+          (smileStartTimeRef.current !== null || browRaiseStartTimeRef.current !== null);
+
+        if (isGestureRecognizing) {
+          // 認識中: Lipsアイコンのみ（大きく、オレンジ）
+          ctx.font = '36px "Material Symbols Outlined"';
+          ctx.fillStyle = '#ffa500';
+          ctx.fillText('lips', x + keySize / 2, y + keySize / 2);
+        } else if (isCenterActive) {
+          // ホールド中: 基本文字のみ（現在のまま）
+          ctx.font = '36px sans-serif';
           ctx.fillStyle = '#ffa500'; // オレンジ
-        } else {
+          ctx.fillText(key.base, x + keySize / 2, y + keySize / 2);
+        } else if (isYaKey && !isSelected) {
+          // 「や」キー通常時: 「や」 + 小さいLipsアイコン
           ctx.font = '32px sans-serif';
           ctx.fillStyle = '#ffffff';
+          ctx.fillText(key.base, x + keySize / 2, y + keySize / 2 - 10);
+          // Lipsアイコン（小さめ）
+          ctx.font = '20px "Material Symbols Outlined"';
+          ctx.fillText('lips', x + keySize / 2, y + keySize / 2 + 12);
+        } else {
+          // 通常のキー
+          ctx.font = '32px sans-serif';
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(key.base, x + keySize / 2, y + keySize / 2);
         }
-        ctx.fillText(key.base, x + keySize / 2, y + keySize / 2);
         ctx.shadowColor = 'transparent'; // シャドウをリセット
         ctx.font = '32px sans-serif'; // フォントをリセット
 
