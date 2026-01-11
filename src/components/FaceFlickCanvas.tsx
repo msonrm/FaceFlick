@@ -1095,8 +1095,7 @@ export function FaceFlickCanvas() {
     // 余白を追加
     currentY += topMargin;
 
-    // 4. キーボード
-    const keyboardTop = currentY;
+    // 4. キーボード（描画は drawKeyboard 関数で行う）
     currentY += keyboardHeight;
 
     // 5. 操作方法（またはデバッグ情報）
