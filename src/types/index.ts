@@ -12,6 +12,7 @@ export interface FaceState {
     mouthSmileRight: number;// 右笑顔 (0-1)
     eyeBlinkLeft: number;   // 左目を閉じる (0-1)
     eyeBlinkRight: number;  // 右目を閉じる (0-1)
+    browInnerUp: number;    // 眉を上げる (0-1)
   };
   // どのトリガーがアクティブか
   isTriggered: boolean;
