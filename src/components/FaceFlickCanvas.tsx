@@ -898,11 +898,15 @@ export function FaceFlickCanvas() {
     const toolbarHeight = 50;
     // デバッグ情報エリアの高さ
     const debugInfoHeight = showDebugInfo ? 70 : 0;
-    // キーボードの開始位置
-    const keyboardTop = toolbarHeight + debugInfoHeight;
     // キーのサイズ（横幅は画面幅の1/3、縦幅は横幅の3/4）
     const keyWidth = width / 3;
     const keyHeight = keyWidth * 0.75;
+    const keyboardHeight = keyHeight * 4;
+
+    // キーボードを画面中央付近に配置
+    const availableSpace = _height - toolbarHeight - debugInfoHeight - keyboardHeight;
+    const topMargin = Math.max(0, availableSpace * 0.4); // 残りスペースの40%を上部余白に
+    const keyboardTop = toolbarHeight + debugInfoHeight + topMargin;
 
     // 現在顔が向いているキーを取得（idle状態のみ、平滑化された値を使用）
     // 顔が検出されていない場合はハイライトを表示しない
@@ -1045,7 +1049,12 @@ export function FaceFlickCanvas() {
     const keyWidth = width / 3;
     const keyHeight = keyWidth * 0.75;
     const keyboardHeight = keyHeight * 4;
-    const keyboardTop = toolbarHeight + debugInfoHeight;
+
+    // キーボードを画面中央付近に配置
+    const availableSpace = height - toolbarHeight - debugInfoHeight - keyboardHeight;
+    const topMargin = Math.max(0, availableSpace * 0.4); // 残りスペースの40%を上部余白に
+    const keyboardTop = toolbarHeight + debugInfoHeight + topMargin;
+
     const inputAreaTop = keyboardTop + keyboardHeight;
     const inputAreaHeight = height - inputAreaTop;
 
