@@ -8,7 +8,16 @@ const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.4;
 export function analyzeFace(
   result: FaceLandmarkerResult,
   settings?: CalibrationSettings,
-  prevTriggerState?: { isTriggered: boolean; triggerType?: TriggerType }
+  prevTriggerState?: { isTriggered: boolean; triggerType?: TriggerType },
+  prevBlendshapes?: {
+    jawOpen: number;
+    mouthPucker: number;
+    mouthSmileLeft: number;
+    mouthSmileRight: number;
+    eyeBlinkLeft: number;
+    eyeBlinkRight: number;
+    browInnerUp: number;
+  }
 ): FaceState | null {
   if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
     return null;
@@ -35,6 +44,18 @@ export function analyzeFace(
     eyeBlinkLeft = blendshapes.find(b => b.categoryName === 'eyeBlinkLeft')?.score ?? 0;
     eyeBlinkRight = blendshapes.find(b => b.categoryName === 'eyeBlinkRight')?.score ?? 0;
     browInnerUp = blendshapes.find(b => b.categoryName === 'browInnerUp')?.score ?? 0;
+  }
+
+  // Blendshapesに平滑化を適用（EMA: 指数移動平均）
+  const alphaBlendshapes = 0.7; // 口の動きは速いので、頭の回転より高めに設定
+  if (prevBlendshapes) {
+    jawOpen = alphaBlendshapes * jawOpen + (1 - alphaBlendshapes) * prevBlendshapes.jawOpen;
+    mouthPucker = alphaBlendshapes * mouthPucker + (1 - alphaBlendshapes) * prevBlendshapes.mouthPucker;
+    mouthSmileLeft = alphaBlendshapes * mouthSmileLeft + (1 - alphaBlendshapes) * prevBlendshapes.mouthSmileLeft;
+    mouthSmileRight = alphaBlendshapes * mouthSmileRight + (1 - alphaBlendshapes) * prevBlendshapes.mouthSmileRight;
+    eyeBlinkLeft = alphaBlendshapes * eyeBlinkLeft + (1 - alphaBlendshapes) * prevBlendshapes.eyeBlinkLeft;
+    eyeBlinkRight = alphaBlendshapes * eyeBlinkRight + (1 - alphaBlendshapes) * prevBlendshapes.eyeBlinkRight;
+    browInnerUp = alphaBlendshapes * browInnerUp + (1 - alphaBlendshapes) * prevBlendshapes.browInnerUp;
   }
 
   // 開始閾値と終了閾値を取得

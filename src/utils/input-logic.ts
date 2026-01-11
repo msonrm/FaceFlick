@@ -100,11 +100,36 @@ export function getFlickDirection(
     row = 3; // 下
   }
 
-  // 列・行に応じたフリック閾値を設定
-  // 左右：中央列15%、左右列5%
-  const yawFlickThreshold = col === 1 ? keyWidth * 0.15 : keyWidth * 0.05;
-  // 上下：中央行（1,2）15%、端行（0,3）10%
-  const pitchFlickThreshold = (row === 1 || row === 2) ? keyHeight * 0.15 : keyHeight * 0.10;
+  // 列・行に応じたフリック閾値を設定（方向別）
+  // 左右方向の閾値（列に応じて方向別に設定）
+  let leftFlickThreshold: number;
+  let rightFlickThreshold: number;
+
+  if (col === 0) { // 左列
+    leftFlickThreshold = keyWidth * 0.05;  // 敏感（左端なのでさらに左へ）
+    rightFlickThreshold = keyWidth * 0.40; // 鈍感（中央に戻る方向は慎重に）
+  } else if (col === 1) { // 中央列
+    leftFlickThreshold = keyWidth * 0.35;  // 均等
+    rightFlickThreshold = keyWidth * 0.35; // 均等
+  } else { // 右列 (col === 2)
+    leftFlickThreshold = keyWidth * 0.40;  // 鈍感（中央に戻る方向は慎重に）
+    rightFlickThreshold = keyWidth * 0.05; // 敏感（右端なのでさらに右へ）
+  }
+
+  // 上下方向の閾値（行に応じて方向別に設定）
+  let upFlickThreshold: number;
+  let downFlickThreshold: number;
+
+  if (row === 0) { // 最上行
+    upFlickThreshold = keyHeight * 0.05;   // 敏感（最上部なのでさらに上へ）
+    downFlickThreshold = keyHeight * 0.40; // 鈍感（中央に戻る方向は慎重に）
+  } else if (row === 1 || row === 2) { // 中央行
+    upFlickThreshold = keyHeight * 0.35;   // 均等
+    downFlickThreshold = keyHeight * 0.35; // 均等
+  } else { // 最下行 (row === 3)
+    upFlickThreshold = keyHeight * 0.40;   // 鈍感（中央に戻る方向は慎重に）
+    downFlickThreshold = keyHeight * 0.05; // 敏感（最下部なのでさらに下へ）
+  }
 
   // ホールド位置からの相対的な移動量
   const yawOffset = yaw - holdPosition.yaw;
@@ -113,11 +138,17 @@ export function getFlickDirection(
   const absYawOffset = Math.abs(yawOffset);
   const absPitchOffset = Math.abs(pitchOffset);
 
-  // 上下左右で最も強い方向を選択（鏡像対応）
-  if (absPitchOffset > pitchFlickThreshold && absPitchOffset > absYawOffset) {
+  // 各方向が閾値を超えているかチェック
+  const isUpFlick = pitchOffset < 0 && absPitchOffset > upFlickThreshold;
+  const isDownFlick = pitchOffset > 0 && absPitchOffset > downFlickThreshold;
+  const isLeftFlick = yawOffset > 0 && absYawOffset > leftFlickThreshold; // 鏡像反転
+  const isRightFlick = yawOffset < 0 && absYawOffset > rightFlickThreshold; // 鏡像反転
+
+  // 上下と左右で最も強い方向を選択（鏡像対応）
+  if ((isUpFlick || isDownFlick) && absPitchOffset > absYawOffset) {
     return pitchOffset < 0 ? 'up' : 'down';
-  } else if (absYawOffset > yawFlickThreshold && absYawOffset > absPitchOffset) {
-    return yawOffset < 0 ? 'right' : 'left'; // 鏡像なので左右反転
+  } else if ((isLeftFlick || isRightFlick) && absYawOffset > absPitchOffset) {
+    return yawOffset < 0 ? 'right' : 'left';
   }
 
   return null;
