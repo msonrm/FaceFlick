@@ -912,17 +912,16 @@ export function FaceFlickCanvas() {
   ) {
     // ツールバーの高さ
     const toolbarHeight = 50;
-    // デバッグ情報エリアの高さ
-    const debugInfoHeight = showDebugInfo ? 70 : 0;
     // キーのサイズ（横幅は画面幅の1/3、縦幅は横幅の3/4）
     const keyWidth = width / 3;
     const keyHeight = keyWidth * 0.75;
     const keyboardHeight = keyHeight * 4;
 
     // キーボードを画面中央付近に配置
-    const availableSpace = _height - toolbarHeight - debugInfoHeight - keyboardHeight;
-    const topMargin = Math.max(0, availableSpace * 0.4); // 残りスペースの40%を上部余白に
-    const keyboardTop = toolbarHeight + debugInfoHeight + topMargin;
+    const debugInfoHeight = showDebugInfo ? 150 : 0; // デバッグ情報エリアの高さ（キーボード下）
+    const availableSpace = _height - toolbarHeight - keyboardHeight - debugInfoHeight;
+    const topMargin = Math.max(0, availableSpace * 0.4);
+    const keyboardTop = toolbarHeight + availableSpace - topMargin;
 
     // 現在顔が向いているキーを取得（idle状態のみ、平滑化された値を使用）
     // 顔が検出されていない場合はハイライトを表示しない
@@ -1061,51 +1060,25 @@ export function FaceFlickCanvas() {
   ) {
     // レイアウト計算
     const toolbarHeight = 50;
-    const debugInfoHeight = showDebugInfo ? 70 : 0; // デバッグ情報エリアの高さ
     const keyWidth = width / 3;
     const keyHeight = keyWidth * 0.75;
     const keyboardHeight = keyHeight * 4;
 
     // キーボードを画面中央付近に配置
-    const availableSpace = height - toolbarHeight - debugInfoHeight - keyboardHeight;
-    const topMargin = Math.max(0, availableSpace * 0.4); // 残りスペースの40%を上部余白に
-    const keyboardTop = toolbarHeight + debugInfoHeight + topMargin;
+    const debugInfoHeight = showDebugInfo ? 150 : 0; // デバッグ情報エリアの高さ（キーボード下）
+    const availableSpace = height - toolbarHeight - keyboardHeight - debugInfoHeight;
+    const topMargin = Math.max(0, availableSpace * 0.4);
+    const keyboardTop = toolbarHeight + availableSpace - topMargin;
 
-    const inputAreaTop = keyboardTop + keyboardHeight;
-    const inputAreaHeight = height - inputAreaTop;
+    // テキストエリアはツールバーとキーボードの間
+    const textAreaTop = toolbarHeight;
+    const textAreaHeight = keyboardTop - toolbarHeight;
 
-    // デバッグ情報エリアの背景（ツールバーの下、キーボードの上）
-    if (debugInfo && showDebugInfo) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(0, toolbarHeight, width, debugInfoHeight);
-
-      // デバッグ情報表示
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '11px monospace';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-
-      const triggerText = getTriggerDisplayText(debugInfo.triggerType);
-      ctx.fillText(`トリガー: ${triggerText}`, 10, toolbarHeight + 10);
-
-      // Blendshapes
-      ctx.fillText(
-        `jaw: ${debugInfo.blendshapes.jawOpen.toFixed(2)} pucker: ${debugInfo.blendshapes.mouthPucker.toFixed(2)} smile: ${debugInfo.blendshapes.mouthSmileLeft.toFixed(2)}`,
-        10,
-        toolbarHeight + 25
-      );
-
-      // 頭の向き
-      ctx.fillText(
-        `Yaw: ${debugInfo.headRotation.yaw.toFixed(1)}° Pitch: ${debugInfo.headRotation.pitch.toFixed(1)}° Roll: ${debugInfo.headRotation.roll.toFixed(1)}°`,
-        10,
-        toolbarHeight + 40
-      );
-    }
-
-    // 入力テキストエリアの背景
+    // テキストエリアの背景
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, inputAreaTop, width, inputAreaHeight);
+    ctx.fillRect(0, textAreaTop, width, textAreaHeight);
+
+    let currentY = textAreaTop + 20;
 
     // 入力テキスト（複数行対応）
     ctx.fillStyle = '#ffffff';
@@ -1145,63 +1118,66 @@ export function FaceFlickCanvas() {
 
     // 最大3行まで表示
     const displayLines = lines.slice(-3);
-    let textY = inputAreaTop + 10;
     displayLines.forEach((line) => {
-      ctx.fillText(line, 20, textY);
-      textY += lineHeight;
+      ctx.fillText(line, 20, currentY);
+      currentY += lineHeight;
     });
 
     // カーソル表示（CLI風の点滅）
-    const cursorVisible = Math.floor(Date.now() / 500) % 2 === 0; // 0.5秒ごとに点滅
+    const cursorVisible = Math.floor(Date.now() / 500) % 2 === 0;
     if (cursorVisible) {
       ctx.fillStyle = '#ffffff';
       ctx.font = '24px monospace';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-
-      // 最後の行の終わりにカーソルを表示
       const cursorX = displayLines.length > 0
         ? 20 + ctx.measureText(displayLines[displayLines.length - 1]).width
         : 20;
       const cursorY = displayLines.length > 0
-        ? textY - lineHeight
-        : inputAreaTop + 10;
+        ? currentY - lineHeight
+        : textAreaTop + 20;
       ctx.fillText('|', cursorX, cursorY);
     }
 
-    // 入力状態表示
-    const statusY = inputAreaTop + inputAreaHeight - 30;
+    currentY += 10; // 余白
 
-    if (inputState.type === 'selecting') {
+    // トリガー状態とジェスチャーフィードバックを表示
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'left';
+
+    // トリガー状態（口開け/口すぼめ）
+    if (inputState.type !== 'idle') {
+      const triggerText = inputState.triggerType === 'mouth_open' ? '口開け 👄' : '口すぼめ 💋';
       ctx.fillStyle = '#ffff00';
-      ctx.font = '16px sans-serif';
-      ctx.fillText('選択中...', 20, statusY);
-    } else if (inputState.type === 'flicking') {
-      ctx.fillStyle = '#00ff00';
-      ctx.font = '16px sans-serif';
-      const directionText = getDirectionDisplayText(inputState.direction);
-      ctx.fillText(`フリック: ${directionText}`, 20, statusY);
+      ctx.fillText(`トリガー: ${triggerText}`, 20, currentY);
+      currentY += 22;
     }
 
-    // ジェスチャーフィードバック表示（テキストエリア内の右側）
+    // フリック状態
+    if (inputState.type === 'selecting') {
+      ctx.fillStyle = '#ffff00';
+      ctx.fillText('選択中...', 20, currentY);
+      currentY += 22;
+    } else if (inputState.type === 'flicking') {
+      const directionText = getDirectionDisplayText(inputState.direction);
+      ctx.fillStyle = '#00ff00';
+      ctx.fillText(`フリック: ${directionText}`, 20, currentY);
+      currentY += 22;
+    }
+
+    // ジェスチャーフィードバック（フェードアウト付き）
     if (gestureFeedback) {
       const feedbackAge = Date.now() - gestureFeedback.timestamp;
-      const opacity = Math.max(0, 1 - feedbackAge / 1000); // 1秒かけてフェードアウト
+      const opacity = Math.max(0, 1 - feedbackAge / 1000);
 
       ctx.save();
       ctx.fillStyle = `rgba(0, 255, 255, ${opacity})`;
-      ctx.font = 'bold 20px sans-serif';
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'bottom';
+      ctx.font = 'bold 18px sans-serif';
       ctx.shadowColor = `rgba(0, 0, 0, ${opacity * 0.8})`;
       ctx.shadowBlur = 4;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
 
       let text = '';
       switch (gestureFeedback.type) {
         case 'backspace':
-          text = '⌫ 削除';
+          text = '⌫ 1文字削除';
           break;
         case 'newline':
           text = '↵ 改行';
@@ -1213,11 +1189,49 @@ export function FaceFlickCanvas() {
           text = '🔊 読み上げ';
           break;
         case 'copy_speak_clear':
-          text = '🔊 発声&クリア';
+          text = '🔊 読み上げ&消去';
           break;
       }
-      ctx.fillText(text, width - 20, statusY);
+      ctx.fillText(text, 20, currentY);
       ctx.restore();
+      currentY += 22;
+    }
+
+    // 操作方法を最下部に表示
+    const instructionsY = textAreaTop + textAreaHeight - 90;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('【操作方法】', 20, instructionsY);
+    ctx.fillText('顔の向き: キー選択  |  口開け/すぼめ: ホールド開始', 20, instructionsY + 16);
+    ctx.fillText('ホールド中に顔を動かす: フリック  |  口を戻す: 確定', 20, instructionsY + 32);
+    ctx.fillText('首を左右に振る: 1文字削除  |  「や」で目を見開く/笑顔: 読み上げ&消去', 20, instructionsY + 48);
+
+    // デバッグ情報をキーボードの下に表示
+    if (debugInfo && showDebugInfo) {
+      const debugTop = keyboardTop + keyboardHeight + 10;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillRect(0, debugTop, width, debugInfoHeight - 10);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+
+      const triggerText = getTriggerDisplayText(debugInfo.triggerType);
+      ctx.fillText(`トリガー: ${triggerText}`, 10, debugTop + 10);
+
+      ctx.fillText(
+        `jaw: ${debugInfo.blendshapes.jawOpen.toFixed(2)} pucker: ${debugInfo.blendshapes.mouthPucker.toFixed(2)} smile: ${debugInfo.blendshapes.mouthSmileLeft.toFixed(2)}`,
+        10,
+        debugTop + 25
+      );
+
+      ctx.fillText(
+        `Yaw: ${debugInfo.headRotation.yaw.toFixed(1)}° Pitch: ${debugInfo.headRotation.pitch.toFixed(1)}° Roll: ${debugInfo.headRotation.roll.toFixed(1)}°`,
+        10,
+        debugTop + 40
+      );
     }
   }
 
@@ -1416,11 +1430,11 @@ export function FaceFlickCanvas() {
         className="w-full h-full object-cover"
       />
 
-      {/* 全Blendshapes表示パネル（スクロール可能） */}
+      {/* 全Blendshapes表示パネル（スクロール可能） - キーボードの下に表示 */}
       {showDebugInfo && debugInfo && debugInfo.allBlendshapes.length > 0 && (
         <div
           className="absolute left-2 w-72 h-96 bg-black/80 backdrop-blur-sm rounded-lg p-3 overflow-y-auto text-white text-xs font-mono"
-          style={{ top: `${50 + 70}px` }} // toolbarHeight + debugInfoHeight
+          style={{ bottom: '10px' }} // 画面下部に配置
         >
           <div className="font-bold mb-2 text-sm bg-black/90 pb-1">
             全Blendshapes ({debugInfo.allBlendshapes.length})
