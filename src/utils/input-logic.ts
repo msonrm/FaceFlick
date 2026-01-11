@@ -101,10 +101,10 @@ export function getFlickDirection(
   }
 
   // 列・行に応じたフリック閾値を設定
-  // 左右：中央列15%、左右列5%
-  const yawFlickThreshold = col === 1 ? keyWidth * 0.15 : keyWidth * 0.05;
-  // 上下：中央行（1,2）15%、端行（0,3）10%
-  const pitchFlickThreshold = (row === 1 || row === 2) ? keyHeight * 0.15 : keyHeight * 0.10;
+  // 左右：中央列15%、左右列8%
+  const yawFlickThreshold = col === 1 ? keyWidth * 0.15 : keyWidth * 0.08;
+  // 上下：中央行（1,2）15%、端行（0,3）12%
+  const pitchFlickThreshold = (row === 1 || row === 2) ? keyHeight * 0.15 : keyHeight * 0.12;
 
   // ホールド位置からの相対的な移動量
   const yawOffset = yaw - holdPosition.yaw;
