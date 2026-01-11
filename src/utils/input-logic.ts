@@ -107,12 +107,12 @@ export function getFlickDirection(
 
   if (col === 0) { // 左列
     leftFlickThreshold = keyWidth * 0.05;  // 敏感（左端なのでさらに左へ）
-    rightFlickThreshold = keyWidth * 0.18; // 鈍感（中央に戻る方向は慎重に）
+    rightFlickThreshold = keyWidth * 0.30; // 鈍感（中央に戻る方向は慎重に）
   } else if (col === 1) { // 中央列
-    leftFlickThreshold = keyWidth * 0.12;  // 均等
-    rightFlickThreshold = keyWidth * 0.12; // 均等
+    leftFlickThreshold = keyWidth * 0.24;  // 均等
+    rightFlickThreshold = keyWidth * 0.24; // 均等
   } else { // 右列 (col === 2)
-    leftFlickThreshold = keyWidth * 0.18;  // 鈍感（中央に戻る方向は慎重に）
+    leftFlickThreshold = keyWidth * 0.30;  // 鈍感（中央に戻る方向は慎重に）
     rightFlickThreshold = keyWidth * 0.05; // 敏感（右端なのでさらに右へ）
   }
 
@@ -122,12 +122,12 @@ export function getFlickDirection(
 
   if (row === 0) { // 最上行
     upFlickThreshold = keyHeight * 0.05;   // 敏感（最上部なのでさらに上へ）
-    downFlickThreshold = keyHeight * 0.18; // 鈍感（中央に戻る方向は慎重に）
+    downFlickThreshold = keyHeight * 0.30; // 鈍感（中央に戻る方向は慎重に）
   } else if (row === 1 || row === 2) { // 中央行
-    upFlickThreshold = keyHeight * 0.12;   // 均等
-    downFlickThreshold = keyHeight * 0.12; // 均等
+    upFlickThreshold = keyHeight * 0.24;   // 均等
+    downFlickThreshold = keyHeight * 0.24; // 均等
   } else { // 最下行 (row === 3)
-    upFlickThreshold = keyHeight * 0.18;   // 鈍感（中央に戻る方向は慎重に）
+    upFlickThreshold = keyHeight * 0.30;   // 鈍感（中央に戻る方向は慎重に）
     downFlickThreshold = keyHeight * 0.05; // 敏感（最下部なのでさらに下へ）
   }
 
