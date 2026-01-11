@@ -900,8 +900,9 @@ export function FaceFlickCanvas() {
     const debugInfoHeight = showDebugInfo ? 70 : 0;
     // キーボードの開始位置
     const keyboardTop = toolbarHeight + debugInfoHeight;
-    // キーを正方形にする（画面幅基準）
-    const keySize = width / 3;
+    // キーのサイズ（横幅は画面幅の1/3、縦幅は横幅の3/4）
+    const keyWidth = width / 3;
+    const keyHeight = keyWidth * 0.75;
 
     // 現在顔が向いているキーを取得（idle状態のみ、平滑化された値を使用）
     // 顔が検出されていない場合はハイライトを表示しない
@@ -917,11 +918,11 @@ export function FaceFlickCanvas() {
 
     KEYBOARD_LAYOUT.rows.forEach((row, rowIndex) => {
       row.forEach((key, colIndex) => {
-        const x = colIndex * keySize;
-        const y = keyboardTop + rowIndex * keySize;
+        const x = colIndex * keyWidth;
+        const y = keyboardTop + rowIndex * keyHeight;
 
         // キーの枠を描画
-        ctx.strokeRect(x, y, keySize, keySize);
+        ctx.strokeRect(x, y, keyWidth, keyHeight);
 
         // トリガーでホールド中のキー
         const isSelected =
@@ -935,11 +936,11 @@ export function FaceFlickCanvas() {
         if (isSelected) {
           // トリガーでホールド中 = 強調表示（半透明の青）
           ctx.fillStyle = 'rgba(100, 150, 255, 0.5)';
-          ctx.fillRect(x, y, keySize, keySize);
+          ctx.fillRect(x, y, keyWidth, keyHeight);
         } else if (isHovered) {
           // 顔が向いているだけ = 薄いハイライト（半透明の青）
           ctx.fillStyle = 'rgba(100, 150, 255, 0.5)';
-          ctx.fillRect(x, y, keySize, keySize);
+          ctx.fillRect(x, y, keyWidth, keyHeight);
         }
 
         // フリック方向の判定（isSelectedの場合のみ）
@@ -962,25 +963,25 @@ export function FaceFlickCanvas() {
           // 認識中: Lipsアイコンのみ（大きく、オレンジ）
           ctx.font = '36px "Material Symbols Outlined"';
           ctx.fillStyle = '#ffa500';
-          ctx.fillText('lips', x + keySize / 2, y + keySize / 2);
+          ctx.fillText('lips', x + keyWidth / 2, y + keyHeight / 2);
         } else if (isCenterActive) {
           // ホールド中: 基本文字のみ（現在のまま）
           ctx.font = '36px sans-serif';
           ctx.fillStyle = '#ffa500'; // オレンジ
-          ctx.fillText(key.base, x + keySize / 2, y + keySize / 2);
+          ctx.fillText(key.base, x + keyWidth / 2, y + keyHeight / 2);
         } else if (isYaKey && !isSelected) {
           // 「や」キー通常時: 「や」 + 小さいLipsアイコン
           ctx.font = '32px sans-serif';
           ctx.fillStyle = '#ffffff';
-          ctx.fillText(key.base, x + keySize / 2, y + keySize / 2 - 10);
+          ctx.fillText(key.base, x + keyWidth / 2, y + keyHeight / 2 - 10);
           // Lipsアイコン（小さめ）
           ctx.font = '20px "Material Symbols Outlined"';
-          ctx.fillText('lips', x + keySize / 2, y + keySize / 2 + 12);
+          ctx.fillText('lips', x + keyWidth / 2, y + keyHeight / 2 + 12);
         } else {
           // 通常のキー
           ctx.font = '32px sans-serif';
           ctx.fillStyle = '#ffffff';
-          ctx.fillText(key.base, x + keySize / 2, y + keySize / 2);
+          ctx.fillText(key.base, x + keyWidth / 2, y + keyHeight / 2);
         }
         ctx.shadowColor = 'transparent'; // シャドウをリセット
         ctx.font = '32px sans-serif'; // フォントをリセット
@@ -999,7 +1000,7 @@ export function FaceFlickCanvas() {
             const isActive = activeDirection === 'left';
             ctx.font = isActive ? '42px sans-serif' : '32px sans-serif';
             ctx.fillStyle = isActive ? '#ffa500' : 'rgba(255, 255, 255, 0.8)';
-            ctx.fillText(key.left, x + keySize * 0.15, y + keySize / 2);
+            ctx.fillText(key.left, x + keyWidth * 0.15, y + keyHeight / 2);
           }
 
           // 上（up）
@@ -1007,7 +1008,7 @@ export function FaceFlickCanvas() {
             const isActive = activeDirection === 'up';
             ctx.font = isActive ? '42px sans-serif' : '32px sans-serif';
             ctx.fillStyle = isActive ? '#ffa500' : 'rgba(255, 255, 255, 0.8)';
-            ctx.fillText(key.up, x + keySize / 2, y + keySize * 0.15);
+            ctx.fillText(key.up, x + keyWidth / 2, y + keyHeight * 0.15);
           }
 
           // 右（right）
@@ -1015,7 +1016,7 @@ export function FaceFlickCanvas() {
             const isActive = activeDirection === 'right';
             ctx.font = isActive ? '42px sans-serif' : '32px sans-serif';
             ctx.fillStyle = isActive ? '#ffa500' : 'rgba(255, 255, 255, 0.8)';
-            ctx.fillText(key.right, x + keySize * 0.85, y + keySize / 2);
+            ctx.fillText(key.right, x + keyWidth * 0.85, y + keyHeight / 2);
           }
 
           // 下（down）
@@ -1023,7 +1024,7 @@ export function FaceFlickCanvas() {
             const isActive = activeDirection === 'down';
             ctx.font = isActive ? '42px sans-serif' : '32px sans-serif';
             ctx.fillStyle = isActive ? '#ffa500' : 'rgba(255, 255, 255, 0.8)';
-            ctx.fillText(key.down, x + keySize / 2, y + keySize * 0.85);
+            ctx.fillText(key.down, x + keyWidth / 2, y + keyHeight * 0.85);
           }
 
           ctx.font = '32px sans-serif';
@@ -1041,8 +1042,9 @@ export function FaceFlickCanvas() {
     // レイアウト計算
     const toolbarHeight = 50;
     const debugInfoHeight = showDebugInfo ? 70 : 0; // デバッグ情報エリアの高さ
-    const keySize = width / 3;
-    const keyboardHeight = keySize * 4;
+    const keyWidth = width / 3;
+    const keyHeight = keyWidth * 0.75;
+    const keyboardHeight = keyHeight * 4;
     const keyboardTop = toolbarHeight + debugInfoHeight;
     const inputAreaTop = keyboardTop + keyboardHeight;
     const inputAreaHeight = height - inputAreaTop;
