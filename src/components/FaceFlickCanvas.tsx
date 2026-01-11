@@ -792,6 +792,9 @@ export function FaceFlickCanvas() {
     // SNES風フラットシェーディング + ランバート反射
     // MediaPipe公式のFACE_LANDMARKS_TESSELATIONデータを使用
 
+    // ストロークとぼかしでポリゴンのエッジを目立たなくする
+    ctx.save();
+
     // 光源方向（正規化されたベクトル）: 左上から
     const lightDir = { x: 0.5, y: -0.8, z: 0.3 };
     const lightMag = Math.sqrt(lightDir.x ** 2 + lightDir.y ** 2 + lightDir.z ** 2);
@@ -801,8 +804,10 @@ export function FaceFlickCanvas() {
       z: lightDir.z / lightMag
     };
 
-    // 基本色（完全な白）
-    const baseColor = { r: 255, g: 255, b: 255 };
+    // サンドグレイ（#c9c9c2 = rgb(201, 201, 194)）
+    const sandGray = { r: 201, g: 201, b: 194 };
+    // 白（rgb(255, 255, 255)）
+    const white = { r: 255, g: 255, b: 255 };
 
     const connections = FaceLandmarker.FACE_LANDMARKS_TESSELATION;
 
@@ -872,10 +877,12 @@ export function FaceFlickCanvas() {
       let diffuse = n.x * light.x + n.y * light.y + n.z * light.z;
       diffuse = Math.max(0.7, Math.min(1.0, diffuse)); // アンビエント 0.7（より明るく）
 
-      // 最終色を計算
-      const r = Math.floor(baseColor.r * diffuse);
-      const g = Math.floor(baseColor.g * diffuse);
-      const b = Math.floor(baseColor.b * diffuse);
+      // diffuse値（0.7〜1.0）をサンドグレイから白にマッピング
+      // diffuse = 0.7 → サンドグレイ、diffuse = 1.0 → 白
+      const t = (diffuse - 0.7) / 0.3; // 0.0〜1.0に正規化
+      const r = Math.floor(sandGray.r + (white.r - sandGray.r) * t);
+      const g = Math.floor(sandGray.g + (white.g - sandGray.g) * t);
+      const b = Math.floor(sandGray.b + (white.b - sandGray.b) * t);
 
       // スクリーン座標に変換（描画用）
       const p0 = {
@@ -892,16 +899,29 @@ export function FaceFlickCanvas() {
       };
 
       // 三角形を塗りつぶし（フラットシェーディング）
-      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-      ctx.strokeStyle = 'transparent';
-      ctx.lineWidth = 0;
+      const color = `rgb(${r}, ${g}, ${b})`;
+
+      // ぼかし効果でエッジを柔らかく
+      ctx.shadowBlur = 1;
+      ctx.shadowColor = color;
+
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 0.5;
+
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y);
       ctx.lineTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
     }
+
+    // エフェクトをリセット
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+    ctx.restore();
   }
 
   function drawKeyboard(
