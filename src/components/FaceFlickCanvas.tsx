@@ -83,6 +83,7 @@ export function FaceFlickCanvas() {
   const lastDetectedResultRef = useRef<any>(null); // 最後に検出された result（表示保持用）
   const prevTriggerStateRef = useRef<{ isTriggered: boolean; triggerType?: any } | undefined>(undefined); // 前フレームのトリガー状態（ヒステリシス用）
   const triggerStartPositionRef = useRef<{ yaw: number; pitch: number } | null>(null); // トリガー開始時の顔位置（フォーカス固定用）
+  const prevBlendshapesRef = useRef<{ jawOpen: number; mouthPucker: number; mouthSmileLeft: number; mouthSmileRight: number; eyeBlinkLeft: number; eyeBlinkRight: number; browInnerUp: number } | undefined>(undefined); // 前フレームのBlendshapes（平滑化用）
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -198,12 +199,22 @@ export function FaceFlickCanvas() {
       const now = Date.now();
 
       if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
-        const faceState = analyzeFace(result, calibrationSettings, prevTriggerStateRef.current);
+        const faceState = analyzeFace(result, calibrationSettings, prevTriggerStateRef.current, prevBlendshapesRef.current);
         if (faceState) {
           // 次フレーム用にトリガー状態を保存
           prevTriggerStateRef.current = {
             isTriggered: faceState.isTriggered,
             triggerType: faceState.triggerType,
+          };
+          // 次フレーム用にBlendshapesを保存（平滑化用）
+          prevBlendshapesRef.current = {
+            jawOpen: faceState.blendshapes.jawOpen,
+            mouthPucker: faceState.blendshapes.mouthPucker,
+            mouthSmileLeft: faceState.blendshapes.mouthSmileLeft,
+            mouthSmileRight: faceState.blendshapes.mouthSmileRight,
+            eyeBlinkLeft: faceState.blendshapes.eyeBlinkLeft,
+            eyeBlinkRight: faceState.blendshapes.eyeBlinkRight,
+            browInnerUp: faceState.blendshapes.browInnerUp,
           };
           // 顔が検出されたので、認識切れタイマーをリセット
           faceDetectionLostTimeRef.current = null;
@@ -270,6 +281,7 @@ export function FaceFlickCanvas() {
             lastConfirmTimeRef.current = null;
             hasVibratedBrowRef.current = false;
             hasVibratedSmileRef.current = false;
+            prevBlendshapesRef.current = undefined; // 平滑化状態をリセット
 
             // デバッグ情報をクリア
             setDebugInfo({
