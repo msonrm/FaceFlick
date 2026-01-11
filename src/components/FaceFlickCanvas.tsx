@@ -67,7 +67,7 @@ export function FaceFlickCanvas() {
   const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>>([]);
   const lastGestureTimeRef = useRef<number>(0);
   const calibrationStartTimeRef = useRef<number | null>(null);
-  const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number }[]>([]);
+  const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number; jawOpen: number; mouthPucker: number }[]>([]);
   const baseYawRef = useRef<number | null>(null);
   const basePitchRef = useRef<number | null>(null);
   const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number; roll: number } | null>(null);
@@ -79,6 +79,8 @@ export function FaceFlickCanvas() {
   const faceDetectionLostTimeRef = useRef<number | null>(null); // 顔認識が切れた時刻
   const lastDetectedFaceStateRef = useRef<any>(null); // 最後に検出された顔の状態（表示保持用）
   const lastDetectedResultRef = useRef<any>(null); // 最後に検出された result（表示保持用）
+  const prevTriggerStateRef = useRef<{ isTriggered: boolean; triggerType?: any } | undefined>(undefined); // 前フレームのトリガー状態（ヒステリシス用）
+  const triggerStartPositionRef = useRef<{ yaw: number; pitch: number } | null>(null); // トリガー開始時の顔位置（フォーカス固定用）
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -139,9 +141,38 @@ export function FaceFlickCanvas() {
             baseYawRef.current = avgYaw;
             basePitchRef.current = avgPitch;
 
+            // 口のベース値を中央値で計算
+            const median = (arr: number[]) => {
+              const sorted = [...arr].sort((a, b) => a - b);
+              const mid = Math.floor(sorted.length / 2);
+              return sorted.length % 2 === 0
+                ? (sorted[mid - 1] + sorted[mid]) / 2
+                : sorted[mid];
+            };
+
+            const jawOpenBaseValue = median(samples.map(s => s.jawOpen));
+            const mouthPuckerBaseValue = median(samples.map(s => s.mouthPucker));
+
+            // 終了閾値をベース値 + 0.1 で初期化
+            const jawOpenEndThreshold = jawOpenBaseValue + 0.1;
+            const mouthPuckerEndThreshold = mouthPuckerBaseValue + 0.1;
+
+            // CalibrationSettingsを更新
+            setCalibrationSettings(prev => ({
+              ...prev,
+              jawOpenBaseValue,
+              mouthPuckerBaseValue,
+              jawOpenEndThreshold,
+              mouthPuckerEndThreshold,
+            }));
+
             console.log('キャリブレーション完了:');
             console.log('  基準Yaw =', avgYaw.toFixed(2), '度');
             console.log('  基準Pitch =', avgPitch.toFixed(2), '度');
+            console.log('  口開けベース =', jawOpenBaseValue.toFixed(3));
+            console.log('  口すぼめベース =', mouthPuckerBaseValue.toFixed(3));
+            console.log('  口開け終了閾値 =', jawOpenEndThreshold.toFixed(3));
+            console.log('  口すぼめ終了閾値 =', mouthPuckerEndThreshold.toFixed(3));
           } else {
             console.log('キャリブレーション完了（サンプルなし・デフォルト値を使用）');
             baseYawRef.current = 0;
@@ -157,8 +188,13 @@ export function FaceFlickCanvas() {
       const now = Date.now();
 
       if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
-        const faceState = analyzeFace(result, calibrationSettings);
+        const faceState = analyzeFace(result, calibrationSettings, prevTriggerStateRef.current);
         if (faceState) {
+          // 次フレーム用にトリガー状態を保存
+          prevTriggerStateRef.current = {
+            isTriggered: faceState.isTriggered,
+            triggerType: faceState.triggerType,
+          };
           // 顔が検出されたので、認識切れタイマーをリセット
           faceDetectionLostTimeRef.current = null;
 
@@ -190,6 +226,8 @@ export function FaceFlickCanvas() {
               yaw: faceState.headRotation.yaw,
               pitch: faceState.headRotation.pitch,
               roll: faceState.headRotation.roll,
+              jawOpen: faceState.blendshapes.jawOpen,
+              mouthPucker: faceState.blendshapes.mouthPucker,
             });
           } else {
             // 入力ロジック
@@ -332,7 +370,14 @@ export function FaceFlickCanvas() {
       headRotation: smoothedHeadRotationRef.current,
     };
     setSmoothedFaceState(smoothedState);
-    const selectedKey = getSelectedKey(smoothedState, calibrationSettings);
+
+    // トリガー認識中はフォーカスを固定（トリガー開始位置を基準に）
+    let selectedKey;
+    if (faceState.isTriggered && triggerStartPositionRef.current) {
+      selectedKey = getSelectedKey(smoothedState, calibrationSettings, triggerStartPositionRef.current);
+    } else {
+      selectedKey = getSelectedKey(smoothedState, calibrationSettings);
+    }
 
     // 頭の回転履歴を更新（ジェスチャー検出用：生の値を使用）
     headRotationHistoryRef.current.push({
@@ -483,6 +528,11 @@ export function FaceFlickCanvas() {
           // トリガー開始時刻を記録
           if (triggerStartTimeRef.current === null) {
             triggerStartTimeRef.current = Date.now();
+            // トリガー開始時の位置を記録（フォーカス固定用）
+            triggerStartPositionRef.current = {
+              yaw: smoothedHeadRotationRef.current!.yaw,
+              pitch: smoothedHeadRotationRef.current!.pitch,
+            };
           }
 
           // 0.4秒経過したかチェック
@@ -492,10 +542,7 @@ export function FaceFlickCanvas() {
               type: 'selecting',
               key: selectedKey,
               triggerType: faceState.triggerType,
-              holdPosition: {
-                yaw: smoothedHeadRotationRef.current!.yaw,
-                pitch: smoothedHeadRotationRef.current!.pitch,
-              },
+              holdPosition: triggerStartPositionRef.current!,
             });
             triggerStartTimeRef.current = null; // リセット
           }
@@ -503,6 +550,7 @@ export function FaceFlickCanvas() {
       } else {
         // トリガーが解除されたらタイマーと確定時刻をリセット
         triggerStartTimeRef.current = null;
+        triggerStartPositionRef.current = null;
         lastConfirmTimeRef.current = null;
       }
     } else if (inputState.type === 'selecting') {
@@ -1208,7 +1256,9 @@ export function FaceFlickCanvas() {
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-gray-800 text-white p-8 rounded-lg text-center max-w-md">
             <h2 className="text-2xl font-bold mb-4">初期設定</h2>
-            <p className="mb-6">頭をまっすぐにして、3秒間静止してください</p>
+            <p className="mb-6">
+              頭をまっすぐにして、口を閉じた状態で3秒間静止してください
+            </p>
 
             {/* プログレスバー */}
             <div className="w-full bg-gray-700 rounded-full h-4 mb-4">

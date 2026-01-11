@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Range, getTrackBackground } from 'react-range';
 import { CalibrationSettings } from '../types';
 
 interface CalibrationModalProps {
@@ -77,7 +78,22 @@ export function CalibrationModal({
   };
 
   const handleSave = () => {
-    onSave(localSettings);
+    // 閾値バリデーション：開始閾値 >= 終了閾値を保証
+    const validatedSettings = { ...localSettings };
+
+    const jawOpenEndThreshold = validatedSettings.jawOpenEndThreshold ?? 0.2;
+    const mouthPuckerEndThreshold = validatedSettings.mouthPuckerEndThreshold ?? 0.2;
+
+    // 開始閾値が終了閾値より小さい場合は、終了閾値と同じ値に設定
+    if (validatedSettings.jawOpenThreshold < jawOpenEndThreshold) {
+      validatedSettings.jawOpenThreshold = jawOpenEndThreshold;
+    }
+
+    if (validatedSettings.mouthPuckerThreshold < mouthPuckerEndThreshold) {
+      validatedSettings.mouthPuckerThreshold = mouthPuckerEndThreshold;
+    }
+
+    onSave(validatedSettings);
     onClose();
   };
 
@@ -196,50 +212,148 @@ export function CalibrationModal({
         <div className="mb-6">
           <h3 className="font-bold mb-2">トリガー閾値 (Blendshapes: 0-1)</h3>
 
-          <div className="space-y-3">
-            {/* 口を開ける */}
+          <div className="space-y-4">
+            {/* 口を開ける - マルチレンジスライダー */}
             <div>
               <label className="block text-sm mb-1">
-                口を開ける (jawOpen): {localSettings.jawOpenThreshold.toFixed(2)}
+                口を開ける (jawOpen)
               </label>
-              <input
-                type="range"
-                min="0.1"
-                max="0.9"
-                step="0.05"
-                value={localSettings.jawOpenThreshold}
-                onChange={(e) =>
+              <div className="text-xs mb-2">
+                <span>開始: {localSettings.jawOpenThreshold.toFixed(2)}</span>
+                <span className="mx-2">|</span>
+                <span>終了: {(localSettings.jawOpenEndThreshold ?? 0.2).toFixed(2)}</span>
+                {localSettings.jawOpenThreshold < (localSettings.jawOpenEndThreshold ?? 0.2) && (
+                  <span className="text-yellow-500 ml-2">
+                    ⚠ 開始閾値は終了閾値以上である必要があります
+                  </span>
+                )}
+              </div>
+              <Range
+                values={[
+                  localSettings.jawOpenEndThreshold ?? 0.2,
+                  Math.max(localSettings.jawOpenThreshold, localSettings.jawOpenEndThreshold ?? 0.2)
+                ]}
+                step={0.05}
+                min={0.1}
+                max={0.9}
+                onChange={(values) => {
                   setLocalSettings({
                     ...localSettings,
-                    jawOpenThreshold: parseFloat(e.target.value),
-                  })
-                }
-                className="w-full"
+                    jawOpenEndThreshold: values[0],
+                    jawOpenThreshold: values[1],
+                  });
+                }}
+                renderTrack={({ props, children }) => (
+                  <div
+                    {...props}
+                    style={{
+                      ...props.style,
+                      height: '6px',
+                      width: '100%',
+                      background: getTrackBackground({
+                        values: [
+                          localSettings.jawOpenEndThreshold ?? 0.2,
+                          Math.max(localSettings.jawOpenThreshold, localSettings.jawOpenEndThreshold ?? 0.2)
+                        ],
+                        colors: ['#555', '#4CAF50', '#555'],
+                        min: 0.1,
+                        max: 0.9,
+                      }),
+                      borderRadius: '3px',
+                    }}
+                  >
+                    {children}
+                  </div>
+                )}
+                renderThumb={({ props }) => (
+                  <div
+                    {...props}
+                    style={{
+                      ...props.style,
+                      height: '20px',
+                      width: '20px',
+                      borderRadius: '50%',
+                      backgroundColor: '#4CAF50',
+                      border: '2px solid #fff',
+                      cursor: 'pointer',
+                    }}
+                  />
+                )}
+                allowOverlap={false}
               />
             </div>
 
-            {/* 口すぼめ */}
+            {/* 口すぼめ - マルチレンジスライダー */}
             <div>
               <label className="block text-sm mb-1">
-                口すぼめ (mouthPucker): {localSettings.mouthPuckerThreshold.toFixed(2)}
+                口すぼめ (mouthPucker)
               </label>
-              <input
-                type="range"
-                min="0.1"
-                max="0.9"
-                step="0.05"
-                value={localSettings.mouthPuckerThreshold}
-                onChange={(e) =>
+              <div className="text-xs mb-2">
+                <span>開始: {localSettings.mouthPuckerThreshold.toFixed(2)}</span>
+                <span className="mx-2">|</span>
+                <span>終了: {(localSettings.mouthPuckerEndThreshold ?? 0.2).toFixed(2)}</span>
+                {localSettings.mouthPuckerThreshold < (localSettings.mouthPuckerEndThreshold ?? 0.2) && (
+                  <span className="text-yellow-500 ml-2">
+                    ⚠ 開始閾値は終了閾値以上である必要があります
+                  </span>
+                )}
+              </div>
+              <Range
+                values={[
+                  localSettings.mouthPuckerEndThreshold ?? 0.2,
+                  Math.max(localSettings.mouthPuckerThreshold, localSettings.mouthPuckerEndThreshold ?? 0.2)
+                ]}
+                step={0.05}
+                min={0.1}
+                max={0.9}
+                onChange={(values) => {
                   setLocalSettings({
                     ...localSettings,
-                    mouthPuckerThreshold: parseFloat(e.target.value),
-                  })
-                }
-                className="w-full"
+                    mouthPuckerEndThreshold: values[0],
+                    mouthPuckerThreshold: values[1],
+                  });
+                }}
+                renderTrack={({ props, children }) => (
+                  <div
+                    {...props}
+                    style={{
+                      ...props.style,
+                      height: '6px',
+                      width: '100%',
+                      background: getTrackBackground({
+                        values: [
+                          localSettings.mouthPuckerEndThreshold ?? 0.2,
+                          Math.max(localSettings.mouthPuckerThreshold, localSettings.mouthPuckerEndThreshold ?? 0.2)
+                        ],
+                        colors: ['#555', '#4CAF50', '#555'],
+                        min: 0.1,
+                        max: 0.9,
+                      }),
+                      borderRadius: '3px',
+                    }}
+                  >
+                    {children}
+                  </div>
+                )}
+                renderThumb={({ props }) => (
+                  <div
+                    {...props}
+                    style={{
+                      ...props.style,
+                      height: '20px',
+                      width: '20px',
+                      borderRadius: '50%',
+                      backgroundColor: '#4CAF50',
+                      border: '2px solid #fff',
+                      cursor: 'pointer',
+                    }}
+                  />
+                )}
+                allowOverlap={false}
               />
             </div>
 
-            {/* 笑顔（読み上げ&クリア用） */}
+            {/* 笑顔（読み上げ&クリア用） - 通常のスライダー */}
             <div>
               <label className="block text-sm mb-1">
                 笑顔 - 読み上げ&クリア (smile): {localSettings.smileThreshold.toFixed(2)}

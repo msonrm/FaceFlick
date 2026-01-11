@@ -3,9 +3,12 @@ import { KEYBOARD_LAYOUT } from './keyboard-layout';
 
 export function getSelectedKey(
   faceState: FaceState,
-  settings?: CalibrationSettings
+  settings?: CalibrationSettings,
+  fixedPosition?: { yaw: number; pitch: number }
 ): FlickKey | null {
-  const { yaw, pitch } = faceState.headRotation;
+  // fixedPositionがある場合はそれを使用、なければ現在位置
+  const yaw = fixedPosition ? fixedPosition.yaw : faceState.headRotation.yaw;
+  const pitch = fixedPosition ? fixedPosition.pitch : faceState.headRotation.pitch;
 
   // キャリブレーション範囲を使用（デフォルトは±30度）
   const yawRange = settings?.yawRange ?? { min: -30, max: 30 };

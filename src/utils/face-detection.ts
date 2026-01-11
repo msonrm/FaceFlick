@@ -7,7 +7,8 @@ const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.4;
 
 export function analyzeFace(
   result: FaceLandmarkerResult,
-  settings?: CalibrationSettings
+  settings?: CalibrationSettings,
+  prevTriggerState?: { isTriggered: boolean; triggerType?: TriggerType }
 ): FaceState | null {
   if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
     return null;
@@ -34,20 +35,36 @@ export function analyzeFace(
     eyeBlinkRight = blendshapes.find(b => b.categoryName === 'eyeBlinkRight')?.score ?? 0;
   }
 
-  // 各トリガーの閾値を取得
-  const jawOpenThreshold = settings?.jawOpenThreshold ?? DEFAULT_JAW_OPEN_THRESHOLD;
-  const mouthPuckerThreshold = settings?.mouthPuckerThreshold ?? DEFAULT_MOUTH_PUCKER_THRESHOLD;
+  // 開始閾値と終了閾値を取得
+  const jawOpenStartThreshold = settings?.jawOpenThreshold ?? DEFAULT_JAW_OPEN_THRESHOLD;
+  const mouthPuckerStartThreshold = settings?.mouthPuckerThreshold ?? DEFAULT_MOUTH_PUCKER_THRESHOLD;
 
-  // どのトリガーがアクティブか判定（優先順位あり）
+  // 終了閾値（デフォルトは0.2）
+  const jawOpenEndThreshold = settings?.jawOpenEndThreshold ?? 0.2;
+  const mouthPuckerEndThreshold = settings?.mouthPuckerEndThreshold ?? 0.2;
+
+  // ヒステリシス判定：前回のトリガー状態に応じて異なる閾値を使用
   let isTriggered = false;
   let triggerType: TriggerType = null;
 
-  if (jawOpen > jawOpenThreshold) {
-    isTriggered = true;
-    triggerType = 'mouth_open';
-  } else if (mouthPucker > mouthPuckerThreshold) {
-    isTriggered = true;
-    triggerType = 'mouth_pucker';
+  if (prevTriggerState?.isTriggered) {
+    // すでにトリガー中 → 終了閾値で判定
+    if (jawOpen > jawOpenEndThreshold) {
+      isTriggered = true;
+      triggerType = 'mouth_open';
+    } else if (mouthPucker > mouthPuckerEndThreshold) {
+      isTriggered = true;
+      triggerType = 'mouth_pucker';
+    }
+  } else {
+    // トリガーなし → 開始閾値で判定
+    if (jawOpen > jawOpenStartThreshold) {
+      isTriggered = true;
+      triggerType = 'mouth_open';
+    } else if (mouthPucker > mouthPuckerStartThreshold) {
+      isTriggered = true;
+      triggerType = 'mouth_pucker';
+    }
   }
 
   // 頭の回転を計算
