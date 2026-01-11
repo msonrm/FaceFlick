@@ -39,11 +39,9 @@ export function analyzeFace(
   const jawOpenStartThreshold = settings?.jawOpenThreshold ?? DEFAULT_JAW_OPEN_THRESHOLD;
   const mouthPuckerStartThreshold = settings?.mouthPuckerThreshold ?? DEFAULT_MOUTH_PUCKER_THRESHOLD;
 
-  // 終了閾値は baseValue + 0.1（デフォルトは0.1 + 0.1 = 0.2）
-  const jawOpenBaseValue = settings?.jawOpenBaseValue ?? 0.1;
-  const mouthPuckerBaseValue = settings?.mouthPuckerBaseValue ?? 0.1;
-  const jawOpenEndThreshold = jawOpenBaseValue + 0.1;
-  const mouthPuckerEndThreshold = mouthPuckerBaseValue + 0.1;
+  // 終了閾値（デフォルトは0.2）
+  const jawOpenEndThreshold = settings?.jawOpenEndThreshold ?? 0.2;
+  const mouthPuckerEndThreshold = settings?.mouthPuckerEndThreshold ?? 0.2;
 
   // ヒステリシス判定：前回のトリガー状態に応じて異なる閾値を使用
   let isTriggered = false;

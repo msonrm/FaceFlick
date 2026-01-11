@@ -81,8 +81,8 @@ export function CalibrationModal({
     // 閾値バリデーション：開始閾値 >= 終了閾値を保証
     const validatedSettings = { ...localSettings };
 
-    const jawOpenEndThreshold = (localSettings.jawOpenBaseValue ?? 0.1) + 0.1;
-    const mouthPuckerEndThreshold = (localSettings.mouthPuckerBaseValue ?? 0.1) + 0.1;
+    const jawOpenEndThreshold = validatedSettings.jawOpenEndThreshold ?? 0.2;
+    const mouthPuckerEndThreshold = validatedSettings.mouthPuckerEndThreshold ?? 0.2;
 
     // 開始閾値が終了閾値より小さい場合は、終了閾値と同じ値に設定
     if (validatedSettings.jawOpenThreshold < jawOpenEndThreshold) {
@@ -221,8 +221,8 @@ export function CalibrationModal({
               <div className="text-xs mb-2">
                 <span>開始: {localSettings.jawOpenThreshold.toFixed(2)}</span>
                 <span className="mx-2">|</span>
-                <span>終了: {((localSettings.jawOpenBaseValue ?? 0.1) + 0.1).toFixed(2)}</span>
-                {localSettings.jawOpenThreshold < ((localSettings.jawOpenBaseValue ?? 0.1) + 0.1) && (
+                <span>終了: {(localSettings.jawOpenEndThreshold ?? 0.2).toFixed(2)}</span>
+                {localSettings.jawOpenThreshold < (localSettings.jawOpenEndThreshold ?? 0.2) && (
                   <span className="text-yellow-500 ml-2">
                     ⚠ 開始閾値は終了閾値以上である必要があります
                   </span>
@@ -230,16 +230,16 @@ export function CalibrationModal({
               </div>
               <Range
                 values={[
-                  (localSettings.jawOpenBaseValue ?? 0.1) + 0.1,
-                  Math.max(localSettings.jawOpenThreshold, (localSettings.jawOpenBaseValue ?? 0.1) + 0.1)
+                  localSettings.jawOpenEndThreshold ?? 0.2,
+                  Math.max(localSettings.jawOpenThreshold, localSettings.jawOpenEndThreshold ?? 0.2)
                 ]}
                 step={0.05}
                 min={0.1}
                 max={0.9}
                 onChange={(values) => {
-                  // values[1]のみ変更可能（開始閾値）
                   setLocalSettings({
                     ...localSettings,
+                    jawOpenEndThreshold: values[0],
                     jawOpenThreshold: values[1],
                   });
                 }}
@@ -252,8 +252,8 @@ export function CalibrationModal({
                       width: '100%',
                       background: getTrackBackground({
                         values: [
-                          (localSettings.jawOpenBaseValue ?? 0.1) + 0.1,
-                          Math.max(localSettings.jawOpenThreshold, (localSettings.jawOpenBaseValue ?? 0.1) + 0.1)
+                          localSettings.jawOpenEndThreshold ?? 0.2,
+                          Math.max(localSettings.jawOpenThreshold, localSettings.jawOpenEndThreshold ?? 0.2)
                         ],
                         colors: ['#555', '#4CAF50', '#555'],
                         min: 0.1,
@@ -265,7 +265,7 @@ export function CalibrationModal({
                     {children}
                   </div>
                 )}
-                renderThumb={({ index, props }) => (
+                renderThumb={({ props }) => (
                   <div
                     {...props}
                     style={{
@@ -273,15 +273,11 @@ export function CalibrationModal({
                       height: '20px',
                       width: '20px',
                       borderRadius: '50%',
-                      backgroundColor: index === 0 ? '#888' : '#4CAF50',
+                      backgroundColor: '#4CAF50',
                       border: '2px solid #fff',
-                      cursor: index === 0 ? 'not-allowed' : 'pointer',
+                      cursor: 'pointer',
                     }}
-                  >
-                    <div className="text-xs text-center mt-6 whitespace-nowrap">
-                      {index === 0 ? '終了' : '開始'}
-                    </div>
-                  </div>
+                  />
                 )}
                 allowOverlap={false}
               />
@@ -295,8 +291,8 @@ export function CalibrationModal({
               <div className="text-xs mb-2">
                 <span>開始: {localSettings.mouthPuckerThreshold.toFixed(2)}</span>
                 <span className="mx-2">|</span>
-                <span>終了: {((localSettings.mouthPuckerBaseValue ?? 0.1) + 0.1).toFixed(2)}</span>
-                {localSettings.mouthPuckerThreshold < ((localSettings.mouthPuckerBaseValue ?? 0.1) + 0.1) && (
+                <span>終了: {(localSettings.mouthPuckerEndThreshold ?? 0.2).toFixed(2)}</span>
+                {localSettings.mouthPuckerThreshold < (localSettings.mouthPuckerEndThreshold ?? 0.2) && (
                   <span className="text-yellow-500 ml-2">
                     ⚠ 開始閾値は終了閾値以上である必要があります
                   </span>
@@ -304,8 +300,8 @@ export function CalibrationModal({
               </div>
               <Range
                 values={[
-                  (localSettings.mouthPuckerBaseValue ?? 0.1) + 0.1,
-                  Math.max(localSettings.mouthPuckerThreshold, (localSettings.mouthPuckerBaseValue ?? 0.1) + 0.1)
+                  localSettings.mouthPuckerEndThreshold ?? 0.2,
+                  Math.max(localSettings.mouthPuckerThreshold, localSettings.mouthPuckerEndThreshold ?? 0.2)
                 ]}
                 step={0.05}
                 min={0.1}
@@ -313,6 +309,7 @@ export function CalibrationModal({
                 onChange={(values) => {
                   setLocalSettings({
                     ...localSettings,
+                    mouthPuckerEndThreshold: values[0],
                     mouthPuckerThreshold: values[1],
                   });
                 }}
@@ -325,8 +322,8 @@ export function CalibrationModal({
                       width: '100%',
                       background: getTrackBackground({
                         values: [
-                          (localSettings.mouthPuckerBaseValue ?? 0.1) + 0.1,
-                          Math.max(localSettings.mouthPuckerThreshold, (localSettings.mouthPuckerBaseValue ?? 0.1) + 0.1)
+                          localSettings.mouthPuckerEndThreshold ?? 0.2,
+                          Math.max(localSettings.mouthPuckerThreshold, localSettings.mouthPuckerEndThreshold ?? 0.2)
                         ],
                         colors: ['#555', '#4CAF50', '#555'],
                         min: 0.1,
@@ -338,7 +335,7 @@ export function CalibrationModal({
                     {children}
                   </div>
                 )}
-                renderThumb={({ index, props }) => (
+                renderThumb={({ props }) => (
                   <div
                     {...props}
                     style={{
@@ -346,15 +343,11 @@ export function CalibrationModal({
                       height: '20px',
                       width: '20px',
                       borderRadius: '50%',
-                      backgroundColor: index === 0 ? '#888' : '#4CAF50',
+                      backgroundColor: '#4CAF50',
                       border: '2px solid #fff',
-                      cursor: index === 0 ? 'not-allowed' : 'pointer',
+                      cursor: 'pointer',
                     }}
-                  >
-                    <div className="text-xs text-center mt-6 whitespace-nowrap">
-                      {index === 0 ? '終了' : '開始'}
-                    </div>
-                  </div>
+                  />
                 )}
                 allowOverlap={false}
               />

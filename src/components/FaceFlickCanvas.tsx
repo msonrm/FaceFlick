@@ -153,11 +153,17 @@ export function FaceFlickCanvas() {
             const jawOpenBaseValue = median(samples.map(s => s.jawOpen));
             const mouthPuckerBaseValue = median(samples.map(s => s.mouthPucker));
 
+            // 終了閾値をベース値 + 0.1 で初期化
+            const jawOpenEndThreshold = jawOpenBaseValue + 0.1;
+            const mouthPuckerEndThreshold = mouthPuckerBaseValue + 0.1;
+
             // CalibrationSettingsを更新
             setCalibrationSettings(prev => ({
               ...prev,
               jawOpenBaseValue,
               mouthPuckerBaseValue,
+              jawOpenEndThreshold,
+              mouthPuckerEndThreshold,
             }));
 
             console.log('キャリブレーション完了:');
@@ -165,6 +171,8 @@ export function FaceFlickCanvas() {
             console.log('  基準Pitch =', avgPitch.toFixed(2), '度');
             console.log('  口開けベース =', jawOpenBaseValue.toFixed(3));
             console.log('  口すぼめベース =', mouthPuckerBaseValue.toFixed(3));
+            console.log('  口開け終了閾値 =', jawOpenEndThreshold.toFixed(3));
+            console.log('  口すぼめ終了閾値 =', mouthPuckerEndThreshold.toFixed(3));
           } else {
             console.log('キャリブレーション完了（サンプルなし・デフォルト値を使用）');
             baseYawRef.current = 0;
