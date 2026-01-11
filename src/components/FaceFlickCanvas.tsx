@@ -792,9 +792,8 @@ export function FaceFlickCanvas() {
     // SNES風フラットシェーディング + ランバート反射
     // MediaPipe公式のFACE_LANDMARKS_TESSELATIONデータを使用
 
-    // 加算合成を使用してポリゴンのエッジを目立たなくする
+    // ストロークとぼかしでポリゴンのエッジを目立たなくする
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
 
     // 光源方向（正規化されたベクトル）: 左上から
     const lightDir = { x: 0.5, y: -0.8, z: 0.3 };
@@ -900,16 +899,28 @@ export function FaceFlickCanvas() {
       };
 
       // 三角形を塗りつぶし（フラットシェーディング）
-      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      const color = `rgb(${r}, ${g}, ${b})`;
+
+      // ぼかし効果でエッジを柔らかく
+      ctx.shadowBlur = 1;
+      ctx.shadowColor = color;
+
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 0.5;
+
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y);
       ctx.lineTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
     }
 
-    // 合成モードを元に戻す
+    // エフェクトをリセット
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
     ctx.restore();
   }
 
