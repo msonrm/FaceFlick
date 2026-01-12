@@ -84,6 +84,9 @@ export function FaceFlickCanvas() {
   const prevTriggerStateRef = useRef<{ isTriggered: boolean; triggerType?: any } | undefined>(undefined); // 前フレームのトリガー状態（ヒステリシス用）
   const triggerStartPositionRef = useRef<{ yaw: number; pitch: number } | null>(null); // トリガー開始時の顔位置（フォーカス固定用）
   const prevBlendshapesRef = useRef<{ jawOpen: number; mouthPucker: number; mouthSmileLeft: number; mouthSmileRight: number; eyeBlinkLeft: number; eyeBlinkRight: number; browInnerUp: number } | undefined>(undefined); // 前フレームのBlendshapes（平滑化用）
+  const canvasSizeRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 }); // Canvas サイズキャッシュ（パフォーマンス最適化用）
+  const prevDebugInfoRef = useRef<string>(''); // デバッグ情報のキャッシュ（変化検出用）
+  const prevFaceStateKeyRef = useRef<string>(''); // FaceStateのキャッシュ（変化検出用）
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -109,10 +112,17 @@ export function FaceFlickCanvas() {
       if (!ctx || !canvas || !video) return;
 
       // キャンバスサイズをビューポートサイズに合わせる（高DPI対応）
+      // パフォーマンス最適化: サイズ変更時のみ更新
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
+      const newWidth = rect.width * dpr;
+      const newHeight = rect.height * dpr;
+
+      if (canvasSizeRef.current.width !== newWidth || canvasSizeRef.current.height !== newHeight) {
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+        canvasSizeRef.current = { width: newWidth, height: newHeight };
+      }
 
       // 高DPI用にスケーリング
       ctx.scale(dpr, dpr);
@@ -239,10 +249,14 @@ export function FaceFlickCanvas() {
           lastDetectedFaceStateRef.current = faceState;
           lastDetectedResultRef.current = result;
 
-          // 現在の顔の状態を保存
-          setCurrentFaceState(faceState);
+          // 現在の顔の状態を保存（パフォーマンス最適化: 重要な値が変化したときのみ更新）
+          const faceStateKey = `${faceState.isTriggered}-${faceState.triggerType}-${Math.round(faceState.headRotation.yaw)}-${Math.round(faceState.headRotation.pitch)}`;
+          if (faceStateKey !== prevFaceStateKeyRef.current) {
+            setCurrentFaceState(faceState);
+            prevFaceStateKeyRef.current = faceStateKey;
+          }
 
-          // デバッグ情報を更新
+          // デバッグ情報を更新（パフォーマンス最適化: 値が変化したときのみ更新）
           const allBlendshapes = result.faceBlendshapes && result.faceBlendshapes.length > 0
             ? result.faceBlendshapes[0].categories.map(b => ({
                 name: b.categoryName,
@@ -250,12 +264,16 @@ export function FaceFlickCanvas() {
               }))
             : [];
 
-          setDebugInfo({
-            blendshapes: faceState.blendshapes,
-            allBlendshapes,
-            triggerType: faceState.triggerType || 'none',
-            headRotation: faceState.headRotation,
-          });
+          const debugKey = `${faceState.triggerType}-${Math.round(faceState.headRotation.yaw)}-${Math.round(faceState.headRotation.pitch)}-${Math.round(faceState.blendshapes.jawOpen * 100)}-${Math.round(faceState.blendshapes.mouthPucker * 100)}`;
+          if (debugKey !== prevDebugInfoRef.current) {
+            setDebugInfo({
+              blendshapes: faceState.blendshapes,
+              allBlendshapes,
+              triggerType: faceState.triggerType || 'none',
+              headRotation: faceState.headRotation,
+            });
+            prevDebugInfoRef.current = debugKey;
+          }
 
           // キャリブレーション中はサンプリングのみ実行
           if (isCalibrating) {
@@ -299,21 +317,24 @@ export function FaceFlickCanvas() {
             hasVibratedSmileRef.current = false;
             prevBlendshapesRef.current = undefined; // 平滑化状態をリセット
 
-            // デバッグ情報をクリア
-            setDebugInfo({
-              blendshapes: {
-                jawOpen: 0,
-                mouthPucker: 0,
-                mouthSmileLeft: 0,
-                mouthSmileRight: 0,
-                eyeBlinkLeft: 0,
-                eyeBlinkRight: 0,
-                browInnerUp: 0,
-              },
-              allBlendshapes: [],
-              triggerType: 'none',
-              headRotation: { yaw: 0, pitch: 0, roll: 0 },
-            });
+            // デバッグ情報をクリア（パフォーマンス最適化: 一度だけ更新）
+            if (prevDebugInfoRef.current !== 'cleared') {
+              setDebugInfo({
+                blendshapes: {
+                  jawOpen: 0,
+                  mouthPucker: 0,
+                  mouthSmileLeft: 0,
+                  mouthSmileRight: 0,
+                  eyeBlinkLeft: 0,
+                  eyeBlinkRight: 0,
+                  browInnerUp: 0,
+                },
+                allBlendshapes: [],
+                triggerType: 'none',
+                headRotation: { yaw: 0, pitch: 0, roll: 0 },
+              });
+              prevDebugInfoRef.current = 'cleared';
+            }
           }
         }
 
@@ -352,11 +373,11 @@ export function FaceFlickCanvas() {
   function detectGesture(
     history: Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>
   ): 'head_shake' | null {
-    // 最低0.5秒のデータが必要
-    if (history.length < 10) return null;
+    // 最低0.3秒のデータが必要（左→右→左の動きを検出）
+    if (history.length < 6) return null;
 
     const timeSpan = history[history.length - 1].timestamp - history[0].timestamp;
-    if (timeSpan < 500) return null;
+    if (timeSpan < 300) return null;
 
     // ヘッドシェイク検出（左右に振る）
     // yaw値の変化を見て、方向転換が2回以上あるかチェック
@@ -365,7 +386,7 @@ export function FaceFlickCanvas() {
 
     for (let i = 1; i < history.length; i++) {
       const yawDiff = history[i].yaw - history[i - 1].yaw;
-      if (Math.abs(yawDiff) > 3) { // 3度以上の変化
+      if (Math.abs(yawDiff) > 2) { // 2度以上の変化
         const currentDirection = yawDiff > 0 ? 'left' : 'right';
         if (lastYawDirection && lastYawDirection !== currentDirection) {
           yawDirectionChanges++;
