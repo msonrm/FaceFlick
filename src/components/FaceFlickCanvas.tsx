@@ -133,7 +133,8 @@ export function FaceFlickCanvas() {
       const newWidth = rect.width * dpr;
       const newHeight = rect.height * dpr;
 
-      if (canvasSizeRef.current.width !== newWidth || canvasSizeRef.current.height !== newHeight) {
+      // Canvas要素が再作成された場合も検出するため、canvas.width/heightも比較
+      if (canvas.width !== newWidth || canvas.height !== newHeight) {
         canvas.width = newWidth;
         canvas.height = newHeight;
         canvasSizeRef.current = { width: newWidth, height: newHeight };
