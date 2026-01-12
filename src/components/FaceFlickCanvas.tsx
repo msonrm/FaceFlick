@@ -138,8 +138,8 @@ export function FaceFlickCanvas() {
         canvasSizeRef.current = { width: newWidth, height: newHeight };
       }
 
-      // 高DPI用にスケーリング
-      ctx.scale(dpr, dpr);
+      // 高DPI用にスケーリング（setTransformで累積を防ぐ）
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       // ビデオを描画（反転）
       ctx.save();
