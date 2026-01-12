@@ -118,12 +118,13 @@ export function FaceFlickCanvas() {
       return;
     }
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
     function animate(timestamp: number) {
-      if (!ctx || !canvas || !video) return;
+      // 毎フレームcanvasRef.currentを参照（条件付きレンダリングでCanvas再作成時に対応）
+      const canvas = canvasRef.current;
+      if (!canvas || !video) return;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
       // キャンバスサイズをビューポートサイズに合わせる（高DPI対応）
       // パフォーマンス最適化: サイズ変更時のみ更新
