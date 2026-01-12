@@ -88,6 +88,20 @@ export function FaceFlickCanvas() {
   const prevDebugInfoRef = useRef<string>(''); // デバッグ情報のキャッシュ（変化検出用）
   const prevFaceStateKeyRef = useRef<string>(''); // FaceStateのキャッシュ（変化検出用）
 
+  // パフォーマンス最適化: animate関数内で最新の値を参照するためのref
+  const inputStateRef = useRef(inputState);
+  const inputTextRef = useRef(inputText);
+  const calibrationSettingsRef = useRef(calibrationSettings);
+  const faceDisplayModeRef = useRef(faceDisplayMode);
+  const isCalibratingRef = useRef(isCalibrating);
+
+  // refを最新の値で更新
+  inputStateRef.current = inputState;
+  inputTextRef.current = inputText;
+  calibrationSettingsRef.current = calibrationSettings;
+  faceDisplayModeRef.current = faceDisplayMode;
+  isCalibratingRef.current = isCalibrating;
+
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
     if (gestureFeedback) {
@@ -134,7 +148,7 @@ export function FaceFlickCanvas() {
       ctx.restore();
 
       // 初期キャリブレーション処理（顔検出の前に実行）
-      if (isCalibrating) {
+      if (isCalibratingRef.current) {
         const now = Date.now();
         if (calibrationStartTimeRef.current === null) {
           calibrationStartTimeRef.current = now;
@@ -225,7 +239,7 @@ export function FaceFlickCanvas() {
       const now = Date.now();
 
       if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
-        const faceState = analyzeFace(result, calibrationSettings, prevTriggerStateRef.current, prevBlendshapesRef.current);
+        const faceState = analyzeFace(result, calibrationSettingsRef.current, prevTriggerStateRef.current, prevBlendshapesRef.current);
         if (faceState) {
           // 次フレーム用にトリガー状態を保存
           prevTriggerStateRef.current = {
@@ -276,7 +290,7 @@ export function FaceFlickCanvas() {
           }
 
           // キャリブレーション中はサンプリングのみ実行
-          if (isCalibrating) {
+          if (isCalibratingRef.current) {
             calibrationSamplesRef.current.push({
               yaw: faceState.headRotation.yaw,
               pitch: faceState.headRotation.pitch,
@@ -291,7 +305,7 @@ export function FaceFlickCanvas() {
           }
 
           // 顔のランドマークを描画（モードに応じて）
-          if (faceDisplayMode !== 'none') {
+          if (faceDisplayModeRef.current !== 'none') {
             drawFaceLandmarks(ctx, faceState.landmarks, rect.width, rect.height, result);
           }
         }
@@ -305,7 +319,7 @@ export function FaceFlickCanvas() {
           const lostDuration = now - faceDetectionLostTimeRef.current;
           if (lostDuration >= 300) {
             // 入力状態をリセット（キャンセル）
-            if (inputState.type !== 'idle') {
+            if (inputStateRef.current.type !== 'idle') {
               setInputState({ type: 'idle' });
             }
             // 各種タイマーをリセット
@@ -339,7 +353,7 @@ export function FaceFlickCanvas() {
         }
 
         // 最後に検出された顔の状態で描画を保持（プライバシー保護）
-        if (lastDetectedFaceStateRef.current && lastDetectedResultRef.current && faceDisplayMode !== 'none') {
+        if (lastDetectedFaceStateRef.current && lastDetectedResultRef.current && faceDisplayModeRef.current !== 'none') {
           drawFaceLandmarks(
             ctx,
             lastDetectedFaceStateRef.current.landmarks,
@@ -368,7 +382,8 @@ export function FaceFlickCanvas() {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [video, cameraReady, landmarkerReady, detectFace, inputState, inputText, calibrationSettings, faceDisplayMode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video, cameraReady, landmarkerReady, detectFace]); // inputState, inputText, calibrationSettings, faceDisplayModeはrefで参照
 
   function detectGesture(
     history: Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>
@@ -409,7 +424,7 @@ export function FaceFlickCanvas() {
 
     // 頭の回転に平滑化を適用（EMA: 指数移動平均）
     // フリック中は速く反応、通常時は滑らかに
-    const alpha = inputState.type === 'flicking' ? 0.7 : 0.4;
+    const alpha = inputStateRef.current.type === 'flicking' ? 0.7 : 0.4;
     if (smoothedHeadRotationRef.current === null) {
       // 初回は現在値をそのまま使用
       smoothedHeadRotationRef.current = {
@@ -436,9 +451,9 @@ export function FaceFlickCanvas() {
     // トリガー認識中はフォーカスを固定（トリガー開始位置を基準に）
     let selectedKey;
     if (faceState.isTriggered && triggerStartPositionRef.current) {
-      selectedKey = getSelectedKey(smoothedState, calibrationSettings, triggerStartPositionRef.current);
+      selectedKey = getSelectedKey(smoothedState, calibrationSettingsRef.current, triggerStartPositionRef.current);
     } else {
-      selectedKey = getSelectedKey(smoothedState, calibrationSettings);
+      selectedKey = getSelectedKey(smoothedState, calibrationSettingsRef.current);
     }
 
     // 頭の回転履歴を更新（ジェスチャー検出用：生の値を使用）
@@ -468,7 +483,7 @@ export function FaceFlickCanvas() {
     }
 
     // idle状態かつトリガーなしの場合のみ、ジェスチャー検出を行う
-    if (inputState.type === 'idle' && !faceState.isTriggered && now - lastGestureTimeRef.current > 1000) {
+    if (inputStateRef.current.type === 'idle' && !faceState.isTriggered && now - lastGestureTimeRef.current > 1000) {
 
       // 【優先度2】首を振る（バックスペース）
       const gesture = detectGesture(headRotationHistoryRef.current);
@@ -494,8 +509,8 @@ export function FaceFlickCanvas() {
         // 「や」のキーにハイライトがあるときのみ発動
         const isSmiling =
           selectedKey?.base === 'や' &&
-          faceState.blendshapes.mouthSmileLeft >= calibrationSettings.smileThreshold &&
-          faceState.blendshapes.mouthSmileRight >= calibrationSettings.smileThreshold;
+          faceState.blendshapes.mouthSmileLeft >= calibrationSettingsRef.current.smileThreshold &&
+          faceState.blendshapes.mouthSmileRight >= calibrationSettingsRef.current.smileThreshold;
 
         if (isSmiling) {
           if (smileStartTimeRef.current === null) {
@@ -510,7 +525,7 @@ export function FaceFlickCanvas() {
             const smileDuration = now - smileStartTimeRef.current;
             if (smileDuration >= 1500 && !hasVibratedSmileRef.current) {
               // 読み上げ&クリア
-              speakText(inputText, 'human_high');
+              speakText(inputTextRef.current, 'human_high');
               setInputText('');
               setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
               lastGestureTimeRef.current = now;
@@ -533,7 +548,7 @@ export function FaceFlickCanvas() {
           // 「や」のキーにハイライトがあるときのみ発動
           const isBrowRaised =
             selectedKey?.base === 'や' &&
-            faceState.blendshapes.browInnerUp >= (calibrationSettings.browInnerUpThreshold ?? 0.5);
+            faceState.blendshapes.browInnerUp >= (calibrationSettingsRef.current.browInnerUpThreshold ?? 0.5);
 
           if (isBrowRaised) {
             if (browRaiseStartTimeRef.current === null) {
@@ -545,7 +560,7 @@ export function FaceFlickCanvas() {
               const raiseDuration = now - browRaiseStartTimeRef.current;
               if (raiseDuration >= 1500 && !hasVibratedBrowRef.current) {
                 // 読み上げ&クリア
-                speakText(inputText, 'human_high');
+                speakText(inputTextRef.current, 'human_high');
                 setInputText('');
                 setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
                 lastGestureTimeRef.current = now;
@@ -567,7 +582,7 @@ export function FaceFlickCanvas() {
       }
     }
 
-    if (inputState.type === 'idle') {
+    if (inputStateRef.current.type === 'idle') {
       // トリガーがアクティブでキーが選択されている
       if (faceState.isTriggered && selectedKey) {
         // 文字確定後のクールダウン期間をチェック（連続入力防止）
@@ -606,54 +621,54 @@ export function FaceFlickCanvas() {
         triggerStartPositionRef.current = null;
         lastConfirmTimeRef.current = null;
       }
-    } else if (inputState.type === 'selecting') {
+    } else if (inputStateRef.current.type === 'selecting') {
       // トリガーが解除された = 入力確定
-      if (!faceState.isTriggered || faceState.triggerType !== inputState.triggerType) {
-        const char = getCharFromFlick(inputState.key, null);
+      if (!faceState.isTriggered || faceState.triggerType !== inputStateRef.current.triggerType) {
+        const char = getCharFromFlick(inputStateRef.current.key, null);
         addCharacter(char);
         setInputState({ type: 'idle' });
         triggerStartTimeRef.current = null; // 保持時間をリセット
       } else {
         // トリガーを維持したまま = フリック判定（ホールド位置を基準に、平滑化された値を使用）
-        const direction = getFlickDirection(smoothedState, inputState.holdPosition, calibrationSettings);
+        const direction = getFlickDirection(smoothedState, inputStateRef.current.holdPosition, calibrationSettingsRef.current);
         if (direction) {
           setInputState({
             type: 'flicking',
-            key: inputState.key,
+            key: inputStateRef.current.key,
             direction,
-            triggerType: inputState.triggerType,
-            holdPosition: inputState.holdPosition,
+            triggerType: inputStateRef.current.triggerType,
+            holdPosition: inputStateRef.current.holdPosition,
           });
         }
       }
-    } else if (inputState.type === 'flicking') {
+    } else if (inputStateRef.current.type === 'flicking') {
       // トリガーが解除された = フリック入力確定
-      if (!faceState.isTriggered || faceState.triggerType !== inputState.triggerType) {
-        const char = getCharFromFlick(inputState.key, inputState.direction);
+      if (!faceState.isTriggered || faceState.triggerType !== inputStateRef.current.triggerType) {
+        const char = getCharFromFlick(inputStateRef.current.key, inputStateRef.current.direction);
         addCharacter(char);
         setInputState({ type: 'idle' });
         triggerStartTimeRef.current = null; // 保持時間をリセット
       }
       // フリック中に方向が変わったら更新（ホールド位置を基準に、平滑化された値を使用）
       else {
-        const direction = getFlickDirection(smoothedState, inputState.holdPosition, calibrationSettings);
-        if (direction !== inputState.direction) {
+        const direction = getFlickDirection(smoothedState, inputStateRef.current.holdPosition, calibrationSettingsRef.current);
+        if (direction !== inputStateRef.current.direction) {
           if (direction) {
             // 方向が変わった場合
             setInputState({
               type: 'flicking',
-              key: inputState.key,
+              key: inputStateRef.current.key,
               direction,
-              triggerType: inputState.triggerType,
-              holdPosition: inputState.holdPosition,
+              triggerType: inputStateRef.current.triggerType,
+              holdPosition: inputStateRef.current.holdPosition,
             });
           } else {
             // 中央に戻った場合
             setInputState({
               type: 'selecting',
-              key: inputState.key,
-              triggerType: inputState.triggerType,
-              holdPosition: inputState.holdPosition,
+              key: inputStateRef.current.key,
+              triggerType: inputStateRef.current.triggerType,
+              holdPosition: inputStateRef.current.holdPosition,
             });
           }
         }
@@ -763,7 +778,7 @@ export function FaceFlickCanvas() {
     height: number,
     _result: any
   ) {
-    if (faceDisplayMode === 'points') {
+    if (faceDisplayModeRef.current === 'points') {
       // ポイント表示（Instagram風 with glow）
       for (const landmark of landmarks) {
         const x = width - landmark.x * width; // 反転
@@ -798,7 +813,7 @@ export function FaceFlickCanvas() {
       // Shadowをリセット
       ctx.shadowBlur = 0;
       ctx.shadowColor = 'transparent';
-    } else if (faceDisplayMode === 'mesh') {
+    } else if (faceDisplayModeRef.current === 'mesh') {
       // メッシュ表示（Max Headroom風ワイヤーフレーム）
       drawFaceMesh(ctx, landmarks, width, height);
     }
@@ -965,8 +980,8 @@ export function FaceFlickCanvas() {
 
     // 現在顔が向いているキーを取得（idle状態のみ、平滑化された値を使用）
     // 顔が検出されていない場合はハイライトを表示しない
-    const currentKey = (inputState.type === 'idle' && smoothedFaceState && isFaceDetected)
-      ? getSelectedKey(smoothedFaceState, calibrationSettings)
+    const currentKey = (inputStateRef.current.type === 'idle' && smoothedFaceState && isFaceDetected)
+      ? getSelectedKey(smoothedFaceState, calibrationSettingsRef.current)
       : null;
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
@@ -985,11 +1000,11 @@ export function FaceFlickCanvas() {
 
         // トリガーでホールド中のキー
         const isSelected =
-          inputState.type !== 'idle' &&
-          inputState.key.base === key.base;
+          inputStateRef.current.type !== 'idle' &&
+          inputStateRef.current.key.base === key.base;
 
         // 顔が向いているキー（トリガーなし時のみ）
-        const isHovered = !isSelected && inputState.type === 'idle' && currentKey && currentKey.base === key.base;
+        const isHovered = !isSelected && inputStateRef.current.type === 'idle' && currentKey && currentKey.base === key.base;
 
         // ハイライト表示
         if (isSelected) {
@@ -1003,7 +1018,7 @@ export function FaceFlickCanvas() {
         }
 
         // フリック方向の判定（isSelectedの場合のみ）
-        const activeDirection = isSelected && inputState.type === 'flicking' ? inputState.direction : null;
+        const activeDirection = isSelected && inputStateRef.current.type === 'flicking' ? inputStateRef.current.direction : null;
         const isCenterActive = isSelected && !activeDirection;
 
         // キーのテキストを描画（ドロップシャドウ付き）
@@ -1143,7 +1158,7 @@ export function FaceFlickCanvas() {
     const lineHeight = 30;
     const maxWidth = width - 40;
     const lines: string[] = [];
-    const paragraphs = inputText.split('\n');
+    const paragraphs = inputTextRef.current.split('\n');
 
     paragraphs.forEach((paragraph, paragraphIndex) => {
       let currentLine = '';
@@ -1192,8 +1207,8 @@ export function FaceFlickCanvas() {
     ctx.textBaseline = 'middle';
     const triggerY = triggerAreaTop + triggerGestureHeight / 2;
 
-    if (inputState.type !== 'idle') {
-      const triggerText = inputState.triggerType === 'mouth_open' ? '口開け 👄' : '口すぼめ 💋';
+    if (inputStateRef.current.type !== 'idle') {
+      const triggerText = inputStateRef.current.triggerType === 'mouth_open' ? '口開け 👄' : '口すぼめ 💋';
       ctx.fillStyle = '#ffff00';
       ctx.fillText(`トリガー: ${triggerText}`, 20, triggerY);
     } else if (smileStartTimeRef.current !== null) {
@@ -1213,11 +1228,11 @@ export function FaceFlickCanvas() {
     ctx.textBaseline = 'middle';
     const flickY = flickAreaTop + flickFeedbackHeight / 2;
 
-    if (inputState.type === 'selecting') {
+    if (inputStateRef.current.type === 'selecting') {
       ctx.fillStyle = '#ffff00';
       ctx.fillText('フリック: 中央', 20, flickY);
-    } else if (inputState.type === 'flicking') {
-      const directionText = getDirectionDisplayText(inputState.direction);
+    } else if (inputStateRef.current.type === 'flicking') {
+      const directionText = getDirectionDisplayText(inputStateRef.current.direction);
       ctx.fillStyle = '#00ff00';
       ctx.fillText(`フリック: ${directionText}`, 20, flickY);
     }
