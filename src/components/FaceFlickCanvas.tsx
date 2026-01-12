@@ -118,12 +118,13 @@ export function FaceFlickCanvas() {
       return;
     }
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
     function animate(timestamp: number) {
-      if (!ctx || !canvas || !video) return;
+      // 毎フレームcanvasRef.currentを参照（条件付きレンダリングでCanvas再作成時に対応）
+      const canvas = canvasRef.current;
+      if (!canvas || !video) return;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
       // キャンバスサイズをビューポートサイズに合わせる（高DPI対応）
       // パフォーマンス最適化: サイズ変更時のみ更新
@@ -132,14 +133,15 @@ export function FaceFlickCanvas() {
       const newWidth = rect.width * dpr;
       const newHeight = rect.height * dpr;
 
-      if (canvasSizeRef.current.width !== newWidth || canvasSizeRef.current.height !== newHeight) {
+      // Canvas要素が再作成された場合も検出するため、canvas.width/heightも比較
+      if (canvas.width !== newWidth || canvas.height !== newHeight) {
         canvas.width = newWidth;
         canvas.height = newHeight;
         canvasSizeRef.current = { width: newWidth, height: newHeight };
       }
 
-      // 高DPI用にスケーリング
-      ctx.scale(dpr, dpr);
+      // 高DPI用にスケーリング（setTransformで累積を防ぐ）
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       // ビデオを描画（反転）
       ctx.save();
