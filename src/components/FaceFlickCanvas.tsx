@@ -24,6 +24,8 @@ import {
   UI_LAYOUT,
 } from '../utils/canvas';
 import type { FaceDisplayMode, GestureFeedback, DebugInfo } from '../utils/canvas';
+import { toggleCharacter, vibrate } from '../utils/character-utils';
+import { speakText } from '../utils/speech';
 
 export function FaceFlickCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -519,10 +521,7 @@ export function FaceFlickCanvas() {
         setGestureFeedback({ type: 'backspace', timestamp: now });
         lastGestureTimeRef.current = now;
         headRotationHistoryRef.current = []; // 履歴をクリア
-        // 振動を発生
-        if (navigator.vibrate) {
-          navigator.vibrate(100); // 100ms振動
-        }
+        vibrate();
         // 首振りが検出されたので、笑顔と眉上げのタイマーをリセット
         smileStartTimeRef.current = null;
         hasVibratedSmileRef.current = false;
@@ -555,10 +554,7 @@ export function FaceFlickCanvas() {
               setInputText('');
               setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
               lastGestureTimeRef.current = now;
-              // 振動を発生
-              if (navigator.vibrate) {
-                navigator.vibrate(200); // 200ms振動
-              }
+              vibrate(200);
               hasVibratedSmileRef.current = true;
               smileStartTimeRef.current = null; // リセット
               return;
@@ -590,10 +586,7 @@ export function FaceFlickCanvas() {
                 setInputText('');
                 setGestureFeedback({ type: 'copy_speak_clear', timestamp: now });
                 lastGestureTimeRef.current = now;
-                // 振動を発生
-                if (navigator.vibrate) {
-                  navigator.vibrate(200); // 200ms振動
-                }
+                vibrate(200);
                 hasVibratedBrowRef.current = true;
                 browRaiseStartTimeRef.current = null; // リセット
                 return;
@@ -705,10 +698,7 @@ export function FaceFlickCanvas() {
   function addCharacter(char: string) {
     if (char === '⌫') {
       setInputText((prev) => prev.slice(0, -1));
-      // 振動を発生
-      if (navigator.vibrate) {
-        navigator.vibrate(100); // 100ms振動
-      }
+      vibrate();
     } else if (char === '゛゜小') {
       // 直前の文字を濁点・半濁点・小文字・通常文字でトグル
       setInputText((prev) => {
@@ -718,112 +708,13 @@ export function FaceFlickCanvas() {
         const newChar = toggleCharacter(lastChar);
         return restText + newChar;
       });
-      // 振動を発生
-      if (navigator.vibrate) {
-        navigator.vibrate(100); // 100ms振動
-      }
+      vibrate();
     } else if (char) {
       setInputText((prev) => prev + char);
-      // 振動を発生
-      if (navigator.vibrate) {
-        navigator.vibrate(100); // 100ms振動
-      }
+      vibrate();
     }
     // 文字確定時刻を記録（連続入力防止用）
     lastConfirmTimeRef.current = Date.now();
-  }
-
-  function toggleCharacter(char: string): string {
-    // 「つ」の特殊なサイクル: つ→っ→づ→つ
-    if (char === 'つ') return 'っ';
-    if (char === 'っ') return 'づ';
-    if (char === 'づ') return 'つ';
-
-    // 濁点変換マップ
-    const dakutenMap: Record<string, string> = {
-      'か': 'が', 'き': 'ぎ', 'く': 'ぐ', 'け': 'げ', 'こ': 'ご',
-      'さ': 'ざ', 'し': 'じ', 'す': 'ず', 'せ': 'ぜ', 'そ': 'ぞ',
-      'た': 'だ', 'ち': 'ぢ', 'て': 'で', 'と': 'ど',
-      'は': 'ば', 'ひ': 'び', 'ふ': 'ぶ', 'へ': 'べ', 'ほ': 'ぼ',
-    };
-
-    // 半濁点変換マップ（は行のみ）
-    const handakutenMap: Record<string, string> = {
-      'ば': 'ぱ', 'び': 'ぴ', 'ぶ': 'ぷ', 'べ': 'ぺ', 'ぼ': 'ぽ',
-    };
-
-    // 小文字変換マップ
-    const smallMap: Record<string, string> = {
-      'あ': 'ぁ', 'い': 'ぃ', 'う': 'ぅ', 'え': 'ぇ', 'お': 'ぉ',
-      'や': 'ゃ', 'ゆ': 'ゅ', 'よ': 'ょ', 'わ': 'ゎ',
-    };
-
-    // 逆マップ（元に戻す）
-    const reverseDakuten: Record<string, string> = Object.fromEntries(
-      Object.entries(dakutenMap).map(([k, v]) => [v, k])
-    );
-    const reverseHandakuten: Record<string, string> = Object.fromEntries(
-      Object.entries(handakutenMap).map(([k, v]) => [v, k])
-    );
-    const reverseSmall: Record<string, string> = Object.fromEntries(
-      Object.entries(smallMap).map(([k, v]) => [v, k])
-    );
-
-    // は行の濁点→半濁点→通常のサイクル
-    if (handakutenMap[char]) {
-      return handakutenMap[char];
-    }
-    if (reverseHandakuten[char]) {
-      return reverseDakuten[reverseHandakuten[char]] || char;
-    }
-
-    // 濁点のサイクル（通常→濁点→通常）
-    if (dakutenMap[char]) {
-      return dakutenMap[char];
-    }
-    if (reverseDakuten[char]) {
-      return reverseDakuten[char];
-    }
-
-    // 小文字のサイクル（通常→小文字→通常）
-    if (smallMap[char]) {
-      return smallMap[char];
-    }
-    if (reverseSmall[char]) {
-      return reverseSmall[char];
-    }
-
-    // 変換できない文字はそのまま
-    return char;
-  }
-
-  function speakText(text: string, voice: 'robot_low' | 'robot_normal' | 'human_high') {
-    if (!text || !window.speechSynthesis) return;
-
-    // 特殊文字の読み替え
-    let spokenText = text;
-    if (text === '゛゜小') {
-      spokenText = 'てん';
-    } else if (text === '、') {
-      spokenText = 'くとうてん';
-    }
-
-    const utterance = new SpeechSynthesisUtterance(spokenText);
-    utterance.lang = 'ja-JP';
-
-    if (voice === 'robot_low') {
-      utterance.rate = 1.0; // 普通
-      utterance.pitch = 0.8; // 低め
-    } else if (voice === 'robot_normal') {
-      utterance.rate = 1.0; // 普通
-      utterance.pitch = 1.0; // 普通
-    } else {
-      // human_high
-      utterance.rate = 1.0; // 普通
-      utterance.pitch = 1.2; // 少し高め
-    }
-
-    window.speechSynthesis.speak(utterance);
   }
 
   function handleRecordToggle() {
