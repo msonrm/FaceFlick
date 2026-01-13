@@ -22,6 +22,11 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
     const canvas = canvasRef.current;
 
+    // Canvasの実際の表示サイズを取得
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+
     // Scene作成
     const scene = new THREE.Scene();
     scene.background = null; // 透明背景
@@ -29,7 +34,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     // Camera作成
     const camera = new THREE.PerspectiveCamera(
       30, // FOV
-      canvas.width / canvas.height, // アスペクト比
+      width / height, // アスペクト比
       0.1, // near
       20 // far
     );
@@ -41,7 +46,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
       alpha: true, // 透明背景
       antialias: true,
     });
-    renderer.setSize(canvas.width, canvas.height);
+    renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 

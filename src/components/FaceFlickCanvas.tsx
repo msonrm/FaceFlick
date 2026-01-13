@@ -53,6 +53,11 @@ export function FaceFlickCanvas() {
     vrm
   });
 
+  // VRMロード状態をログ出力（デバッグ用）
+  useEffect(() => {
+    console.log('[VRM] Loading:', vrmLoading, 'VRM:', !!vrm, 'Error:', vrmError);
+  }, [vrmLoading, vrm, vrmError]);
+
   const [inputState, setInputState] = useState<InputState>({ type: 'idle' });
   const [inputText, setInputText] = useState('');
   const [currentFaceState, setCurrentFaceState] = useState<any>(null);
@@ -153,7 +158,7 @@ export function FaceFlickCanvas() {
       // 高DPI用にスケーリング（setTransformで累積を防ぐ）
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      // ビデオを描画（反転）
+      // ビデオを描画（反転） - 全モードで背景として表示
       ctx.save();
       ctx.scale(-1, 1);
       ctx.drawImage(video, -rect.width, 0, rect.width, rect.height);
@@ -431,8 +436,14 @@ export function FaceFlickCanvas() {
       });
 
       // VRMレンダリング
-      if (faceDisplayModeRef.current === 'vrm' && vrm) {
-        renderVRM();
+      if (faceDisplayModeRef.current === 'vrm') {
+        if (vrm && renderVRM) {
+          try {
+            renderVRM();
+          } catch (error) {
+            console.error('VRM rendering error:', error);
+          }
+        }
       }
 
       animationFrameRef.current = requestAnimationFrame(animate);
@@ -807,20 +818,20 @@ export function FaceFlickCanvas() {
         onCalibrationOpen={() => setShowCalibration(true)}
       />
 
-      {/* WebGL Canvas (VRMアバター - 背景) */}
+      {/* WebGL Canvas (VRMアバター) */}
       {faceDisplayMode === 'vrm' && (
         <canvas
           ref={canvasWebGLRef}
           className="absolute top-0 left-0 w-full h-full object-cover"
-          style={{ zIndex: 0 }}
+          style={{ zIndex: 2 }}
         />
       )}
 
-      {/* Canvas 2D (キーボード・UI - 前景) */}
+      {/* Canvas 2D (ビデオ・キーボード・UI) */}
       <canvas
         ref={canvasRef}
         className="absolute top-0 left-0 w-full h-full object-cover"
-        style={{ zIndex: 1, pointerEvents: 'auto' }}
+        style={{ zIndex: faceDisplayMode === 'vrm' ? 1 : 1, pointerEvents: 'auto' }}
       />
 
       {/* VRMローディング表示 */}
