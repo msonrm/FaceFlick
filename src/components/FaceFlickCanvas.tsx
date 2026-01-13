@@ -58,6 +58,39 @@ export function FaceFlickCanvas() {
     console.log('[VRM] Loading:', vrmLoading, 'VRM:', !!vrm, 'Error:', vrmError);
   }, [vrmLoading, vrm, vrmError]);
 
+  // Canvas 2DのサイズをWebGL Canvasに同期
+  useEffect(() => {
+    if (!canvasRef.current || !canvasWebGLRef.current) return;
+
+    const canvas2D = canvasRef.current;
+    const canvasWebGL = canvasWebGLRef.current;
+
+    const syncSize = () => {
+      // Canvas 2Dのサイズを取得
+      if (canvas2D.width > 0 && canvas2D.height > 0) {
+        // WebGL Canvasに同じサイズを設定
+        if (canvasWebGL.width !== canvas2D.width || canvasWebGL.height !== canvas2D.height) {
+          canvasWebGL.width = canvas2D.width;
+          canvasWebGL.height = canvas2D.height;
+          console.log('[Canvas Sync] WebGL Canvas synced to:', canvas2D.width, 'x', canvas2D.height);
+
+          // Three.jsのrendererにもサイズを通知する必要がある
+          // renderVRMを呼び出せばThree.jsが自動でリサイズを処理するはず
+        }
+      }
+    };
+
+    // 初回同期
+    syncSize();
+
+    // 定期的に同期（Canvas 2Dのサイズが変わった時に対応）
+    const intervalId = setInterval(syncSize, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [canvasRef, canvasWebGLRef]);
+
   // レンダリングカウンター（デバッグ用）
   const renderCountRef = useRef(0);
   const [renderCount, setRenderCount] = useState(0);

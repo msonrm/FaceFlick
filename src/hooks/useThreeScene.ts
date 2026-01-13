@@ -23,12 +23,31 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     const canvas = canvasRef.current;
 
     // Canvasの実際の表示サイズを取得
+    // 複数の方法を試して、最初に有効なサイズを使用
     const rect = canvas.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
+    let width = rect.width || canvas.clientWidth || canvas.offsetWidth;
+    let height = rect.height || canvas.clientHeight || canvas.offsetHeight;
 
-    console.log('[WebGL] Canvas getBoundingClientRect:', { width, height });
-    console.log('[WebGL] Canvas element:', canvas.width, 'x', canvas.height);
+    // それでも0の場合、親要素のサイズを使用
+    if (width === 0 || height === 0) {
+      const parent = canvas.parentElement;
+      if (parent) {
+        const parentRect = parent.getBoundingClientRect();
+        width = parentRect.width || parent.clientWidth || parent.offsetWidth;
+        height = parentRect.height || parent.clientHeight || parent.offsetHeight;
+        console.log('[WebGL] Using parent size:', width, 'x', height);
+      }
+    }
+
+    // それでも0の場合、window.innerWidthを使用（フォールバック）
+    if (width === 0 || height === 0) {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      console.log('[WebGL] Using window size:', width, 'x', height);
+    }
+
+    console.log('[WebGL] Final canvas size:', { width, height });
+    console.log('[WebGL] Canvas element before setSize:', canvas.width, 'x', canvas.height);
 
     // Scene作成
     const scene = new THREE.Scene();
@@ -89,11 +108,27 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
       if (!canvas || !camera || !renderer) return;
 
       const rect = canvas.getBoundingClientRect();
-      const width = rect.width;
-      const height = rect.height;
+      let width = rect.width || canvas.clientWidth || canvas.offsetWidth;
+      let height = rect.height || canvas.clientHeight || canvas.offsetHeight;
+
+      // それでも0の場合、親要素のサイズを使用
+      if (width === 0 || height === 0) {
+        const parent = canvas.parentElement;
+        if (parent) {
+          const parentRect = parent.getBoundingClientRect();
+          width = parentRect.width || parent.clientWidth || parent.offsetWidth;
+          height = parentRect.height || parent.clientHeight || parent.offsetHeight;
+        }
+      }
+
+      // それでも0の場合、window.innerWidthを使用
+      if (width === 0 || height === 0) {
+        width = window.innerWidth;
+        height = window.innerHeight;
+      }
 
       if (width === 0 || height === 0) {
-        console.log('[WebGL] Resize skipped: canvas not in layout yet');
+        console.log('[WebGL] Resize skipped: could not determine size');
         return;
       }
 
@@ -118,10 +153,19 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     // window リサイズイベントも監視（フォールバック）
     window.addEventListener('resize', handleResize);
 
-    // 初期化直後にリサイズを実行（レイアウト完了を待つ）
+    // 初期化直後にリサイズを実行（複数回試行）
     requestAnimationFrame(() => {
       handleResize();
     });
+
+    // 少し遅延してもう一度試す（レイアウト確定待ち）
+    setTimeout(() => {
+      handleResize();
+    }, 100);
+
+    setTimeout(() => {
+      handleResize();
+    }, 500);
 
     // クリーンアップ
     return () => {
