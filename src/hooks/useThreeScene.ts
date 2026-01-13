@@ -66,14 +66,14 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     // Renderer作成
     const renderer = new THREE.WebGLRenderer({
       canvas,
-      alpha: true, // 透明背景
+      alpha: false, // デバッグ: 不透明背景にしてWebGLが動作しているか確認
       antialias: true,
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    // デバッグ: 赤背景でWebGLが表示されているか確認
-    renderer.setClearColor(0xff0000, 1); // 一時的に赤色の不透明背景
+    // デバッグ: 青背景でWebGLが表示されているか確認（CSSの赤と区別するため）
+    renderer.setClearColor(0x0000ff, 1); // 青色の不透明背景
 
     console.log('[WebGL] Renderer initialized with size:', width, 'x', height);
     console.log('[WebGL] Canvas after setSize:', canvas.width, 'x', canvas.height);
