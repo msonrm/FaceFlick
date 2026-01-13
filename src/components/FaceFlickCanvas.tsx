@@ -48,7 +48,7 @@ export function FaceFlickCanvas() {
   const { vrm, isLoading: vrmLoading, error: vrmError } = useVRMAvatar({
     modelUrl: '/models/avatar.vrm'
   });
-  const { render: renderVRM } = useThreeScene({
+  const { render: renderVRM, forceResize } = useThreeScene({
     canvasRef: canvasWebGLRef,
     vrm
   });
@@ -58,38 +58,22 @@ export function FaceFlickCanvas() {
     console.log('[VRM] Loading:', vrmLoading, 'VRM:', !!vrm, 'Error:', vrmError);
   }, [vrmLoading, vrm, vrmError]);
 
-  // Canvas 2DのサイズをWebGL Canvasに同期
+  // VRMモードに切り替わったタイミングでリサイズを強制実行
   useEffect(() => {
-    if (!canvasRef.current || !canvasWebGLRef.current) return;
-
-    const canvas2D = canvasRef.current;
-    const canvasWebGL = canvasWebGLRef.current;
-
-    const syncSize = () => {
-      // Canvas 2Dのサイズを取得
-      if (canvas2D.width > 0 && canvas2D.height > 0) {
-        // WebGL Canvasに同じサイズを設定
-        if (canvasWebGL.width !== canvas2D.width || canvasWebGL.height !== canvas2D.height) {
-          canvasWebGL.width = canvas2D.width;
-          canvasWebGL.height = canvas2D.height;
-          console.log('[Canvas Sync] WebGL Canvas synced to:', canvas2D.width, 'x', canvas2D.height);
-
-          // Three.jsのrendererにもサイズを通知する必要がある
-          // renderVRMを呼び出せばThree.jsが自動でリサイズを処理するはず
-        }
-      }
-    };
-
-    // 初回同期
-    syncSize();
-
-    // 定期的に同期（Canvas 2Dのサイズが変わった時に対応）
-    const intervalId = setInterval(syncSize, 1000);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [canvasRef, canvasWebGLRef]);
+    if (faceDisplayMode === 'vrm' && forceResize) {
+      console.log('[VRM Mode] Forcing resize...');
+      // 少し遅延させて、DOMレイアウトが確定するのを待つ
+      setTimeout(() => {
+        forceResize();
+      }, 100);
+      setTimeout(() => {
+        forceResize();
+      }, 500);
+      setTimeout(() => {
+        forceResize();
+      }, 1000);
+    }
+  }, [faceDisplayMode, forceResize]);
 
   // レンダリングカウンター（デバッグ用）
   const renderCountRef = useRef(0);
@@ -913,6 +897,14 @@ export function FaceFlickCanvas() {
             <span className="text-gray-300">Canvas Size:</span>
             <span className="text-cyan-300">
               {canvasWebGLRef.current ? `${canvasWebGLRef.current.width}x${canvasWebGLRef.current.height}` : 'N/A'}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-gray-300">Layout Size:</span>
+            <span className="text-cyan-300">
+              {canvasWebGLRef.current ?
+                `${Math.round(canvasWebGLRef.current.getBoundingClientRect().width)}x${Math.round(canvasWebGLRef.current.getBoundingClientRect().height)}`
+                : 'N/A'}
             </span>
           </div>
           <div className="flex justify-between gap-2">

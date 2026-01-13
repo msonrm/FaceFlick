@@ -244,10 +244,52 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     renderer.render(scene, camera);
   }, [vrm]);
 
+  // 手動リサイズ関数を公開
+  const forceResize = useCallback(() => {
+    const canvas = canvasRef.current;
+    const camera = cameraRef.current;
+    const renderer = rendererRef.current;
+
+    if (!canvas || !camera || !renderer) {
+      console.log('[WebGL] forceResize: not ready');
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    let width = rect.width || canvas.clientWidth || canvas.offsetWidth;
+    let height = rect.height || canvas.clientHeight || canvas.offsetHeight;
+
+    // それでも0の場合、親要素のサイズを使用
+    if (width === 0 || height === 0) {
+      const parent = canvas.parentElement;
+      if (parent) {
+        const parentRect = parent.getBoundingClientRect();
+        width = parentRect.width || parent.clientWidth || parent.offsetWidth;
+        height = parentRect.height || parent.clientHeight || parent.offsetHeight;
+      }
+    }
+
+    // それでも0の場合、window.innerWidthを使用
+    if (width === 0 || height === 0) {
+      width = window.innerWidth;
+      height = window.innerHeight;
+    }
+
+    console.log('[WebGL] forceResize called, size:', width, 'x', height);
+
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(width, height);
+
+    console.log('[WebGL] After setSize, canvas:', canvas.width, 'x', canvas.height);
+  }, [canvasRef]);
+
   return {
     scene: sceneRef.current,
     camera: cameraRef.current,
     renderer: rendererRef.current,
     render,
+    forceResize,
   };
 }
