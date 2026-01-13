@@ -873,22 +873,22 @@ export function FaceFlickCanvas() {
         onCalibrationOpen={() => setShowCalibration(true)}
       />
 
-      {/* WebGL Canvas (VRMアバター) - 常に存在、表示制御はvisibilityで */}
-      <canvas
-        ref={canvasWebGLRef}
-        className="absolute top-0 left-0 w-full h-full object-cover"
-        style={{
-          zIndex: 2,
-          visibility: faceDisplayMode === 'vrm' ? 'visible' : 'hidden',
-          pointerEvents: 'none'
-        }}
-      />
-
       {/* Canvas 2D (ビデオ・キーボード・UI) */}
       <canvas
         ref={canvasRef}
-        className="absolute top-0 left-0 w-full h-full object-cover"
-        style={{ zIndex: 1, pointerEvents: 'auto' }}
+        className="absolute top-0 left-0 w-full h-full object-cover z-0"
+        style={{ pointerEvents: 'auto' }}
+      />
+
+      {/* WebGL Canvas (VRMアバター) - 常に存在、表示制御はvisibilityで */}
+      <canvas
+        ref={canvasWebGLRef}
+        className="absolute top-0 left-0 w-full h-full object-cover z-10"
+        style={{
+          visibility: faceDisplayMode === 'vrm' ? 'visible' : 'hidden',
+          pointerEvents: 'none',
+          backgroundColor: 'red' // デバッグ: 赤背景を直接設定
+        }}
       />
 
       {/* VRM状態表示（常に表示 - デバッグ用） */}
