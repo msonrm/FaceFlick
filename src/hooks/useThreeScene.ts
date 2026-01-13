@@ -39,6 +39,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
       20 // far
     );
     camera.position.set(0, 1.3, 1.5); // アバターを見やすい位置
+    camera.lookAt(0, 1, 0); // アバターの中心（頭の位置）を見る
 
     // Renderer作成
     const renderer = new THREE.WebGLRenderer({
@@ -57,6 +58,18 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
     const ambientLight = new THREE.AmbientLight(0xffffff, Math.PI / 2);
     scene.add(ambientLight);
+
+    // デバッグ用: グリッドヘルパーを追加（VRMが見えない場合の確認用）
+    const gridHelper = new THREE.GridHelper(2, 10);
+    scene.add(gridHelper);
+
+    // デバッグ用: 原点に小さな立方体を配置
+    const debugCube = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.1, 0.1),
+      new THREE.MeshBasicMaterial({ color: 0xff0000 })
+    );
+    debugCube.position.set(0, 1, 0);
+    scene.add(debugCube);
 
     // Refs に保存
     sceneRef.current = scene;
@@ -111,10 +124,17 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     // VRMモデルをシーンに追加
     scene.add(vrm.scene);
 
+    // デバッグ: VRMの位置とスケールをログ出力
+    console.log('[VRM] Added to scene');
+    console.log('[VRM] Position:', vrm.scene.position);
+    console.log('[VRM] Scale:', vrm.scene.scale);
+    console.log('[VRM] Scene children:', scene.children.length);
+
     // クリーンアップ: VRMをシーンから削除
     return () => {
       if (scene && vrm) {
         scene.remove(vrm.scene);
+        console.log('[VRM] Removed from scene');
       }
     };
   }, [vrm]);
