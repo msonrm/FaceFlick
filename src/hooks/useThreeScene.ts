@@ -50,6 +50,8 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // デバッグ: 赤背景でWebGLが表示されているか確認
+    renderer.setClearColor(0xff0000, 1); // 一時的に赤色の不透明背景
 
     // ライティング
     const directionalLight = new THREE.DirectionalLight(0xffffff, Math.PI);
