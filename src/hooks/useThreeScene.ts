@@ -63,11 +63,25 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     camera.position.set(0, 1.3, 1.5); // アバターを見やすい位置
     camera.lookAt(0, 1, 0); // アバターの中心（頭の位置）を見る
 
+    // WebGLコンテキストをテスト
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (!gl) {
+      console.error('[WebGL] Failed to get WebGL context!');
+      return;
+    }
+    console.log('[WebGL] WebGL context obtained:', gl.constructor.name);
+
+    // 直接WebGLで赤を描画してテスト
+    gl.clearColor(1.0, 0.0, 1.0, 1.0); // マゼンタ（ピンク）
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    console.log('[WebGL] Direct clear test executed (should be magenta/pink)');
+
     // Renderer作成
     const renderer = new THREE.WebGLRenderer({
       canvas,
       alpha: false, // デバッグ: 不透明背景にしてWebGLが動作しているか確認
       antialias: true,
+      context: gl, // 既存のWebGLコンテキストを使用
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -77,6 +91,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
     console.log('[WebGL] Renderer initialized with size:', width, 'x', height);
     console.log('[WebGL] Canvas after setSize:', canvas.width, 'x', canvas.height);
+    console.log('[WebGL] renderer.domElement === canvas:', renderer.domElement === canvas);
 
     // ライティング
     const directionalLight = new THREE.DirectionalLight(0xffffff, Math.PI);
