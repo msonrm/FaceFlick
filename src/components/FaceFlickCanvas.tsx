@@ -834,6 +834,37 @@ export function FaceFlickCanvas() {
         style={{ zIndex: faceDisplayMode === 'vrm' ? 1 : 1, pointerEvents: 'auto' }}
       />
 
+      {/* VRM状態表示（常に表示 - デバッグ用） */}
+      <div className="absolute top-16 right-4 z-30 bg-black/80 backdrop-blur-sm rounded-lg p-3 text-white text-xs font-mono">
+        <div className="font-bold text-sm text-purple-300 mb-2">VRM Status</div>
+        <div className="space-y-1">
+          <div className="flex justify-between gap-2">
+            <span className="text-gray-300">Loading:</span>
+            <span className={vrmLoading ? 'text-yellow-400' : 'text-green-400'}>
+              {vrmLoading ? 'Yes' : 'No'}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-gray-300">VRM Loaded:</span>
+            <span className={vrm ? 'text-green-400 font-bold' : 'text-red-400'}>
+              {vrm ? 'Yes' : 'No'}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-gray-300">Mode:</span>
+            <span className="text-cyan-300">{faceDisplayMode}</span>
+          </div>
+          {vrmError && (
+            <div className="mt-2 pt-2 border-t border-gray-600">
+              <span className="text-red-400">Error:</span>
+              <div className="text-red-300 text-xs mt-1 break-words max-w-xs">
+                {vrmError}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* VRMローディング表示 */}
       {vrmLoading && faceDisplayMode === 'vrm' && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
