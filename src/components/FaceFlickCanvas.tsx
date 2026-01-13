@@ -53,12 +53,6 @@ export function FaceFlickCanvas() {
     vrm
   });
 
-  // レンダリングカウンター（デバッグ用）
-  const renderCountRef = useRef(0);
-  const vrmRenderCountRef = useRef(0);
-  const [renderCount, setRenderCount] = useState(0);
-  const [vrmRenderCount, setVrmRenderCount] = useState(0);
-
   const [inputState, setInputState] = useState<InputState>({ type: 'idle' });
   const [inputText, setInputText] = useState('');
   const [currentFaceState, setCurrentFaceState] = useState<any>(null);
@@ -81,25 +75,13 @@ export function FaceFlickCanvas() {
     flickSensitivity: FLICK_SENSITIVITY,
   });
 
-  // VRMロード状態をログ出力（デバッグ用）
-  useEffect(() => {
-    console.log('[VRM] Loading:', vrmLoading, 'VRM:', !!vrm, 'Error:', vrmError);
-  }, [vrmLoading, vrm, vrmError]);
-
   // VRMモードに切り替わったタイミングでリサイズを強制実行
   useEffect(() => {
     if (faceDisplayMode === 'vrm' && forceResize) {
-      console.log('[VRM Mode] Forcing resize...');
       // 少し遅延させて、DOMレイアウトが確定するのを待つ
       setTimeout(() => {
         forceResize();
       }, 100);
-      setTimeout(() => {
-        forceResize();
-      }, 500);
-      setTimeout(() => {
-        forceResize();
-      }, 1000);
     }
   }, [faceDisplayMode, forceResize]);
   const animationFrameRef = useRef<number | null>(null);
@@ -464,40 +446,11 @@ export function FaceFlickCanvas() {
       });
 
       // VRMレンダリング
-      if (faceDisplayModeRef.current === 'vrm') {
-        // WebGL Canvasのサイズを確認・調整（Canvas 2Dと同じサイズに）
-        const canvasWebGL = canvasWebGLRef.current;
-        if (canvasWebGL && canvas) {
-          // Canvas 2Dと同じ内部サイズに設定
-          if (canvasWebGL.width !== canvas.width || canvasWebGL.height !== canvas.height) {
-            canvasWebGL.width = canvas.width;
-            canvasWebGL.height = canvas.height;
-            console.log('[VRM] WebGL Canvas resized to:', canvas.width, 'x', canvas.height);
-          }
-        }
-
-        if (vrm && renderVRM) {
-          try {
-            renderVRM();
-            // VRMレンダリングカウンターを更新（デバッグ用）
-            vrmRenderCountRef.current++;
-            if (vrmRenderCountRef.current % 60 === 0) {
-              setVrmRenderCount(vrmRenderCountRef.current);
-            }
-          } catch (error) {
-            console.error('VRM rendering error:', error);
-          }
-        } else {
-          // デバッグ: なぜrenderVRMが呼ばれないかをログ出力
-          if (renderCountRef.current % 120 === 0) {
-            console.log('[VRM] Not rendering:', { vrm: !!vrm, renderVRM: !!renderVRM });
-          }
-        }
-
-        // アニメーションループが動作していることを確認
-        renderCountRef.current++;
-        if (renderCountRef.current % 60 === 0) {
-          setRenderCount(renderCountRef.current);
+      if (faceDisplayModeRef.current === 'vrm' && vrm && renderVRM) {
+        try {
+          renderVRM();
+        } catch (error) {
+          console.error('VRM rendering error:', error);
         }
       }
 
@@ -880,85 +833,15 @@ export function FaceFlickCanvas() {
         style={{ pointerEvents: 'auto' }}
       />
 
-      {/* WebGL Canvas (VRMアバター) - 常に存在、表示制御はvisibilityで */}
+      {/* WebGL Canvas (VRMアバター) */}
       <canvas
         ref={canvasWebGLRef}
         className="absolute top-0 left-0 w-full h-full object-cover z-10"
         style={{
           visibility: faceDisplayMode === 'vrm' ? 'visible' : 'hidden',
           pointerEvents: 'none',
-          backgroundColor: 'red' // デバッグ: 赤背景を直接設定
         }}
       />
-
-      {/* VRM状態表示（常に表示 - デバッグ用） */}
-      <div className="absolute top-16 right-4 z-30 bg-black/80 backdrop-blur-sm rounded-lg p-3 text-white text-xs font-mono">
-        <div className="font-bold text-sm text-purple-300 mb-2">VRM Status</div>
-        <div className="space-y-1">
-          <div className="flex justify-between gap-2">
-            <span className="text-gray-300">Loading:</span>
-            <span className={vrmLoading ? 'text-yellow-400' : 'text-green-400'}>
-              {vrmLoading ? 'Yes' : 'No'}
-            </span>
-          </div>
-          <div className="flex justify-between gap-2">
-            <span className="text-gray-300">VRM Loaded:</span>
-            <span className={vrm ? 'text-green-400 font-bold' : 'text-red-400'}>
-              {vrm ? 'Yes' : 'No'}
-            </span>
-          </div>
-          <div className="flex justify-between gap-2">
-            <span className="text-gray-300">Mode:</span>
-            <span className="text-cyan-300">{faceDisplayMode}</span>
-          </div>
-          <div className="flex justify-between gap-2">
-            <span className="text-gray-300">Canvas:</span>
-            <span className={canvasWebGLRef.current ? 'text-green-400' : 'text-red-400'}>
-              {canvasWebGLRef.current ? 'OK' : 'NG'}
-            </span>
-          </div>
-          <div className="flex justify-between gap-2">
-            <span className="text-gray-300">Canvas Size:</span>
-            <span className="text-cyan-300">
-              {canvasWebGLRef.current ? `${canvasWebGLRef.current.width}x${canvasWebGLRef.current.height}` : 'N/A'}
-            </span>
-          </div>
-          <div className="flex justify-between gap-2">
-            <span className="text-gray-300">Layout Size:</span>
-            <span className="text-cyan-300">
-              {canvasWebGLRef.current ?
-                `${Math.round(canvasWebGLRef.current.getBoundingClientRect().width)}x${Math.round(canvasWebGLRef.current.getBoundingClientRect().height)}`
-                : 'N/A'}
-            </span>
-          </div>
-          <div className="flex justify-between gap-2">
-            <span className="text-gray-300">Visibility:</span>
-            <span className="text-cyan-300">
-              {canvasWebGLRef.current?.style.visibility || 'N/A'}
-            </span>
-          </div>
-          <div className="flex justify-between gap-2">
-            <span className="text-gray-300">Loop Count:</span>
-            <span className={renderCount > 0 ? 'text-green-400' : 'text-red-400'}>
-              {renderCount}
-            </span>
-          </div>
-          <div className="flex justify-between gap-2">
-            <span className="text-gray-300">VRM Renders:</span>
-            <span className={vrmRenderCount > 0 ? 'text-green-400' : 'text-red-400'}>
-              {vrmRenderCount}
-            </span>
-          </div>
-          {vrmError && (
-            <div className="mt-2 pt-2 border-t border-gray-600">
-              <span className="text-red-400">Error:</span>
-              <div className="text-red-300 text-xs mt-1 break-words max-w-xs">
-                {vrmError}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* VRMローディング表示 */}
       {vrmLoading && faceDisplayMode === 'vrm' && (

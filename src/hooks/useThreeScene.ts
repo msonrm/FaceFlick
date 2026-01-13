@@ -23,7 +23,6 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     const canvas = canvasRef.current;
 
     // Canvasの実際の表示サイズを取得
-    // 複数の方法を試して、最初に有効なサイズを使用
     const rect = canvas.getBoundingClientRect();
     let width = rect.width || canvas.clientWidth || canvas.offsetWidth;
     let height = rect.height || canvas.clientHeight || canvas.offsetHeight;
@@ -35,7 +34,6 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
         const parentRect = parent.getBoundingClientRect();
         width = parentRect.width || parent.clientWidth || parent.offsetWidth;
         height = parentRect.height || parent.clientHeight || parent.offsetHeight;
-        console.log('[WebGL] Using parent size:', width, 'x', height);
       }
     }
 
@@ -43,11 +41,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     if (width === 0 || height === 0) {
       width = window.innerWidth;
       height = window.innerHeight;
-      console.log('[WebGL] Using window size:', width, 'x', height);
     }
-
-    console.log('[WebGL] Final canvas size:', { width, height });
-    console.log('[WebGL] Canvas element before setSize:', canvas.width, 'x', canvas.height);
 
     // Scene作成
     const scene = new THREE.Scene();
@@ -63,35 +57,15 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     camera.position.set(0, 1.3, 1.5); // アバターを見やすい位置
     camera.lookAt(0, 1, 0); // アバターの中心（頭の位置）を見る
 
-    // WebGLコンテキストをテスト
-    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-    if (!gl) {
-      console.error('[WebGL] Failed to get WebGL context!');
-      return;
-    }
-    console.log('[WebGL] WebGL context obtained:', gl.constructor.name);
-
-    // 直接WebGLで赤を描画してテスト
-    gl.clearColor(1.0, 0.0, 1.0, 1.0); // マゼンタ（ピンク）
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    console.log('[WebGL] Direct clear test executed (should be magenta/pink)');
-
     // Renderer作成
     const renderer = new THREE.WebGLRenderer({
       canvas,
-      alpha: false, // デバッグ: 不透明背景にしてWebGLが動作しているか確認
+      alpha: true, // 透明背景を有効化
       antialias: true,
-      context: gl, // 既存のWebGLコンテキストを使用
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    // デバッグ: 青背景でWebGLが表示されているか確認（CSSの赤と区別するため）
-    renderer.setClearColor(0x0000ff, 1); // 青色の不透明背景
-
-    console.log('[WebGL] Renderer initialized with size:', width, 'x', height);
-    console.log('[WebGL] Canvas after setSize:', canvas.width, 'x', canvas.height);
-    console.log('[WebGL] renderer.domElement === canvas:', renderer.domElement === canvas);
 
     // ライティング
     const directionalLight = new THREE.DirectionalLight(0xffffff, Math.PI);
@@ -100,18 +74,6 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
     const ambientLight = new THREE.AmbientLight(0xffffff, Math.PI / 2);
     scene.add(ambientLight);
-
-    // デバッグ用: グリッドヘルパーを追加（VRMが見えない場合の確認用）
-    const gridHelper = new THREE.GridHelper(2, 10);
-    scene.add(gridHelper);
-
-    // デバッグ用: 原点に小さな立方体を配置
-    const debugCube = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, 0.1, 0.1),
-      new THREE.MeshBasicMaterial({ color: 0xff0000 })
-    );
-    debugCube.position.set(0, 1, 0);
-    scene.add(debugCube);
 
     // Refs に保存
     sceneRef.current = scene;
@@ -143,11 +105,8 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
       }
 
       if (width === 0 || height === 0) {
-        console.log('[WebGL] Resize skipped: could not determine size');
         return;
       }
-
-      console.log('[WebGL] Resize triggered:', width, 'x', height);
 
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
@@ -216,59 +175,23 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     // VRMモデルをシーンに追加
     scene.add(vrm.scene);
 
-    // デバッグ: VRMの位置とスケールをログ出力
-    console.log('[VRM] Added to scene');
-    console.log('[VRM] Position:', vrm.scene.position);
-    console.log('[VRM] Scale:', vrm.scene.scale);
-    console.log('[VRM] Scene children:', scene.children.length);
-
     // クリーンアップ: VRMをシーンから削除
     return () => {
       if (scene && vrm) {
         scene.remove(vrm.scene);
-        console.log('[VRM] Removed from scene');
       }
     };
   }, [vrm]);
 
   // レンダリング関数
-  const renderCountRef = useRef(0);
-  const lastCanvasSizeRef = useRef({ width: 0, height: 0 });
   const render = useCallback(() => {
-    if (!sceneRef.current || !cameraRef.current || !rendererRef.current || !canvasRef.current) {
+    if (!sceneRef.current || !cameraRef.current || !rendererRef.current) {
       return;
     }
 
     const scene = sceneRef.current;
     const camera = cameraRef.current;
     const renderer = rendererRef.current;
-    const canvas = canvasRef.current;
-
-    // Canvasサイズが変更されていたらrendererを完全に再設定
-    if (canvas.width !== lastCanvasSizeRef.current.width || canvas.height !== lastCanvasSizeRef.current.height) {
-      if (canvas.width > 0 && canvas.height > 0) {
-        // カメラのアスペクト比を更新
-        camera.aspect = canvas.width / canvas.height;
-        camera.updateProjectionMatrix();
-
-        // rendererのサイズを更新（重要: これがないとWebGLの内部バッファサイズが変わらない）
-        renderer.setSize(canvas.width, canvas.height, false); // false = CSSサイズを更新しない
-
-        lastCanvasSizeRef.current = { width: canvas.width, height: canvas.height };
-        console.log('[WebGL] Render: Canvas size changed to', canvas.width, 'x', canvas.height);
-        console.log('[WebGL] Renderer size updated');
-      }
-    }
-
-    // 最初の10回だけログ出力（デバッグ用に増やす）
-    renderCountRef.current++;
-    if (renderCountRef.current <= 10) {
-      console.log(`[WebGL] Rendering frame ${renderCountRef.current}`);
-      console.log('[WebGL] Scene children:', scene.children.length);
-      console.log('[WebGL] Canvas size:', canvas.width, 'x', canvas.height);
-      console.log('[WebGL] Camera aspect:', camera.aspect);
-      console.log('[WebGL] Renderer info:', renderer.info.render);
-    }
 
     // VRMを更新（アニメーション等）
     const deltaTime = clockRef.current.getDelta();
@@ -278,7 +201,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
     // シーンをレンダリング
     renderer.render(scene, camera);
-  }, [vrm, canvasRef]);
+  }, [vrm]);
 
   // 手動リサイズ関数を公開
   const forceResize = useCallback(() => {
@@ -287,7 +210,6 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     const renderer = rendererRef.current;
 
     if (!canvas || !camera || !renderer) {
-      console.log('[WebGL] forceResize: not ready');
       return;
     }
 
@@ -311,14 +233,10 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
       height = window.innerHeight;
     }
 
-    console.log('[WebGL] forceResize called, size:', width, 'x', height);
-
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
 
     renderer.setSize(width, height);
-
-    console.log('[WebGL] After setSize, canvas:', canvas.width, 'x', canvas.height);
   }, [canvasRef]);
 
   return {
