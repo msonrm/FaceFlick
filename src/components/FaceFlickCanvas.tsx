@@ -853,10 +853,23 @@ export function FaceFlickCanvas() {
         </div>
       )}
 
-      {/* 全Blendshapes表示パネル */}
-      {showDebugInfo && debugInfo && (
+      {/* デバッグパネル */}
+      {showDebugInfo && (
         <DebugPanel
-          debugInfo={debugInfo}
+          debugInfo={debugInfo || {
+            blendshapes: {
+              jawOpen: 0,
+              mouthPucker: 0,
+              mouthSmileLeft: 0,
+              mouthSmileRight: 0,
+              eyeBlinkLeft: 0,
+              eyeBlinkRight: 0,
+              browInnerUp: 0,
+            },
+            allBlendshapes: [],
+            triggerType: 'none',
+            headRotation: { yaw: 0, pitch: 0, roll: 0 },
+          }}
           vrmStatus={{
             isLoading: vrmLoading,
             hasVRM: !!vrm,
