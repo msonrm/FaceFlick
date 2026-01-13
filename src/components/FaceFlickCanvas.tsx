@@ -818,20 +818,22 @@ export function FaceFlickCanvas() {
         onCalibrationOpen={() => setShowCalibration(true)}
       />
 
-      {/* WebGL Canvas (VRMアバター) */}
-      {faceDisplayMode === 'vrm' && (
-        <canvas
-          ref={canvasWebGLRef}
-          className="absolute top-0 left-0 w-full h-full object-cover"
-          style={{ zIndex: 2 }}
-        />
-      )}
+      {/* WebGL Canvas (VRMアバター) - 常に存在、表示制御はvisibilityで */}
+      <canvas
+        ref={canvasWebGLRef}
+        className="absolute top-0 left-0 w-full h-full object-cover"
+        style={{
+          zIndex: 2,
+          visibility: faceDisplayMode === 'vrm' ? 'visible' : 'hidden',
+          pointerEvents: 'none'
+        }}
+      />
 
       {/* Canvas 2D (ビデオ・キーボード・UI) */}
       <canvas
         ref={canvasRef}
         className="absolute top-0 left-0 w-full h-full object-cover"
-        style={{ zIndex: faceDisplayMode === 'vrm' ? 1 : 1, pointerEvents: 'auto' }}
+        style={{ zIndex: 1, pointerEvents: 'auto' }}
       />
 
       {/* VRM状態表示（常に表示 - デバッグ用） */}
@@ -853,6 +855,12 @@ export function FaceFlickCanvas() {
           <div className="flex justify-between gap-2">
             <span className="text-gray-300">Mode:</span>
             <span className="text-cyan-300">{faceDisplayMode}</span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-gray-300">Canvas:</span>
+            <span className={canvasWebGLRef.current ? 'text-green-400' : 'text-red-400'}>
+              {canvasWebGLRef.current ? 'OK' : 'NG'}
+            </span>
           </div>
           {vrmError && (
             <div className="mt-2 pt-2 border-t border-gray-600">
