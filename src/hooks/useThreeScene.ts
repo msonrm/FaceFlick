@@ -27,6 +27,9 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     const width = rect.width;
     const height = rect.height;
 
+    console.log('[WebGL] Canvas getBoundingClientRect:', { width, height });
+    console.log('[WebGL] Canvas element:', canvas.width, 'x', canvas.height);
+
     // Scene作成
     const scene = new THREE.Scene();
     scene.background = null; // 透明背景
@@ -52,6 +55,9 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     // デバッグ: 赤背景でWebGLが表示されているか確認
     renderer.setClearColor(0xff0000, 1); // 一時的に赤色の不透明背景
+
+    console.log('[WebGL] Renderer initialized with size:', width, 'x', height);
+    console.log('[WebGL] Canvas after setSize:', canvas.width, 'x', canvas.height);
 
     // ライティング
     const directionalLight = new THREE.DirectionalLight(0xffffff, Math.PI);
@@ -142,6 +148,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
   }, [vrm]);
 
   // レンダリング関数
+  const renderCountRef = useRef(0);
   const render = useCallback(() => {
     if (!sceneRef.current || !cameraRef.current || !rendererRef.current) {
       return;
@@ -150,6 +157,13 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     const scene = sceneRef.current;
     const camera = cameraRef.current;
     const renderer = rendererRef.current;
+
+    // 最初の5回だけログ出力
+    renderCountRef.current++;
+    if (renderCountRef.current <= 5) {
+      console.log(`[WebGL] Rendering frame ${renderCountRef.current}`);
+      console.log('[WebGL] Scene children:', scene.children.length);
+    }
 
     // VRMを更新（アニメーション等）
     const deltaTime = clockRef.current.getDelta();

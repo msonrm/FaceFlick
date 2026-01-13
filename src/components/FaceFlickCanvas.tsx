@@ -877,6 +877,18 @@ export function FaceFlickCanvas() {
             </span>
           </div>
           <div className="flex justify-between gap-2">
+            <span className="text-gray-300">Canvas Size:</span>
+            <span className="text-cyan-300">
+              {canvasWebGLRef.current ? `${canvasWebGLRef.current.width}x${canvasWebGLRef.current.height}` : 'N/A'}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-gray-300">Visibility:</span>
+            <span className="text-cyan-300">
+              {canvasWebGLRef.current?.style.visibility || 'N/A'}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
             <span className="text-gray-300">Renders:</span>
             <span className={renderCount > 0 ? 'text-green-400' : 'text-red-400'}>
               {renderCount}
