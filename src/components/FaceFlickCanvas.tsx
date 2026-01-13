@@ -463,6 +463,17 @@ export function FaceFlickCanvas() {
 
       // VRMレンダリング
       if (faceDisplayModeRef.current === 'vrm') {
+        // WebGL Canvasのサイズを確認・調整（Canvas 2Dと同じサイズに）
+        const canvasWebGL = canvasWebGLRef.current;
+        if (canvasWebGL && canvas) {
+          // Canvas 2Dと同じ内部サイズに設定
+          if (canvasWebGL.width !== canvas.width || canvasWebGL.height !== canvas.height) {
+            canvasWebGL.width = canvas.width;
+            canvasWebGL.height = canvas.height;
+            console.log('[VRM] WebGL Canvas resized to:', canvas.width, 'x', canvas.height);
+          }
+        }
+
         if (vrm && renderVRM) {
           try {
             renderVRM();

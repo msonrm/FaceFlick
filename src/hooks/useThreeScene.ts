@@ -218,20 +218,35 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
   // レンダリング関数
   const renderCountRef = useRef(0);
+  const lastCanvasSizeRef = useRef({ width: 0, height: 0 });
   const render = useCallback(() => {
-    if (!sceneRef.current || !cameraRef.current || !rendererRef.current) {
+    if (!sceneRef.current || !cameraRef.current || !rendererRef.current || !canvasRef.current) {
       return;
     }
 
     const scene = sceneRef.current;
     const camera = cameraRef.current;
     const renderer = rendererRef.current;
+    const canvas = canvasRef.current;
+
+    // Canvasサイズが変更されていたらカメラのアスペクト比を更新
+    if (canvas.width !== lastCanvasSizeRef.current.width || canvas.height !== lastCanvasSizeRef.current.height) {
+      if (canvas.width > 0 && canvas.height > 0) {
+        camera.aspect = canvas.width / canvas.height;
+        camera.updateProjectionMatrix();
+        // rendererのビューポートも更新
+        renderer.setViewport(0, 0, canvas.width, canvas.height);
+        lastCanvasSizeRef.current = { width: canvas.width, height: canvas.height };
+        console.log('[WebGL] Render: Canvas size changed to', canvas.width, 'x', canvas.height);
+      }
+    }
 
     // 最初の5回だけログ出力
     renderCountRef.current++;
     if (renderCountRef.current <= 5) {
       console.log(`[WebGL] Rendering frame ${renderCountRef.current}`);
       console.log('[WebGL] Scene children:', scene.children.length);
+      console.log('[WebGL] Canvas size:', canvas.width, 'x', canvas.height);
     }
 
     // VRMを更新（アニメーション等）
@@ -242,7 +257,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
     // シーンをレンダリング
     renderer.render(scene, camera);
-  }, [vrm]);
+  }, [vrm, canvasRef]);
 
   // 手動リサイズ関数を公開
   const forceResize = useCallback(() => {
