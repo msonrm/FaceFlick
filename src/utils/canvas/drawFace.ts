@@ -1,6 +1,6 @@
 import { FaceLandmarker, NormalizedLandmark } from '@mediapipe/tasks-vision';
 
-export type FaceDisplayMode = 'none' | 'points' | 'mesh';
+export type FaceDisplayMode = 'none' | 'points' | 'mesh' | 'vrm';
 
 export interface DrawFaceLandmarksOptions {
   ctx: CanvasRenderingContext2D;
