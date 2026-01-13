@@ -53,28 +53,6 @@ export function FaceFlickCanvas() {
     vrm
   });
 
-  // VRMロード状態をログ出力（デバッグ用）
-  useEffect(() => {
-    console.log('[VRM] Loading:', vrmLoading, 'VRM:', !!vrm, 'Error:', vrmError);
-  }, [vrmLoading, vrm, vrmError]);
-
-  // VRMモードに切り替わったタイミングでリサイズを強制実行
-  useEffect(() => {
-    if (faceDisplayMode === 'vrm' && forceResize) {
-      console.log('[VRM Mode] Forcing resize...');
-      // 少し遅延させて、DOMレイアウトが確定するのを待つ
-      setTimeout(() => {
-        forceResize();
-      }, 100);
-      setTimeout(() => {
-        forceResize();
-      }, 500);
-      setTimeout(() => {
-        forceResize();
-      }, 1000);
-    }
-  }, [faceDisplayMode, forceResize]);
-
   // レンダリングカウンター（デバッグ用）
   const renderCountRef = useRef(0);
   const [renderCount, setRenderCount] = useState(0);
@@ -100,6 +78,28 @@ export function FaceFlickCanvas() {
     gridSensitivity: GRID_SENSITIVITY,
     flickSensitivity: FLICK_SENSITIVITY,
   });
+
+  // VRMロード状態をログ出力（デバッグ用）
+  useEffect(() => {
+    console.log('[VRM] Loading:', vrmLoading, 'VRM:', !!vrm, 'Error:', vrmError);
+  }, [vrmLoading, vrm, vrmError]);
+
+  // VRMモードに切り替わったタイミングでリサイズを強制実行
+  useEffect(() => {
+    if (faceDisplayMode === 'vrm' && forceResize) {
+      console.log('[VRM Mode] Forcing resize...');
+      // 少し遅延させて、DOMレイアウトが確定するのを待つ
+      setTimeout(() => {
+        forceResize();
+      }, 100);
+      setTimeout(() => {
+        forceResize();
+      }, 500);
+      setTimeout(() => {
+        forceResize();
+      }, 1000);
+    }
+  }, [faceDisplayMode, forceResize]);
   const animationFrameRef = useRef<number | null>(null);
   const triggerStartTimeRef = useRef<number | null>(null);
   const headRotationHistoryRef = useRef<HeadRotationSample[]>([]);
