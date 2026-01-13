@@ -229,24 +229,30 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     const renderer = rendererRef.current;
     const canvas = canvasRef.current;
 
-    // Canvasサイズが変更されていたらカメラのアスペクト比を更新
+    // Canvasサイズが変更されていたらrendererを完全に再設定
     if (canvas.width !== lastCanvasSizeRef.current.width || canvas.height !== lastCanvasSizeRef.current.height) {
       if (canvas.width > 0 && canvas.height > 0) {
+        // カメラのアスペクト比を更新
         camera.aspect = canvas.width / canvas.height;
         camera.updateProjectionMatrix();
-        // rendererのビューポートも更新
-        renderer.setViewport(0, 0, canvas.width, canvas.height);
+
+        // rendererのサイズを更新（重要: これがないとWebGLの内部バッファサイズが変わらない）
+        renderer.setSize(canvas.width, canvas.height, false); // false = CSSサイズを更新しない
+
         lastCanvasSizeRef.current = { width: canvas.width, height: canvas.height };
         console.log('[WebGL] Render: Canvas size changed to', canvas.width, 'x', canvas.height);
+        console.log('[WebGL] Renderer size updated');
       }
     }
 
-    // 最初の5回だけログ出力
+    // 最初の10回だけログ出力（デバッグ用に増やす）
     renderCountRef.current++;
-    if (renderCountRef.current <= 5) {
+    if (renderCountRef.current <= 10) {
       console.log(`[WebGL] Rendering frame ${renderCountRef.current}`);
       console.log('[WebGL] Scene children:', scene.children.length);
       console.log('[WebGL] Canvas size:', canvas.width, 'x', canvas.height);
+      console.log('[WebGL] Camera aspect:', camera.aspect);
+      console.log('[WebGL] Renderer info:', renderer.info.render);
     }
 
     // VRMを更新（アニメーション等）
