@@ -58,6 +58,10 @@ export function FaceFlickCanvas() {
     console.log('[VRM] Loading:', vrmLoading, 'VRM:', !!vrm, 'Error:', vrmError);
   }, [vrmLoading, vrm, vrmError]);
 
+  // レンダリングカウンター（デバッグ用）
+  const renderCountRef = useRef(0);
+  const [renderCount, setRenderCount] = useState(0);
+
   const [inputState, setInputState] = useState<InputState>({ type: 'idle' });
   const [inputText, setInputText] = useState('');
   const [currentFaceState, setCurrentFaceState] = useState<any>(null);
@@ -440,6 +444,11 @@ export function FaceFlickCanvas() {
         if (vrm && renderVRM) {
           try {
             renderVRM();
+            // レンダリングカウンターを更新（デバッグ用）
+            renderCountRef.current++;
+            if (renderCountRef.current % 60 === 0) {
+              setRenderCount(renderCountRef.current);
+            }
           } catch (error) {
             console.error('VRM rendering error:', error);
           }
@@ -860,6 +869,12 @@ export function FaceFlickCanvas() {
             <span className="text-gray-300">Canvas:</span>
             <span className={canvasWebGLRef.current ? 'text-green-400' : 'text-red-400'}>
               {canvasWebGLRef.current ? 'OK' : 'NG'}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-gray-300">Renders:</span>
+            <span className={renderCount > 0 ? 'text-green-400' : 'text-red-400'}>
+              {renderCount}
             </span>
           </div>
           {vrmError && (
