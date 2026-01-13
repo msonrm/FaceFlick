@@ -757,7 +757,7 @@ export function FaceFlickCanvas() {
   const handleFaceDisplayModeChange = () => {
     setFaceDisplayMode((prev) => {
       if (prev === 'none') return 'points';
-      if (prev === 'points') return 'mesh';
+      if (prev === 'points') return 'vrm';
       return 'none';
     });
   };
