@@ -316,7 +316,7 @@ export function FaceFlickCanvas() {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [video, cameraReady, landmarkerReady, detectFace]); // inputState, inputText, calibrationSettings, faceDisplayModeはrefで参照
+  }, [video, cameraReady, landmarkerReady, detectFace, addSample, processCalibration]); // inputState, inputText, calibrationSettings, faceDisplayModeはrefで参照
 
   function detectGesture(
     history: Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>
