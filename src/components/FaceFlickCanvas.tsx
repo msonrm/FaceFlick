@@ -162,11 +162,16 @@ export function FaceFlickCanvas() {
       // 高DPI用にスケーリング（setTransformで累積を防ぐ）
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      // ビデオを描画（反転） - 全モードで背景として表示
-      ctx.save();
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, -rect.width, 0, rect.width, rect.height);
-      ctx.restore();
+      // ビデオを描画（反転） - VRMモード以外で背景として表示
+      if (faceDisplayModeRef.current !== 'vrm') {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, -rect.width, 0, rect.width, rect.height);
+        ctx.restore();
+      } else {
+        // VRMモード時はCanvas 2Dをクリア（透明化）
+        ctx.clearRect(0, 0, rect.width, rect.height);
+      }
 
       // 初期キャリブレーション処理（顔検出の前に実行）
       if (isCalibratingRef.current) {
