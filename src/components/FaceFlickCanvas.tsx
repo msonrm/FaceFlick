@@ -55,7 +55,9 @@ export function FaceFlickCanvas() {
 
   // レンダリングカウンター（デバッグ用）
   const renderCountRef = useRef(0);
+  const vrmRenderCountRef = useRef(0);
   const [renderCount, setRenderCount] = useState(0);
+  const [vrmRenderCount, setVrmRenderCount] = useState(0);
 
   const [inputState, setInputState] = useState<InputState>({ type: 'idle' });
   const [inputText, setInputText] = useState('');
@@ -477,14 +479,25 @@ export function FaceFlickCanvas() {
         if (vrm && renderVRM) {
           try {
             renderVRM();
-            // レンダリングカウンターを更新（デバッグ用）
-            renderCountRef.current++;
-            if (renderCountRef.current % 60 === 0) {
-              setRenderCount(renderCountRef.current);
+            // VRMレンダリングカウンターを更新（デバッグ用）
+            vrmRenderCountRef.current++;
+            if (vrmRenderCountRef.current % 60 === 0) {
+              setVrmRenderCount(vrmRenderCountRef.current);
             }
           } catch (error) {
             console.error('VRM rendering error:', error);
           }
+        } else {
+          // デバッグ: なぜrenderVRMが呼ばれないかをログ出力
+          if (renderCountRef.current % 120 === 0) {
+            console.log('[VRM] Not rendering:', { vrm: !!vrm, renderVRM: !!renderVRM });
+          }
+        }
+
+        // アニメーションループが動作していることを確認
+        renderCountRef.current++;
+        if (renderCountRef.current % 60 === 0) {
+          setRenderCount(renderCountRef.current);
         }
       }
 
@@ -925,9 +938,15 @@ export function FaceFlickCanvas() {
             </span>
           </div>
           <div className="flex justify-between gap-2">
-            <span className="text-gray-300">Renders:</span>
+            <span className="text-gray-300">Loop Count:</span>
             <span className={renderCount > 0 ? 'text-green-400' : 'text-red-400'}>
               {renderCount}
+            </span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-gray-300">VRM Renders:</span>
+            <span className={vrmRenderCount > 0 ? 'text-green-400' : 'text-red-400'}>
+              {vrmRenderCount}
             </span>
           </div>
           {vrmError && (
