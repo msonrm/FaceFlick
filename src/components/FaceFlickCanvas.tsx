@@ -854,7 +854,16 @@ export function FaceFlickCanvas() {
       )}
 
       {/* 全Blendshapes表示パネル */}
-      {showDebugInfo && debugInfo && <DebugPanel debugInfo={debugInfo} />}
+      {showDebugInfo && debugInfo && (
+        <DebugPanel
+          debugInfo={debugInfo}
+          vrmStatus={{
+            isLoading: vrmLoading,
+            hasVRM: !!vrm,
+            error: vrmError
+          }}
+        />
+      )}
 
       {/* キャリブレーションモーダル */}
       <CalibrationModal
