@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
 import { useCamera } from '../hooks/useCamera';
 import { useRecording } from '../hooks/useRecording';
+import { useVRMAvatar } from '../hooks/useVRMAvatar';
+import { useThreeScene } from '../hooks/useThreeScene';
 import { analyzeFace } from '../utils/face-detection';
 import {
   getSelectedKey,
@@ -29,9 +31,11 @@ import type { FaceDisplayMode, GestureFeedback, DebugInfo } from '../utils/canva
 import { toggleCharacter, vibrate } from '../utils/character-utils';
 import { speakText } from '../utils/speech';
 import { detectGesture, HeadRotationSample } from '../utils/gesture-detection';
+import { applyMediaPipeToVRM } from '../utils/vrm';
 
 export function FaceFlickCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasWebGLRef = useRef<HTMLCanvasElement>(null);
   const { video, isReady: cameraReady, error: cameraError } = useCamera();
   const {
     isReady: landmarkerReady,
@@ -39,6 +43,15 @@ export function FaceFlickCanvas() {
     detectFace,
   } = useFaceLandmarker();
   const { isRecording, startRecording, stopRecording } = useRecording();
+
+  // VRM関連
+  const { vrm, isLoading: vrmLoading, error: vrmError } = useVRMAvatar({
+    modelUrl: '/models/avatar.vrm'
+  });
+  const { render: renderVRM } = useThreeScene({
+    canvasRef: canvasWebGLRef,
+    vrm
+  });
 
   const [inputState, setInputState] = useState<InputState>({ type: 'idle' });
   const [inputText, setInputText] = useState('');
@@ -303,15 +316,23 @@ export function FaceFlickCanvas() {
             processInput(faceState);
           }
 
-          // 顔のランドマークを描画（モードに応じて）
+          // 顔の表示（モードに応じて）
           if (faceDisplayModeRef.current !== 'none') {
-            drawFaceLandmarks({
-              ctx,
-              landmarks: faceState.landmarks,
-              width: rect.width,
-              height: rect.height,
-              displayMode: faceDisplayModeRef.current,
-            });
+            if (faceDisplayModeRef.current === 'vrm') {
+              // VRMモード: MediaPipeの結果をVRMに適用
+              if (vrm) {
+                applyMediaPipeToVRM(vrm, result);
+              }
+            } else {
+              // ポイント/メッシュモード: 2Dランドマークを描画
+              drawFaceLandmarks({
+                ctx,
+                landmarks: faceState.landmarks,
+                width: rect.width,
+                height: rect.height,
+                displayMode: faceDisplayModeRef.current,
+              });
+            }
           }
         }
       } else {
@@ -359,13 +380,19 @@ export function FaceFlickCanvas() {
 
         // 最後に検出された顔の状態で描画を保持（プライバシー保護）
         if (lastDetectedFaceStateRef.current && lastDetectedResultRef.current && faceDisplayModeRef.current !== 'none') {
-          drawFaceLandmarks({
-            ctx,
-            landmarks: lastDetectedFaceStateRef.current.landmarks,
-            width: rect.width,
-            height: rect.height,
-            displayMode: faceDisplayModeRef.current,
-          });
+          if (faceDisplayModeRef.current === 'vrm') {
+            // VRMモード: 最後のポーズを保持（何もしない）
+            // VRMは最後に適用されたポーズを保持する
+          } else {
+            // ポイント/メッシュモード: 2Dランドマークを描画
+            drawFaceLandmarks({
+              ctx,
+              landmarks: lastDetectedFaceStateRef.current.landmarks,
+              width: rect.width,
+              height: rect.height,
+              displayMode: faceDisplayModeRef.current,
+            });
+          }
         }
       }
 
@@ -402,6 +429,11 @@ export function FaceFlickCanvas() {
         isSmileRecognizing: smileStartTimeRef.current !== null,
         isBrowRaiseRecognizing: browRaiseStartTimeRef.current !== null,
       });
+
+      // VRMレンダリング
+      if (faceDisplayModeRef.current === 'vrm' && vrm) {
+        renderVRM();
+      }
 
       animationFrameRef.current = requestAnimationFrame(animate);
     }
@@ -775,11 +807,40 @@ export function FaceFlickCanvas() {
         onCalibrationOpen={() => setShowCalibration(true)}
       />
 
-      {/* Canvas */}
+      {/* WebGL Canvas (VRMアバター - 背景) */}
+      {faceDisplayMode === 'vrm' && (
+        <canvas
+          ref={canvasWebGLRef}
+          className="absolute top-0 left-0 w-full h-full object-cover"
+          style={{ zIndex: 0 }}
+        />
+      )}
+
+      {/* Canvas 2D (キーボード・UI - 前景) */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full object-cover"
+        className="absolute top-0 left-0 w-full h-full object-cover"
+        style={{ zIndex: 1, pointerEvents: 'auto' }}
       />
+
+      {/* VRMローディング表示 */}
+      {vrmLoading && faceDisplayMode === 'vrm' && (
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
+          <div className="bg-black/70 backdrop-blur-md rounded-lg px-6 py-4">
+            <p className="text-white text-sm">VRMモデル読み込み中...</p>
+          </div>
+        </div>
+      )}
+
+      {/* VRMエラー表示 */}
+      {vrmError && faceDisplayMode === 'vrm' && (
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
+          <div className="bg-red-500/70 backdrop-blur-md rounded-lg px-6 py-4">
+            <p className="text-white text-sm">VRMモデルの読み込みに失敗しました</p>
+            <p className="text-white text-xs mt-1">{vrmError}</p>
+          </div>
+        </div>
+      )}
 
       {/* 全Blendshapes表示パネル */}
       {showDebugInfo && debugInfo && <DebugPanel debugInfo={debugInfo} />}
