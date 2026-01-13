@@ -17,6 +17,8 @@ import {
 } from '../utils/keyboard-layout';
 import { InputState, CalibrationSettings } from '../types';
 import { CalibrationModal } from './CalibrationModal';
+import { Toolbar } from './Toolbar';
+import { DebugPanel } from './DebugPanel';
 import {
   drawKeyboard,
   drawFaceLandmarks,
@@ -26,6 +28,7 @@ import {
 import type { FaceDisplayMode, GestureFeedback, DebugInfo } from '../utils/canvas';
 import { toggleCharacter, vibrate } from '../utils/character-utils';
 import { speakText } from '../utils/speech';
+import { detectGesture, HeadRotationSample } from '../utils/gesture-detection';
 
 export function FaceFlickCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -60,7 +63,7 @@ export function FaceFlickCanvas() {
   });
   const animationFrameRef = useRef<number | null>(null);
   const triggerStartTimeRef = useRef<number | null>(null);
-  const headRotationHistoryRef = useRef<Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>>([]);
+  const headRotationHistoryRef = useRef<HeadRotationSample[]>([]);
   const lastGestureTimeRef = useRef<number>(0);
   const calibrationStartTimeRef = useRef<number | null>(null);
   const calibrationSamplesRef = useRef<{ yaw: number; pitch: number; roll: number; jawOpen: number; mouthPucker: number; browInnerUp: number }[]>([]);
@@ -413,39 +416,6 @@ export function FaceFlickCanvas() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video, cameraReady, landmarkerReady, detectFace]); // inputState, inputText, calibrationSettings, faceDisplayModeはrefで参照
 
-  function detectGesture(
-    history: Array<{ yaw: number; pitch: number; roll: number; timestamp: number }>
-  ): 'head_shake' | null {
-    // 最低0.3秒のデータが必要（左→右→左の動きを検出）
-    if (history.length < 6) return null;
-
-    const timeSpan = history[history.length - 1].timestamp - history[0].timestamp;
-    if (timeSpan < 300) return null;
-
-    // ヘッドシェイク検出（左右に振る）
-    // yaw値の変化を見て、方向転換が2回以上あるかチェック
-    let yawDirectionChanges = 0;
-    let lastYawDirection: 'left' | 'right' | null = null;
-
-    for (let i = 1; i < history.length; i++) {
-      const yawDiff = history[i].yaw - history[i - 1].yaw;
-      if (Math.abs(yawDiff) > 2) { // 2度以上の変化
-        const currentDirection = yawDiff > 0 ? 'left' : 'right';
-        if (lastYawDirection && lastYawDirection !== currentDirection) {
-          yawDirectionChanges++;
-        }
-        lastYawDirection = currentDirection;
-      }
-    }
-
-    // 2回以上方向転換があればヘッドシェイク
-    if (yawDirectionChanges >= 2) {
-      return 'head_shake';
-    }
-
-    return null;
-  }
-
   function processInput(faceState: any) {
     const HOLD_DELAY_MS = 400; // 0.4秒のホールド遅延
     const now = Date.now();
@@ -784,72 +754,26 @@ export function FaceFlickCanvas() {
     );
   }
 
+  const handleFaceDisplayModeChange = () => {
+    setFaceDisplayMode((prev) => {
+      if (prev === 'none') return 'points';
+      if (prev === 'points') return 'mesh';
+      return 'none';
+    });
+  };
+
   return (
     <div className="relative w-full h-full">
       {/* ツールバー */}
-      <div className="absolute top-0 left-0 right-0 backdrop-blur-md bg-black/60 px-4 py-2 flex items-center justify-between z-10" style={{ height: '50px' }}>
-        {/* タイトル（左寄せ） */}
-        <div className="text-white text-lg font-semibold tracking-wide">
-          Face Flick
-        </div>
-
-        {/* 右側のボタン群 */}
-        <div className="flex gap-2">
-          {/* 録画ボタン */}
-          <button
-            onClick={handleRecordToggle}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-              isRecording
-                ? 'bg-red-500/80 hover:bg-red-500 backdrop-blur-sm'
-                : 'bg-white/30 hover:bg-white/40 backdrop-blur-sm'
-            }`}
-            title={isRecording ? '録画停止' : '録画開始'}
-          >
-            <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>
-              {isRecording ? 'stop' : 'fiber_manual_record'}
-            </span>
-          </button>
-
-          {/* プライバシーボタン */}
-          <button
-            onClick={() => {
-              setFaceDisplayMode((prev) => {
-                if (prev === 'none') return 'points';
-                if (prev === 'points') return 'mesh';
-                return 'none';
-              });
-            }}
-            className="w-10 h-10 bg-white/30 hover:bg-white/40 backdrop-blur-sm rounded-full flex items-center justify-center transition-all"
-            title={`顔表示: ${faceDisplayMode === 'none' ? '非表示' : faceDisplayMode === 'points' ? 'ポイント' : 'メッシュ'}`}
-          >
-            <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>
-              {faceDisplayMode === 'none' ? 'visibility_off' : faceDisplayMode === 'points' ? 'blur_on' : 'grid_on'}
-            </span>
-          </button>
-
-          {/* デバッグ情報トグルボタン */}
-          <button
-            onClick={() => setShowDebugInfo((prev) => !prev)}
-            className="w-10 h-10 bg-white/30 hover:bg-white/40 backdrop-blur-sm rounded-full flex items-center justify-center transition-all"
-            title={showDebugInfo ? 'デバッグ情報を非表示' : 'デバッグ情報を表示'}
-          >
-            <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>
-              {showDebugInfo ? 'code' : 'code_off'}
-            </span>
-          </button>
-
-          {/* キャリブレーションボタン */}
-          <button
-            onClick={() => setShowCalibration(true)}
-            className="w-10 h-10 bg-white/30 hover:bg-white/40 backdrop-blur-sm rounded-full flex items-center justify-center transition-all"
-            title="設定"
-          >
-            <span className="material-symbols-outlined text-white" style={{ fontSize: '20px' }}>
-              settings
-            </span>
-          </button>
-        </div>
-      </div>
+      <Toolbar
+        isRecording={isRecording}
+        onRecordToggle={handleRecordToggle}
+        faceDisplayMode={faceDisplayMode}
+        onFaceDisplayModeChange={handleFaceDisplayModeChange}
+        showDebugInfo={showDebugInfo}
+        onDebugInfoToggle={() => setShowDebugInfo((prev) => !prev)}
+        onCalibrationOpen={() => setShowCalibration(true)}
+      />
 
       {/* Canvas */}
       <canvas
@@ -857,26 +781,8 @@ export function FaceFlickCanvas() {
         className="w-full h-full object-cover"
       />
 
-      {/* 全Blendshapes表示パネル（スクロール可能） - キーボードに重なるように中央に配置 */}
-      {showDebugInfo && debugInfo && debugInfo.allBlendshapes.length > 0 && (
-        <div
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-96 bg-black/80 backdrop-blur-sm rounded-lg p-3 overflow-y-auto text-white text-xs font-mono"
-        >
-          <div className="font-bold mb-2 text-sm bg-black/90 pb-1">
-            全Blendshapes ({debugInfo.allBlendshapes.length})
-          </div>
-          <div className="space-y-1">
-            {debugInfo.allBlendshapes.map((bs, idx) => (
-              <div key={idx} className="flex justify-between items-center">
-                <span className="text-cyan-300">{bs.name}</span>
-                <span className={bs.value > 0.3 ? 'text-yellow-400 font-bold' : 'text-gray-400'}>
-                  {bs.value.toFixed(3)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* 全Blendshapes表示パネル */}
+      {showDebugInfo && debugInfo && <DebugPanel debugInfo={debugInfo} />}
 
       {/* キャリブレーションモーダル */}
       <CalibrationModal
