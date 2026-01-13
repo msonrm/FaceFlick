@@ -88,8 +88,16 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     const handleResize = () => {
       if (!canvas || !camera || !renderer) return;
 
-      const width = canvas.width;
-      const height = canvas.height;
+      const rect = canvas.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+
+      if (width === 0 || height === 0) {
+        console.log('[WebGL] Resize skipped: canvas not in layout yet');
+        return;
+      }
+
+      console.log('[WebGL] Resize triggered:', width, 'x', height);
 
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
@@ -97,10 +105,27 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
       renderer.setSize(width, height);
     };
 
+    // ResizeObserverでCanvas要素のサイズ変更を監視
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === canvas) {
+          handleResize();
+        }
+      }
+    });
+    resizeObserver.observe(canvas);
+
+    // window リサイズイベントも監視（フォールバック）
     window.addEventListener('resize', handleResize);
+
+    // 初期化直後にリサイズを実行（レイアウト完了を待つ）
+    requestAnimationFrame(() => {
+      handleResize();
+    });
 
     // クリーンアップ
     return () => {
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
 
       if (renderer) {
