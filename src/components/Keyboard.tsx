@@ -108,19 +108,21 @@ function FlickKeyCell({
 }: FlickKeyCellProps) {
   const isSelecting = inputPhase === 'selecting' || inputPhase === 'flicking';
 
-  // ベースのスタイル
-  let bgClass = 'bg-gray-800/70';
-  let borderClass = 'border-gray-600';
+  // ベースのスタイル（透明度を上げる）
+  let bgClass = 'bg-gray-800/40';
+  let borderClass = 'border-gray-600/50';
   let scaleClass = '';
 
   if (isSelected) {
     if (isSelecting) {
-      bgClass = 'bg-blue-600/80';
+      // 入力中：青くハイライト
+      bgClass = 'bg-blue-600/70';
       borderClass = 'border-blue-400';
       scaleClass = 'scale-105';
     } else {
-      bgClass = 'bg-gray-700/80';
-      borderClass = 'border-gray-400';
+      // ホバー中：薄く枠線のみ強調
+      bgClass = 'bg-gray-700/50';
+      borderClass = 'border-white/60';
     }
   }
 

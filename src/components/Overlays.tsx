@@ -270,8 +270,8 @@ interface TextDisplayProps {
 
 export function TextDisplay({ text, previewChar }: TextDisplayProps) {
   return (
-    <div className="bg-gray-800/80 backdrop-blur-sm rounded-lg p-4 min-h-[60px]">
-      <p className="text-white text-xl font-medium break-all">
+    <div className="bg-gray-800/60 backdrop-blur-sm rounded-lg p-4 min-h-[100px]">
+      <p className="text-white text-xl font-medium break-all leading-relaxed line-clamp-3">
         {text}
         {previewChar && (
           <span className="text-yellow-400 animate-pulse">{previewChar}</span>

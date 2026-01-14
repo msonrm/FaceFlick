@@ -98,15 +98,15 @@ export function FaceFlickCanvas() {
     const scene = new THREE.Scene();
     sceneRef.current = scene;
 
-    // カメラ
+    // カメラ（顔にズームイン）
     const camera = new THREE.PerspectiveCamera(
-      30,
+      20, // FOVを狭くして顔を大きく
       container.clientWidth / container.clientHeight,
       0.1,
       100
     );
-    camera.position.set(0, 1.0, 3.0);
-    camera.lookAt(0, 1, 0);
+    camera.position.set(0, 1.45, 0.8); // 顔に近づける
+    camera.lookAt(0, 1.4, 0); // 顔の高さを見る
     cameraRef.current = camera;
 
     // ライト
@@ -386,12 +386,12 @@ export function FaceFlickCanvas() {
           </div>
         )}
 
-        {/* スペーサー */}
-        <div className="flex-1" />
+        {/* スペーサー（上部を広く、下部を狭く） */}
+        <div className="flex-[2]" />
 
         {/* キーボード */}
         {state.phase === 'ready' && (
-          <div className="p-4 pointer-events-auto">
+          <div className="p-4 pb-8 pointer-events-auto">
             <Keyboard
               layoutId={state.keyboardModeId}
               selectedKey={state.input.selectedKey}
@@ -401,6 +401,9 @@ export function FaceFlickCanvas() {
             />
           </div>
         )}
+
+        {/* 下部スペーサー */}
+        <div className="flex-1" />
       </div>
 
       {/* オーバーレイ */}
