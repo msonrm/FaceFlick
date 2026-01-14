@@ -115,22 +115,20 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     return true;
   }, [canvasRef]);
 
-  // シーン初期化 - 遅延初期化対応
+  // シーン初期化 - 継続的な監視で初期化
   useEffect(() => {
     // 即座に試行
     if (initScene()) return;
 
-    // canvasRef.currentがnullの場合、遅延して再試行
-    console.log('[useThreeScene] Canvas not ready, scheduling retry...');
-    const timers = [
-      setTimeout(() => initScene(), 50),
-      setTimeout(() => initScene(), 100),
-      setTimeout(() => initScene(), 200),
-      setTimeout(() => initScene(), 500),
-      setTimeout(() => initScene(), 1000),
-    ];
+    // canvasRef.currentがnullの場合、継続的に監視して初期化を試みる
+    console.log('[useThreeScene] Canvas not ready, starting continuous retry...');
+    const interval = setInterval(() => {
+      if (initScene()) {
+        clearInterval(interval);
+      }
+    }, 100); // 100msごとに試行
 
-    return () => timers.forEach(t => clearTimeout(t));
+    return () => clearInterval(interval);
   }, [initScene]);
 
   // リサイズ監視（初期化後）
