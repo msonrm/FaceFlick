@@ -51,6 +51,9 @@ export function FaceFlickCanvas() {
   const [calibrationSamples, setCalibrationSamples] = useState<HeadRotationSample[]>([]);
   const [blendshapeSamples, setBlendshapeSamples] = useState<{ browInnerUp: number }[]>([]);
 
+  // デバッグ用：現在のbrowInnerUp値
+  const [debugBrowValue, setDebugBrowValue] = useState<number>(0);
+
   // 入力状態管理用refs
   const triggerStartTimeRef = useRef<number | null>(null);
   const holdPositionRef = useRef<{ yaw: number; pitch: number } | null>(null);
@@ -294,6 +297,9 @@ export function FaceFlickCanvas() {
               blendshapes: faceState.blendshapes,
             };
 
+            // デバッグ用：browInnerUp値を更新
+            setDebugBrowValue(faceState.blendshapes.browInnerUp);
+
             // VRMに表情適用（キャリブレーション角度を正面とする）
             if (vrm) {
               let calibrationOffset: CalibrationOffset | undefined;
@@ -437,13 +443,13 @@ export function FaceFlickCanvas() {
         />
       )}
 
-      {/* デバッグ情報（開発用） */}
-      {import.meta.env.DEV && state.phase === 'ready' && (
-        <div className="absolute top-4 right-4 bg-black/50 text-white text-xs p-2 rounded">
-          <div>Phase: {state.input.phase}</div>
+      {/* デバッグ情報 */}
+      {state.phase === 'ready' && (
+        <div className="absolute top-20 right-2 bg-black/70 text-white text-xs p-2 rounded max-w-[150px]">
+          <div>VRM: {vrm ? '✓' : '✗'}</div>
+          <div>Brow: {debugBrowValue.toFixed(2)}</div>
           <div>Key: {state.input.selectedKey ? `${state.input.selectedKey.row},${state.input.selectedKey.col}` : '-'}</div>
-          <div>Flick: {state.input.flickDirection ?? '-'}</div>
-          <div>Mode: {state.keyboardModeId}</div>
+          <div>Phase: {state.input.phase}</div>
         </div>
       )}
     </div>
