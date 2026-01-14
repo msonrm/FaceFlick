@@ -63,7 +63,8 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
       alpha: true, // 透明背景を有効化
       antialias: true,
     });
-    renderer.setSize(width, height);
+    // 第3引数falseでCSSスタイルを更新しない（TailwindのCSSを上書きしないため）
+    renderer.setSize(width, height, false);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
@@ -111,7 +112,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
 
-      renderer.setSize(width, height);
+      renderer.setSize(width, height, false);
     };
 
     // ResizeObserverでCanvas要素のサイズ変更を監視
@@ -185,13 +186,27 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
   // レンダリング関数
   const render = useCallback(() => {
-    if (!sceneRef.current || !cameraRef.current || !rendererRef.current) {
+    const canvas = canvasRef.current;
+    if (!sceneRef.current || !cameraRef.current || !rendererRef.current || !canvas) {
       return;
     }
 
     const scene = sceneRef.current;
     const camera = cameraRef.current;
     const renderer = rendererRef.current;
+
+    // レンダラーのサイズが0の場合、動的に更新（初期化タイミング問題の対策）
+    const rendererSize = renderer.getSize(new THREE.Vector2());
+    if (rendererSize.x === 0 || rendererSize.y === 0) {
+      const rect = canvas.getBoundingClientRect();
+      const width = rect.width || canvas.clientWidth || window.innerWidth;
+      const height = rect.height || canvas.clientHeight || window.innerHeight;
+      if (width > 0 && height > 0) {
+        renderer.setSize(width, height, false);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      }
+    }
 
     // VRMを更新（アニメーション等）
     const deltaTime = clockRef.current.getDelta();
@@ -201,7 +216,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
     // シーンをレンダリング
     renderer.render(scene, camera);
-  }, [vrm]);
+  }, [vrm, canvasRef]);
 
   // 手動リサイズ関数を公開
   const forceResize = useCallback(() => {
@@ -236,7 +251,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
 
-    renderer.setSize(width, height);
+    renderer.setSize(width, height, false);
   }, [canvasRef]);
 
   return {
