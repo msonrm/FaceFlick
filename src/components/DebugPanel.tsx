@@ -6,6 +6,7 @@ interface ThreeDebugInfo {
   vrmBounds: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null;
   cameraPosition: { x: number; y: number; z: number };
   renderCount: number;
+  objectStatus?: { scene: boolean; camera: boolean; renderer: boolean; canvas: boolean };
 }
 
 interface DebugPanelProps {
@@ -79,6 +80,17 @@ export function DebugPanel({ debugInfo, vrmStatus, threeDebugInfo, threeInitiali
                   {threeDebugInfo.renderCount}
                 </span>
               </div>
+              {threeDebugInfo.objectStatus && (
+                <div className="flex justify-between">
+                  <span className="text-gray-300">Objects:</span>
+                  <span className="text-[10px]">
+                    <span className={threeDebugInfo.objectStatus.scene ? 'text-green-400' : 'text-red-400'}>S</span>
+                    <span className={threeDebugInfo.objectStatus.camera ? 'text-green-400' : 'text-red-400'}>C</span>
+                    <span className={threeDebugInfo.objectStatus.renderer ? 'text-green-400' : 'text-red-400'}>R</span>
+                    <span className={threeDebugInfo.objectStatus.canvas ? 'text-green-400' : 'text-red-400'}>V</span>
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-gray-300">Camera Pos:</span>
                 <span className="text-blue-300">

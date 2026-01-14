@@ -52,11 +52,13 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     vrmBounds: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null;
     cameraPosition: { x: number; y: number; z: number };
     renderCount: number;
+    objectStatus: { scene: boolean; camera: boolean; renderer: boolean; canvas: boolean };
   }>({
     rendererSize: { x: 0, y: 0 },
     sceneChildren: 0,
     vrmBounds: null,
     cameraPosition: { x: 0, y: 0, z: 0 },
+    objectStatus: { scene: false, camera: false, renderer: false, canvas: false },
     renderCount: 0,
   });
   const renderCountRef = useRef(0);
@@ -95,7 +97,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     let scene = sceneRef.current;
     if (!scene) {
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x1a1a2e); // デバッグ用ダークブルー
+      // 背景は設定しない（透明にしてCanvas 2Dのキーボードを透過表示）
 
       // ライティング（シーン作成時のみ追加）
       const directionalLight = new THREE.DirectionalLight(0xffffff, Math.PI);
@@ -257,7 +259,24 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
   // レンダリング関数
   const render = useCallback(() => {
     const canvas = canvasRef.current;
+    const objectStatus = {
+      scene: !!sceneRef.current,
+      camera: !!cameraRef.current,
+      renderer: !!rendererRef.current,
+      canvas: !!canvas,
+    };
+
+    // オブジェクト状態を更新（毎フレームは多いので1秒に1回）
+    if (!renderDebugRef.current || Date.now() - renderDebugRef.current > 1000) {
+      setDebugInfo(prev => ({ ...prev, objectStatus }));
+    }
+
     if (!sceneRef.current || !cameraRef.current || !rendererRef.current || !canvas) {
+      // デバッグ: どの条件が失敗しているかログ出力
+      if (!renderDebugRef.current || Date.now() - renderDebugRef.current > 1000) {
+        console.log('[useThreeScene] render: missing -', objectStatus);
+        renderDebugRef.current = Date.now();
+      }
       return;
     }
 
