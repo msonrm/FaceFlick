@@ -60,42 +60,38 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
   });
   const renderCountRef = useRef(0);
 
-  // シーン初期化
-  useEffect(() => {
-    if (!canvasRef.current) return;
-
-    // すでに初期化されている場合はスキップ
-    if (rendererRef.current) return;
+  // シーン初期化関数
+  const initScene = useCallback(() => {
+    if (!canvasRef.current) {
+      console.log('[useThreeScene] initScene: canvas not ready');
+      return false;
+    }
+    if (rendererRef.current) {
+      console.log('[useThreeScene] initScene: already initialized');
+      return true;
+    }
 
     const canvas = canvasRef.current;
+    console.log('[useThreeScene] initScene: starting initialization');
 
     // Canvasの実際の表示サイズを取得
     const { width, height } = getCanvasSize(canvas);
 
     // Scene作成
     const scene = new THREE.Scene();
-    // デバッグ: 一時的に背景色を設定してレンダリングが行われているか確認
-    // 本番では null に戻す
-    scene.background = new THREE.Color(0x1a1a2e); // ダークブルー（デバッグ用）
+    scene.background = new THREE.Color(0x1a1a2e); // デバッグ用ダークブルー
 
     // Camera作成
-    const camera = new THREE.PerspectiveCamera(
-      30, // FOV
-      width / height, // アスペクト比
-      0.1, // near
-      20 // far
-    );
-    // デバッグ: カメラを少し引いて全体を見えるようにする
-    camera.position.set(0, 1.0, 3.0); // アバターを見やすい位置（Z=3に変更）
-    camera.lookAt(0, 1, 0); // アバターの中心（頭の位置）を見る
+    const camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 20);
+    camera.position.set(0, 1.0, 3.0);
+    camera.lookAt(0, 1, 0);
 
     // Renderer作成
     const renderer = new THREE.WebGLRenderer({
       canvas,
-      alpha: true, // 透明背景を有効化
+      alpha: true,
       antialias: true,
     });
-    // 第3引数falseでCSSスタイルを更新しない（TailwindのCSSを上書きしないため）
     renderer.setSize(width, height, false);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -113,9 +109,37 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     cameraRef.current = camera;
     rendererRef.current = renderer;
 
-    // 初期化完了をマーク
     setIsInitialized(true);
     console.log('[useThreeScene] Three.js scene initialized', { width, height });
+
+    return true;
+  }, [canvasRef]);
+
+  // シーン初期化 - 遅延初期化対応
+  useEffect(() => {
+    // 即座に試行
+    if (initScene()) return;
+
+    // canvasRef.currentがnullの場合、遅延して再試行
+    console.log('[useThreeScene] Canvas not ready, scheduling retry...');
+    const timers = [
+      setTimeout(() => initScene(), 50),
+      setTimeout(() => initScene(), 100),
+      setTimeout(() => initScene(), 200),
+      setTimeout(() => initScene(), 500),
+      setTimeout(() => initScene(), 1000),
+    ];
+
+    return () => timers.forEach(t => clearTimeout(t));
+  }, [initScene]);
+
+  // リサイズ監視（初期化後）
+  useEffect(() => {
+    if (!isInitialized || !canvasRef.current || !rendererRef.current || !cameraRef.current) return;
+
+    const canvas = canvasRef.current;
+    const renderer = rendererRef.current;
+    const camera = cameraRef.current;
 
     // リサイズハンドラー
     const handleResize = () => {
@@ -129,7 +153,6 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
-
       renderer.setSize(width, height, false);
     };
 
@@ -147,43 +170,17 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     window.addEventListener('resize', handleResize);
 
     // 初期化直後にリサイズを実行（複数回試行）
-    requestAnimationFrame(() => {
-      handleResize();
-    });
-
-    // 少し遅延してもう一度試す（レイアウト確定待ち）
-    setTimeout(() => {
-      handleResize();
-    }, 100);
-
-    setTimeout(() => {
-      handleResize();
-    }, 500);
+    handleResize();
+    requestAnimationFrame(() => handleResize());
+    setTimeout(() => handleResize(), 100);
+    setTimeout(() => handleResize(), 500);
 
     // クリーンアップ
     return () => {
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
-
-      if (renderer) {
-        renderer.dispose();
-      }
-
-      // Three.jsのメモリリーク防止
-      scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          object.geometry?.dispose();
-          if (object.material) {
-            if (Array.isArray(object.material)) {
-              object.material.forEach((material) => material.dispose());
-            } else {
-              object.material.dispose();
-            }
-          }
-        }
-      });
     };
-  }, [canvasRef]);
+  }, [isInitialized, canvasRef]);
 
   // VRMをシーンに追加/削除
   useEffect(() => {
