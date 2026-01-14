@@ -13,32 +13,68 @@ FaceFlickは、顔の動きだけで日本語フリック入力を行うWebア�
 - **3Dアバター**: Three.js + @pixiv/three-vrm + Kalidokit
 - **スタイリング**: Tailwind CSS
 
-### 主要ファイル（再利用可能）
+### アーキテクチャ
+
+```
+┌─────────────────────────────────┐
+│  z-index: 30  入力テキスト表示   │  ← HTML/CSS
+├─────────────────────────────────┤
+│  z-index: 20  キーボード        │  ← HTML/CSS (Tailwind)
+├─────────────────────────────────┤
+│  z-index: 10  VRM アバター      │  ← WebGL Canvas
+├─────────────────────────────────┤
+│  z-index: 0   カメラ映像        │  ← Video要素
+└─────────────────────────────────┘
+```
+
+**設計方針**:
+- キーボードはHTML/CSSで描画（Three.jsではなく）
+- WebGL CanvasはVRMアバターのみ担当
+- 画面遷移なし：状態（loading → calibrating → ready）で表示を切り替え
+- useReducerによる一元的な状態管理
+
+### 主要ファイル
 ```
 src/
+├── components/
+│   ├── FaceFlickCanvas.tsx   # メインコンポーネント
+│   ├── Keyboard.tsx          # キーボードUI（HTML/CSS）
+│   └── Overlays.tsx          # ローディング/キャリブレーション/エラー
 ├── hooks/
-│   ├── useCamera.ts          # カメラアクセス（動作確認済）
-│   ├── useFaceLandmarker.ts  # 顔認識（動作確認済）
-│   ├── useVRMAvatar.ts       # VRMロード（動作確認済）
+│   ├── useAppState.ts        # アプリ状態管理（useReducer）
+│   ├── useCamera.ts          # カメラアクセス
+│   ├── useFaceLandmarker.ts  # 顔認識
+│   ├── useVRMAvatar.ts       # VRMロード
 │   └── useRecording.ts       # 画面録画
 ├── utils/
-│   ├── face-detection.ts     # 顔分析・トリガー判定（動作確認済）
-│   ├── input-logic.ts        # キー選択・フリック判定（動作確認済）
-│   ├── keyboard-layout.ts    # キーボード配列定義
-│   ├── gesture-detection.ts  # ジェスチャー検出（動作確認済）
+│   ├── face-detection.ts     # 顔分析・トリガー判定
+│   ├── input-logic.ts        # キー選択・フリック判定
+│   ├── keyboard-layout.ts    # キーボード配列・定数
+│   ├── gesture-detection.ts  # ジェスチャー検出
 │   ├── character-utils.ts    # 濁点・半濁点・小文字変換
 │   ├── speech.ts             # 音声読み上げ
 │   └── vrm/
-│       └── applyMediaPipeToVRM.ts  # VRM表情適用（動作確認済）
+│       └── applyMediaPipeToVRM.ts  # VRM表情適用
 └── types/
     └── index.ts              # 型定義
 ```
 
 ---
 
-## キーボード配列
+## キーボードレイアウト
 
-### 3x4 フリックキーボード
+### レイアウトモード切り替え
+
+アプリはキーボードレイアウトを動的に切り替え可能：
+
+| モードID | 名前 | タイプ | グリッドサイズ |
+|----------|------|--------|---------------|
+| `flick-3x4` | フリック 3×4 | flick | 4行×3列 |
+| `tap-5x10` | 50音 5×10 | tap | 10行×5列 |
+
+新しいレイアウトは `keyboard-layout.ts` の `KEYBOARD_LAYOUTS` に追加で登録可能。
+
+### フリック3×4レイアウト（デフォルト）
 ```
 ┌─────────┬─────────┬─────────┐
 │ あ行    │ か行    │ さ行    │  Row 0
@@ -57,11 +93,50 @@ src/
 ```
 
 ### フリック方向
-- **中央タップ**: base文字（あ、か、さ...）
-- **上フリック**: up文字（う、く、す...）
-- **下フリック**: down文字（お、こ、そ...）
-- **左フリック**: left文字（い、き、し...）
-- **右フリック**: right文字（え、け、せ...）
+- **中央（center）**: base文字（あ、か、さ...）
+- **上（up）**: up文字（う、く、す...）
+- **下（down）**: down文字（お、こ、そ...）
+- **左（left）**: left文字（い、き、し...）
+- **右（right）**: right文字（え、け、せ...）
+
+---
+
+## アプリケーション状態
+
+### フェーズ遷移
+```
+loading → calibrating → ready
+   │           │           │
+   │           │           └─ 入力可能
+   │           └─ 自動キャリブレーション実行中
+   └─ リソース読み込み中（カメラ、顔認識、VRM）
+```
+
+### 入力状態遷移
+```
+idle → (トリガー開始 + 0.4秒ホールド) → selecting
+selecting → (フリック検出) → flicking
+selecting/flicking → (トリガー解除) → idle (文字確定)
+```
+
+### 状態管理（useReducer）
+```typescript
+interface AppState {
+  phase: 'loading' | 'calibrating' | 'ready';
+  input: {
+    phase: 'idle' | 'selecting' | 'flicking';
+    selectedKey: KeyPosition | null;
+    flickDirection: FlickDirection;
+    holdPosition: { yaw: number; pitch: number } | null;
+    previewChar: string | null;
+  };
+  text: string;
+  calibration: CalibrationSettings | null;
+  keyboardModeId: string;
+  faceDisplayMode: 'none' | 'vrm';
+  error: AppError | null;
+}
+```
 
 ---
 
@@ -73,21 +148,24 @@ src/
     ↓
 キャリブレーション範囲で正規化
     ↓
-3x4グリッドにマッピング
+グリッドにマッピング（レイアウトに応じて）
     ↓
 選択中のキーをハイライト表示
 ```
 
 **マッピングロジック**:
-- `yaw` (左右): 3分割 → Col 0/1/2
-- `pitch` (上下): 4分割 → Row 0/1/2/3
+- `yaw` (左右): 列数で分割
+- `pitch` (上下): 行数で分割
 - 鏡像反転: 顔を左に振る → 右列を選択
 
 ### 2. トリガー（入力開始）
-| トリガー | Blendshape | 開始閾値 | 終了閾値 |
-|----------|------------|----------|----------|
-| 口開け   | jawOpen    | 0.5      | 0.2      |
-| 口すぼめ | mouthPucker| 0.4      | 0.2      |
+
+**シンプル化**: `jawOpen` と `mouthPucker` を統一した閾値で判定
+
+| 状態 | 判定 |
+|------|------|
+| トリガー開始 | max(jawOpen, mouthPucker) > 0.45 |
+| トリガー終了 | max(jawOpen, mouthPucker) < 0.2 |
 
 **ヒステリシス**: 開始閾値を超えたら入力開始、終了閾値を下回ったら入力確定
 
@@ -104,11 +182,40 @@ src/
 
 **フリック閾値**: キー端では外側方向に敏感、内側方向に鈍感（エッジ補正）
 
-### 4. 入力状態遷移
-```
-idle → (トリガー開始 + 0.4秒ホールド) → selecting
-selecting → (フリック検出) → flicking
-selecting/flicking → (トリガー解除) → idle (文字確定)
+---
+
+## キャリブレーション
+
+### 自動キャリブレーション
+メイン画面ロード後に自動実行。安定検出で自動完了。
+
+| 条件 | 値 |
+|------|-----|
+| 最低時間 | 2秒 |
+| 最大時間 | 5秒 |
+| 安定判定 | 標準偏差 < 2度 |
+
+**設定される値**:
+- `baseYaw` / `basePitch`: 顔の中心位置
+- `yawRange` / `pitchRange`: キーボードの有効範囲
+- `browInnerUpBaseValue`: 眉の基準値
+- トリガー閾値（統一）
+
+### CalibrationSettings
+```typescript
+interface CalibrationSettings {
+  baseYaw: number;
+  basePitch: number;
+  yawRange: { min: number; max: number };
+  pitchRange: { min: number; max: number };
+  triggerThreshold: number;       // 統一開始閾値 (0.45)
+  triggerEndThreshold: number;    // 統一終了閾値 (0.2)
+  smileThreshold: number;         // 笑顔閾値 (0.6)
+  browInnerUpThreshold: number;   // 眉上げ閾値差分 (0.2)
+  browInnerUpBaseValue: number;   // 眉の基準値
+  gridSensitivity: number;        // グリッド感度 (15度)
+  flickSensitivity: number;       // フリック感度 (10度)
+}
 ```
 
 ---
@@ -132,36 +239,6 @@ selecting/flicking → (トリガー解除) → idle (文字確定)
   - browInnerUp ≥ キャリブレーション値 + 0.2
   - 1.5秒間維持
 - **動作**: 入力テキストを読み上げ → テキストクリア
-
----
-
-## キャリブレーション
-
-### 初期キャリブレーション（3秒）
-起動時に実行。ユーザーが正面を向いた状態で3秒間サンプリング。
-
-**設定される値**:
-- `baseYaw` / `basePitch`: 顔の中心位置
-- `yawRange` / `pitchRange`: キーボードの有効範囲
-- `jawOpenBaseValue` / `mouthPuckerBaseValue`: 口の基準値
-- `browInnerUpBaseValue`: 眉の基準値
-- 各終了閾値: ベース値 + 0.1
-
-### キャリブレーション設定
-```typescript
-interface CalibrationSettings {
-  yawRange: { min: number; max: number };      // デフォルト: ±20度
-  pitchRange: { min: number; max: number };    // デフォルト: -1〜10度
-  jawOpenThreshold: number;                    // 開始閾値 (0.5)
-  mouthPuckerThreshold: number;                // 開始閾値 (0.4)
-  smileThreshold: number;                      // 笑顔閾値 (0.6)
-  browInnerUpThreshold: number;                // 眉上げ閾値
-  jawOpenEndThreshold: number;                 // 終了閾値
-  mouthPuckerEndThreshold: number;             // 終了閾値
-  gridSensitivity: number;                     // グリッド感度 (15度)
-  flickSensitivity: number;                    // フリック感度 (10度)
-}
-```
 
 ---
 
@@ -197,6 +274,24 @@ camera.fov = 30;
 
 ---
 
+## パフォーマンス最適化
+
+### 顔認識の頻度制御
+- 顔認識: 30fps（~33ms間隔）
+- VRM描画: 60fps（requestAnimationFrame）
+
+```typescript
+const DETECTION_INTERVAL_MS = 33; // ~30fps
+
+// アニメーションループ内
+if (timestamp - lastDetectionTime >= DETECTION_INTERVAL_MS) {
+  detectFace(video, timestamp);
+  lastDetectionTime = timestamp;
+}
+```
+
+---
+
 ## 文字変換
 
 ### 濁点・半濁点・小文字トグル
@@ -228,22 +323,7 @@ speakText(text: string, voice: VoiceType): void
 
 ### フェイス表示モード
 - `'none'`: 顔表示なし（カメラ背景のみ）
-- `'points'`: ランドマークポイント表示
 - `'vrm'`: VRMアバター表示
-
----
-
-## 既知の問題・再設計の推奨事項
-
-### 現在の問題
-1. **Canvas要素の二重構造**: 2D Canvas (キーボード) + WebGL Canvas (VRM) のz-index管理が複雑
-2. **画面遷移時のCanvas切り替え**: キャリブレーション画面→メイン画面で別のDOM要素になりThree.jsの再初期化が困難
-3. **アニメーションループの管理**: requestAnimationFrameとReactのライフサイクルの競合
-
-### 推奨アーキテクチャ
-1. **単一のキャンバス戦略**: WebGL Canvas一本化、キーボードもThree.jsで描画
-2. **コンポーネント分離**: キャリブレーション/メイン画面を別コンポーネントにせず、状態で切り替え
-3. **Canvasの永続化**: 条件付きレンダリングを避け、常に同じCanvas要素を維持
 
 ---
 
@@ -251,10 +331,10 @@ speakText(text: string, voice: VoiceType): void
 
 ```typescript
 // 閾値
-JAW_OPEN_THRESHOLD = 0.5
-MOUTH_PUCKER_THRESHOLD = 0.4
+DEFAULT_TRIGGER_THRESHOLD = 0.45    // 統一トリガー開始閾値
+DEFAULT_TRIGGER_END_THRESHOLD = 0.2 // 統一トリガー終了閾値
 SMILE_THRESHOLD = 0.6
-BROW_INNER_UP_THRESHOLD = 0.5
+BROW_THRESHOLD = 0.5
 
 // 感度
 GRID_SENSITIVITY = 15  // 度
@@ -267,6 +347,12 @@ CONFIRM_COOLDOWN_MS = 300     // 文字確定後のクールダウン
 FACE_LOST_TIMEOUT_MS = 300    // 顔認識ロスト判定時間
 SMILE_HOLD_MS = 1500          // 笑顔ホールド時間
 BROW_HOLD_MS = 1500           // 眉上げホールド時間
+CALIBRATION_MIN_MS = 2000     // キャリブレーション最低時間
+CALIBRATION_MAX_MS = 5000     // キャリブレーション最大時間
+CALIBRATION_STABILITY_THRESHOLD = 2 // 安定判定の標準偏差閾値（度）
+
+// 顔認識頻度
+DETECTION_INTERVAL_MS = 33    // ~30fps
 
 // EMA平滑化係数
 HEAD_ROTATION_ALPHA = 0.4     // 頭の回転（通常時）

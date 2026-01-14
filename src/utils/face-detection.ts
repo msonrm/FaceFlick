@@ -1,23 +1,20 @@
 import { NormalizedLandmark, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
-import { FaceState, TriggerType, CalibrationSettings } from '../types';
+import { FaceState, CalibrationSettings } from '../types';
+import {
+  DEFAULT_TRIGGER_THRESHOLD,
+  DEFAULT_TRIGGER_END_THRESHOLD,
+  BLENDSHAPES_ALPHA,
+} from './keyboard-layout';
 
-// デフォルト閾値（Blendshapes: 0-1）
-const DEFAULT_JAW_OPEN_THRESHOLD = 0.5;
-const DEFAULT_MOUTH_PUCKER_THRESHOLD = 0.4;
+export interface PrevFaceState {
+  isTriggered: boolean;
+  blendshapes?: FaceState['blendshapes'];
+}
 
 export function analyzeFace(
   result: FaceLandmarkerResult,
-  settings?: CalibrationSettings,
-  prevTriggerState?: { isTriggered: boolean; triggerType?: TriggerType },
-  prevBlendshapes?: {
-    jawOpen: number;
-    mouthPucker: number;
-    mouthSmileLeft: number;
-    mouthSmileRight: number;
-    eyeBlinkLeft: number;
-    eyeBlinkRight: number;
-    browInnerUp: number;
-  }
+  settings?: CalibrationSettings | null,
+  prevState?: PrevFaceState
 ): FaceState | null {
   if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
     return null;
@@ -47,47 +44,32 @@ export function analyzeFace(
   }
 
   // Blendshapesに平滑化を適用（EMA: 指数移動平均）
-  const alphaBlendshapes = 0.7; // 口の動きは速いので、頭の回転より高めに設定
-  if (prevBlendshapes) {
-    jawOpen = alphaBlendshapes * jawOpen + (1 - alphaBlendshapes) * prevBlendshapes.jawOpen;
-    mouthPucker = alphaBlendshapes * mouthPucker + (1 - alphaBlendshapes) * prevBlendshapes.mouthPucker;
-    mouthSmileLeft = alphaBlendshapes * mouthSmileLeft + (1 - alphaBlendshapes) * prevBlendshapes.mouthSmileLeft;
-    mouthSmileRight = alphaBlendshapes * mouthSmileRight + (1 - alphaBlendshapes) * prevBlendshapes.mouthSmileRight;
-    eyeBlinkLeft = alphaBlendshapes * eyeBlinkLeft + (1 - alphaBlendshapes) * prevBlendshapes.eyeBlinkLeft;
-    eyeBlinkRight = alphaBlendshapes * eyeBlinkRight + (1 - alphaBlendshapes) * prevBlendshapes.eyeBlinkRight;
-    browInnerUp = alphaBlendshapes * browInnerUp + (1 - alphaBlendshapes) * prevBlendshapes.browInnerUp;
+  if (prevState?.blendshapes) {
+    const prev = prevState.blendshapes;
+    jawOpen = BLENDSHAPES_ALPHA * jawOpen + (1 - BLENDSHAPES_ALPHA) * prev.jawOpen;
+    mouthPucker = BLENDSHAPES_ALPHA * mouthPucker + (1 - BLENDSHAPES_ALPHA) * prev.mouthPucker;
+    mouthSmileLeft = BLENDSHAPES_ALPHA * mouthSmileLeft + (1 - BLENDSHAPES_ALPHA) * prev.mouthSmileLeft;
+    mouthSmileRight = BLENDSHAPES_ALPHA * mouthSmileRight + (1 - BLENDSHAPES_ALPHA) * prev.mouthSmileRight;
+    eyeBlinkLeft = BLENDSHAPES_ALPHA * eyeBlinkLeft + (1 - BLENDSHAPES_ALPHA) * prev.eyeBlinkLeft;
+    eyeBlinkRight = BLENDSHAPES_ALPHA * eyeBlinkRight + (1 - BLENDSHAPES_ALPHA) * prev.eyeBlinkRight;
+    browInnerUp = BLENDSHAPES_ALPHA * browInnerUp + (1 - BLENDSHAPES_ALPHA) * prev.browInnerUp;
   }
 
-  // 開始閾値と終了閾値を取得
-  const jawOpenStartThreshold = settings?.jawOpenThreshold ?? DEFAULT_JAW_OPEN_THRESHOLD;
-  const mouthPuckerStartThreshold = settings?.mouthPuckerThreshold ?? DEFAULT_MOUTH_PUCKER_THRESHOLD;
+  // トリガー判定（シンプル化: jawOpen と mouthPucker のどちらかで発火）
+  const startThreshold = settings?.triggerThreshold ?? DEFAULT_TRIGGER_THRESHOLD;
+  const endThreshold = settings?.triggerEndThreshold ?? DEFAULT_TRIGGER_END_THRESHOLD;
 
-  // 終了閾値（デフォルトは0.2）
-  const jawOpenEndThreshold = settings?.jawOpenEndThreshold ?? 0.2;
-  const mouthPuckerEndThreshold = settings?.mouthPuckerEndThreshold ?? 0.2;
+  // 現在のトリガー値（どちらか大きい方）
+  const triggerValue = Math.max(jawOpen, mouthPucker);
 
-  // ヒステリシス判定：前回のトリガー状態に応じて異なる閾値を使用
+  // ヒステリシス判定
   let isTriggered = false;
-  let triggerType: TriggerType = null;
-
-  if (prevTriggerState?.isTriggered) {
+  if (prevState?.isTriggered) {
     // すでにトリガー中 → 終了閾値で判定
-    if (jawOpen > jawOpenEndThreshold) {
-      isTriggered = true;
-      triggerType = 'mouth_open';
-    } else if (mouthPucker > mouthPuckerEndThreshold) {
-      isTriggered = true;
-      triggerType = 'mouth_pucker';
-    }
+    isTriggered = triggerValue > endThreshold;
   } else {
     // トリガーなし → 開始閾値で判定
-    if (jawOpen > jawOpenStartThreshold) {
-      isTriggered = true;
-      triggerType = 'mouth_open';
-    } else if (mouthPucker > mouthPuckerStartThreshold) {
-      isTriggered = true;
-      triggerType = 'mouth_pucker';
-    }
+    isTriggered = triggerValue > startThreshold;
   }
 
   // 頭の回転を計算
@@ -105,7 +87,6 @@ export function analyzeFace(
       browInnerUp,
     },
     isTriggered,
-    triggerType,
     headRotation,
   };
 }
@@ -144,4 +125,23 @@ function calculateHeadRotation(landmarks: NormalizedLandmark[]): {
   const roll = rollAngle * (180 / Math.PI); // ラジアンから度に変換
 
   return { yaw, pitch, roll };
+}
+
+/**
+ * 笑顔を検出
+ */
+export function isSmiling(blendshapes: FaceState['blendshapes'], threshold: number): boolean {
+  const avgSmile = (blendshapes.mouthSmileLeft + blendshapes.mouthSmileRight) / 2;
+  return avgSmile >= threshold;
+}
+
+/**
+ * 眉上げを検出
+ */
+export function isBrowRaised(
+  blendshapes: FaceState['blendshapes'],
+  baseValue: number,
+  threshold: number
+): boolean {
+  return blendshapes.browInnerUp >= baseValue + threshold;
 }

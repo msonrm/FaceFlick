@@ -1,66 +1,161 @@
 import { NormalizedLandmark } from '@mediapipe/tasks-vision';
 
-export type TriggerType = 'mouth_open' | 'mouth_pucker' | null;
+// ============================================
+// 顔認識関連
+// ============================================
 
 export interface FaceState {
   landmarks: NormalizedLandmark[];
-  // Blendshapes (MediaPipe Face Landmarker)
   blendshapes: {
-    jawOpen: number;        // 口を開ける (0-1)
-    mouthPucker: number;    // 口すぼめ (0-1)
-    mouthSmileLeft: number; // 左笑顔 (0-1)
-    mouthSmileRight: number;// 右笑顔 (0-1)
-    eyeBlinkLeft: number;   // 左目を閉じる (0-1)
-    eyeBlinkRight: number;  // 右目を閉じる (0-1)
-    browInnerUp: number;    // 眉を上げる (0-1)
+    jawOpen: number;
+    mouthPucker: number;
+    mouthSmileLeft: number;
+    mouthSmileRight: number;
+    eyeBlinkLeft: number;
+    eyeBlinkRight: number;
+    browInnerUp: number;
   };
-  // どのトリガーがアクティブか
-  isTriggered: boolean;
-  triggerType: TriggerType;
-  // 頭の回転
+  isTriggered: boolean;  // シンプル化: mouth_open/pucker を区別しない
   headRotation: {
-    yaw: number;   // 左右の回転 (-180 to 180)
-    pitch: number; // 上下の回転 (-90 to 90)
-    roll: number;  // 傾き (-180 to 180)
+    yaw: number;
+    pitch: number;
+    roll: number;
   };
 }
 
+// ============================================
+// キーボードレイアウト関連
+// ============================================
+
+export type FlickDirection = 'up' | 'down' | 'left' | 'right' | 'center' | null;
+
+// 単一キーの定義
 export interface FlickKey {
   base: string;
   up?: string;
   down?: string;
   left?: string;
   right?: string;
+  // 特殊キーのフラグ
+  isModifier?: boolean;  // 濁点・半濁点・小文字
+  isSpecial?: boolean;   // 読み上げトリガーなど
 }
 
-export type FlickDirection = 'up' | 'down' | 'left' | 'right' | null;
+// タップ専用キー（横並びモード用）
+export interface TapKey {
+  char: string;
+  isModifier?: boolean;
+  isSpecial?: boolean;
+}
 
-export type InputState =
-  | { type: 'idle' }
-  | { type: 'selecting'; key: FlickKey; triggerType: TriggerType; holdPosition: { yaw: number; pitch: number } }
-  | { type: 'flicking'; key: FlickKey; direction: FlickDirection; triggerType: TriggerType; holdPosition: { yaw: number; pitch: number } };
+// キーボードレイアウトの種類
+export type KeyboardType = 'flick' | 'tap';
 
+// キーボードレイアウト定義
 export interface KeyboardLayout {
-  rows: FlickKey[][];
+  id: string;
+  name: string;
+  type: KeyboardType;
+  gridSize: { rows: number; cols: number };
+  keys: (FlickKey | TapKey)[][];  // 2次元配列
 }
+
+// キー位置
+export interface KeyPosition {
+  row: number;
+  col: number;
+}
+
+// ============================================
+// 入力状態関連
+// ============================================
+
+export type InputPhase = 'idle' | 'selecting' | 'flicking';
+
+export interface InputState {
+  phase: InputPhase;
+  selectedKey: KeyPosition | null;
+  flickDirection: FlickDirection;
+  holdPosition: { yaw: number; pitch: number } | null;
+  // プレビュー表示用
+  previewChar: string | null;
+}
+
+// ============================================
+// アプリケーション状態
+// ============================================
+
+export type AppPhase = 'loading' | 'calibrating' | 'ready';
 
 export interface CalibrationSettings {
-  // 顔の向きの範囲
+  // 顔の基準位置
+  baseYaw: number;
+  basePitch: number;
+  // 顔の向きの有効範囲
   yawRange: { min: number; max: number };
   pitchRange: { min: number; max: number };
-  // トリガーの閾値 (Blendshapes: 0-1)
-  jawOpenThreshold: number;       // 口を開ける - 開始閾値 (デフォルト: 0.5)
-  mouthPuckerThreshold: number;   // 口すぼめ - 開始閾値 (デフォルト: 0.4)
-  smileThreshold: number;         // 笑顔 (デフォルト: 0.6) - 読み上げ&クリア用
-  browInnerUpThreshold?: number;  // 眉を上げる閾値（編集可能、デフォルト: 0.5）
-  // 口のベース値（キャリブレーション時の閉じた口の値）
-  jawOpenBaseValue?: number;      // 口を開ける - ベース値（キャリブレーション用）
-  mouthPuckerBaseValue?: number;  // 口すぼめ - ベース値（キャリブレーション用）
-  browInnerUpBaseValue?: number;  // 眉を上げる - ベース値（キャリブレーション用）
-  // トリガー終了閾値（ヒステリシス用）
-  jawOpenEndThreshold?: number;      // 口を開ける - 終了閾値（編集可能）
-  mouthPuckerEndThreshold?: number;  // 口すぼめ - 終了閾値（編集可能）
-  // グリッド・フリック感度
+  // トリガー閾値
+  triggerThreshold: number;      // 統一した開始閾値
+  triggerEndThreshold: number;   // 統一した終了閾値（ヒステリシス）
+  // ジェスチャー閾値
+  smileThreshold: number;
+  browInnerUpThreshold: number;
+  browInnerUpBaseValue: number;
+  // 感度設定
   gridSensitivity: number;
   flickSensitivity: number;
+}
+
+// アプリ全体の状態（useReducer用）
+export interface AppState {
+  phase: AppPhase;
+  input: InputState;
+  text: string;
+  calibration: CalibrationSettings | null;
+  keyboardModeId: string;  // 現在のキーボードモード
+  faceDisplayMode: 'none' | 'vrm';
+  error: AppError | null;
+}
+
+// エラー状態
+export type AppError =
+  | { type: 'camera_denied' }
+  | { type: 'camera_not_found' }
+  | { type: 'face_landmarker_failed'; message: string }
+  | { type: 'vrm_load_failed'; message: string }
+  | { type: 'face_lost' };
+
+// ============================================
+// アクション定義（useReducer用）
+// ============================================
+
+export type AppAction =
+  // フェーズ遷移
+  | { type: 'RESOURCES_LOADED' }
+  | { type: 'CALIBRATION_COMPLETE'; settings: CalibrationSettings }
+  // 入力状態
+  | { type: 'KEY_HOVER'; position: KeyPosition }
+  | { type: 'TRIGGER_START'; position: KeyPosition; holdPosition: { yaw: number; pitch: number } }
+  | { type: 'FLICK_DETECTED'; direction: FlickDirection }
+  | { type: 'TRIGGER_END' }
+  // テキスト操作
+  | { type: 'CHAR_INPUT'; char: string }
+  | { type: 'BACKSPACE' }
+  | { type: 'TOGGLE_MODIFIER' }
+  | { type: 'SPEAK_AND_CLEAR' }
+  // 設定変更
+  | { type: 'SET_KEYBOARD_MODE'; modeId: string }
+  | { type: 'SET_FACE_DISPLAY_MODE'; mode: 'none' | 'vrm' }
+  // エラー
+  | { type: 'SET_ERROR'; error: AppError }
+  | { type: 'CLEAR_ERROR' };
+
+// ============================================
+// ユーティリティ型
+// ============================================
+
+export interface HeadRotationSample {
+  yaw: number;
+  pitch: number;
+  timestamp: number;
 }
