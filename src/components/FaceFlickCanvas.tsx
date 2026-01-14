@@ -780,10 +780,23 @@ export function FaceFlickCanvas() {
 
   if (!cameraReady || !landmarkerReady) {
     return (
-      <div className="flex items-center justify-center w-full h-full bg-gray-900 text-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
-          <p>初期化中...</p>
+      <div className="relative w-full h-full bg-gray-900">
+        {/* WebGL Canvas - 初期化中も存在させてThree.js初期化を行う */}
+        <canvas
+          ref={canvasWebGLRef}
+          className="absolute top-0 left-0 z-0"
+          style={{
+            width: '100%',
+            height: '100%',
+            visibility: 'hidden',
+            pointerEvents: 'none',
+          }}
+        />
+        <div className="absolute inset-0 flex items-center justify-center text-white">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+            <p>初期化中...</p>
+          </div>
         </div>
       </div>
     );
