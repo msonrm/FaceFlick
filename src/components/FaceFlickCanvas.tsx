@@ -99,14 +99,15 @@ export function FaceFlickCanvas() {
     sceneRef.current = scene;
 
     // カメラ（顔をキーボード2段目の高さに表示）
+    // VRMの顔は約y=1.4-1.5にある。顔より上を見ることで、顔が画面下部に表示される
     const camera = new THREE.PerspectiveCamera(
       30, // FOVを広めに
       container.clientWidth / container.clientHeight,
       0.1,
       100
     );
-    camera.position.set(0, 1.45, 1.2); // 顔から離す
-    camera.lookAt(0, 1.35, 0); // 顔の少し下を見て、画面上部にアバター顔を表示
+    camera.position.set(0, 1.6, 1.2); // カメラを顔より上に配置
+    camera.lookAt(0, 1.6, 0); // 顔より上（首あたり）を見ることで、顔が画面下部に表示
     cameraRef.current = camera;
 
     // ライト

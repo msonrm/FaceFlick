@@ -116,48 +116,28 @@ function applyHeadRotation(vrm: VRM, riggedFace: any, calibrationOffset?: Calibr
 
 /**
  * 目の動きをVRMに適用
- * VRM 1.0ではlookAtを使用、それ以外は直接ボーン回転
+ * VRM 1.0ではlookAtを使用（虹彩・瞳孔が正しく動く）
+ * ボーン直接回転はlookAtと競合するため使用しない
  */
 function applyEyeRotation(vrm: VRM, riggedFace: any): void {
   if (!riggedFace.eye) {
     return;
   }
 
-  // VRM lookAt が利用可能な場合はそちらを使う（虹彩・瞳孔が正しく動く）
-  if (vrm.lookAt) {
+  // VRM lookAt が利用可能な場合のみ目の動きを適用
+  // 直接ボーン回転はblinkと競合するので使用しない
+  if (vrm.lookAt && vrm.lookAt.applier) {
     // Kalidokitの目の回転をlookAt用の角度に変換
     // 左右の目の平均を使用
     const avgX = ((riggedFace.eye.l?.x ?? 0) + (riggedFace.eye.r?.x ?? 0)) / 2;
     const avgY = ((riggedFace.eye.l?.y ?? 0) + (riggedFace.eye.r?.y ?? 0)) / 2;
 
-    // ラジアンから度に変換（VRM lookAtは度を使用することが多い）
-    const pitchDeg = avgX * (180 / Math.PI) * 2; // 感度調整
-    const yawDeg = avgY * (180 / Math.PI) * 2;
+    // ラジアンから度に変換
+    const pitchDeg = avgX * (180 / Math.PI) * 1.5; // 感度調整
+    const yawDeg = avgY * (180 / Math.PI) * 1.5;
 
-    // lookAtのターゲットを設定（applier経由で適用される）
-    vrm.lookAt.applier?.applyYawPitch(yawDeg, pitchDeg);
-  }
-
-  // 直接ボーン回転も適用（lookAtがない場合のフォールバック）
-  if (vrm.humanoid) {
-    const leftEyeBone = vrm.humanoid.getNormalizedBoneNode('leftEye');
-    const rightEyeBone = vrm.humanoid.getNormalizedBoneNode('rightEye');
-
-    if (leftEyeBone && riggedFace.eye.l) {
-      leftEyeBone.rotation.set(
-        riggedFace.eye.l.x * 0.5,
-        riggedFace.eye.l.y * 0.5,
-        0
-      );
-    }
-
-    if (rightEyeBone && riggedFace.eye.r) {
-      rightEyeBone.rotation.set(
-        riggedFace.eye.r.x * 0.5,
-        riggedFace.eye.r.y * 0.5,
-        0
-      );
-    }
+    // lookAtのターゲットを設定
+    vrm.lookAt.applier.applyYawPitch(yawDeg, pitchDeg);
   }
 }
 
@@ -178,6 +158,7 @@ function applyBlendshapes(vrm: VRM, result: FaceLandmarkerResult): void {
 
   // MediaPipe Blendshapes → VRM Expression のマッピング
   // VRM標準表情: happy, angry, sad, relaxed, surprised, aa, ih, ou, ee, oh, blink, blinkLeft, blinkRight, lookUp, lookDown, lookLeft, lookRight
+  // 注意: surprisedは口も開くので使用しない。browInnerUpは目の表情のみに影響させる
   const expressionMap: Record<string, { vrmExpression: string; weight: number }> = {
     // 口の動き
     'jawOpen': { vrmExpression: 'aa', weight: 1.0 },           // あ
@@ -192,10 +173,9 @@ function applyBlendshapes(vrm: VRM, result: FaceLandmarkerResult): void {
     'eyeBlinkLeft': { vrmExpression: 'blinkLeft', weight: 1.0 },
     'eyeBlinkRight': { vrmExpression: 'blinkRight', weight: 1.0 },
 
-    // 驚き
-    'browInnerUp': { vrmExpression: 'surprised', weight: 0.8 },
-    'eyeWideLeft': { vrmExpression: 'surprised', weight: 0.5 },
-    'eyeWideRight': { vrmExpression: 'surprised', weight: 0.5 },
+    // 目を見開く（lookUpで代用、口は開かない）
+    'eyeWideLeft': { vrmExpression: 'lookUp', weight: 0.3 },
+    'eyeWideRight': { vrmExpression: 'lookUp', weight: 0.3 },
 
     // その他の母音
     'mouthClose': { vrmExpression: 'ee', weight: 0.8 },        // い
