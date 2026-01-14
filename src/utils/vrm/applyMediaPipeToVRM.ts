@@ -3,6 +3,41 @@ import { FaceLandmarkerResult } from '@mediapipe/tasks-vision';
 import * as Kalidokit from 'kalidokit';
 
 /**
+ * 顔の位置情報（正規化座標 0-1）
+ */
+export interface FacePosition {
+  x: number; // 0=左端, 1=右端
+  y: number; // 0=上端, 1=下端
+  scale: number; // 顔の大きさ（0-1の範囲で正規化）
+}
+
+/**
+ * MediaPipeのランドマークから顔の位置を抽出する
+ */
+export function getFacePosition(result: FaceLandmarkerResult): FacePosition | null {
+  if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
+    return null;
+  }
+
+  const landmarks = result.faceLandmarks[0];
+
+  // 鼻先（landmark 1）を顔の中心として使用
+  const noseTip = landmarks[1];
+
+  // 顔の大きさを推定（左右の頬の距離）
+  // landmark 234: 右頬, landmark 454: 左頬
+  const rightCheek = landmarks[234];
+  const leftCheek = landmarks[454];
+  const faceWidth = Math.abs(leftCheek.x - rightCheek.x);
+
+  return {
+    x: noseTip.x,
+    y: noseTip.y,
+    scale: faceWidth,
+  };
+}
+
+/**
  * MediaPipeの顔検出結果をVRMモデルに適用する
  */
 export function applyMediaPipeToVRM(
@@ -50,10 +85,11 @@ function applyHeadRotation(vrm: VRM, riggedFace: any): void {
 
   // Kalidokitの頭部回転（Euler angles）を適用
   // Kalidokitの出力はラジアンで、座標系がVRMと異なる場合があるため調整
+  // Pitch（上下）は符号を反転して自然な動きにする
   headBone.rotation.set(
-    riggedFace.head.x * 0.8, // Pitch（上下）- やや抑える
-    riggedFace.head.y * 0.8, // Yaw（左右）- やや抑える
-    riggedFace.head.z * 0.5  // Roll（傾き）- さらに抑える
+    -riggedFace.head.x * 0.8, // Pitch（上下）- 反転してやや抑える
+    riggedFace.head.y * 0.8,  // Yaw（左右）- やや抑える
+    riggedFace.head.z * 0.5   // Roll（傾き）- さらに抑える
   );
 }
 

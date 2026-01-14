@@ -11,7 +11,7 @@ import { useAppState } from '../hooks/useAppState';
 import { analyzeFace, PrevFaceState, isSmiling, isBrowRaised } from '../utils/face-detection';
 import { getSelectedKeyPosition, getFlickDirection, getCharFromPosition } from '../utils/input-logic';
 import { detectGesture } from '../utils/gesture-detection';
-import { applyMediaPipeToVRM } from '../utils/vrm/applyMediaPipeToVRM';
+import { applyMediaPipeToVRM, getFacePosition } from '../utils/vrm/applyMediaPipeToVRM';
 import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS } from '../utils/keyboard-layout';
 
 // Components
@@ -56,6 +56,9 @@ export function FaceFlickCanvas() {
   const holdPositionRef = useRef<{ yaw: number; pitch: number } | null>(null);
   const headRotationHistoryRef = useRef<HeadRotationSample[]>([]);
   const smileStartTimeRef = useRef<number | null>(null);
+
+  // 顔位置追跡用（EMA平滑化）
+  const facePositionRef = useRef<{ x: number; y: number; scale: number } | null>(null);
 
   // エラーチェック
   useEffect(() => {
@@ -293,9 +296,34 @@ export function FaceFlickCanvas() {
               blendshapes: faceState.blendshapes,
             };
 
-            // VRMに表情適用
+            // VRMに表情適用＆顔位置追跡
             if (vrm) {
               applyMediaPipeToVRM(vrm, result);
+
+              // 顔位置を取得してVRMの位置を調整
+              const facePos = getFacePosition(result);
+              if (facePos) {
+                const alpha = 0.3; // 平滑化係数
+                if (facePositionRef.current) {
+                  // EMA平滑化
+                  facePositionRef.current = {
+                    x: facePositionRef.current.x * (1 - alpha) + facePos.x * alpha,
+                    y: facePositionRef.current.y * (1 - alpha) + facePos.y * alpha,
+                    scale: facePositionRef.current.scale * (1 - alpha) + facePos.scale * alpha,
+                  };
+                } else {
+                  facePositionRef.current = facePos;
+                }
+
+                // 顔位置（0-1）を3D座標にマッピング
+                // x: 0.5が中央、カメラは鏡像なので反転済み
+                const offsetX = (facePositionRef.current.x - 0.5) * -0.8; // 水平オフセット（鏡像反転）
+
+                // VRMシーンの位置を調整（水平方向のみ）
+                // y方向はカメラのlookAt基準点との調整が複雑なため、
+                // また縦方向の頭の動きはキー選択に使用されるため、水平追跡のみ実施
+                vrm.scene.position.x = offsetX;
+              }
             }
 
             // キャリブレーション中はサンプル収集
