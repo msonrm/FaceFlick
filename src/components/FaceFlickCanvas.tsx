@@ -108,8 +108,8 @@ export function FaceFlickCanvas() {
       0.1,
       100
     );
-    camera.position.set(0, 1.4, 1.5); // 顔の高さ、やや離れて
-    camera.lookAt(0, 1.4, 0); // 顔の中心を見る
+    camera.position.set(0, 1.2, 1.5); // 顔の高さに合わせて下げる
+    camera.lookAt(0, 1.2, 0); // 顔の中心を見る
     cameraRef.current = camera;
 
     // ライト
