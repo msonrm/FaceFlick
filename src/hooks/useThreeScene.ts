@@ -43,6 +43,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const clockRef = useRef(new THREE.Clock());
+  const renderDebugRef = useRef<number | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // シーン初期化
@@ -59,7 +60,9 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
     // Scene作成
     const scene = new THREE.Scene();
-    scene.background = null; // 透明背景
+    // デバッグ: 一時的に背景色を設定してレンダリングが行われているか確認
+    // 本番では null に戻す
+    scene.background = new THREE.Color(0x1a1a2e); // ダークブルー（デバッグ用）
 
     // Camera作成
     const camera = new THREE.PerspectiveCamera(
@@ -68,7 +71,8 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
       0.1, // near
       20 // far
     );
-    camera.position.set(0, 1.3, 1.5); // アバターを見やすい位置
+    // デバッグ: カメラを少し引いて全体を見えるようにする
+    camera.position.set(0, 1.0, 3.0); // アバターを見やすい位置（Z=3に変更）
     camera.lookAt(0, 1, 0); // アバターの中心（頭の位置）を見る
 
     // Renderer作成
@@ -178,7 +182,19 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
     // VRMモデルをシーンに追加
     scene.add(vrm.scene);
-    console.log('[useThreeScene] VRM added to scene');
+
+    // デバッグ: VRMのバウンディングボックスを計算して位置を確認
+    const box = new THREE.Box3().setFromObject(vrm.scene);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    console.log('[useThreeScene] VRM added to scene', {
+      boundingBox: { min: box.min, max: box.max },
+      size: { x: size.x, y: size.y, z: size.z },
+      center: { x: center.x, y: center.y, z: center.z },
+      position: vrm.scene.position,
+      scale: vrm.scene.scale,
+      childrenCount: vrm.scene.children.length,
+    });
 
     // クリーンアップ: VRMをシーンから削除
     return () => {
@@ -220,6 +236,16 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
     // シーンをレンダリング
     renderer.render(scene, camera);
+
+    // デバッグ: 1秒に1回レンダリング状態をログ出力
+    if (!renderDebugRef.current || Date.now() - renderDebugRef.current > 1000) {
+      renderDebugRef.current = Date.now();
+      console.log('[useThreeScene] Render called', {
+        sceneChildren: scene.children.length,
+        cameraPosition: camera.position,
+        rendererSize: renderer.getSize(new THREE.Vector2()),
+      });
+    }
   }, [vrm, canvasRef]);
 
   // 手動リサイズ関数を公開
