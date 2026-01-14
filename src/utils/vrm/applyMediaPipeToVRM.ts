@@ -141,6 +141,9 @@ function applyEyeRotation(vrm: VRM, riggedFace: any): void {
   }
 }
 
+// 表情一覧のログ出力フラグ
+let expressionsLogged = false;
+
 /**
  * MediaPipeのBlendshapesをVRMの表情に適用
  */
@@ -195,13 +198,30 @@ function applyBlendshapes(vrm: VRM, result: FaceLandmarkerResult): void {
   }
 
   // 眉毛の直接制御を試行
-  // VRMにカスタム眉毛表情があればそれを使用
-  const customBrowExpressions = ['browUp', 'browRaise', 'Brows_Up', 'brow_up'];
+  // VRoid Studio製モデルの眉毛表情名を含む
+  const customBrowExpressions = [
+    // VRoid Studio の眉毛表情
+    'Fcl_BRW_Surprised',  // VRoid: 驚き眉（上がる）
+    'Fcl_BRW_Fun',        // VRoid: 楽しい眉
+    // 一般的なカスタム表情名
+    'browUp', 'browRaise', 'Brows_Up', 'brow_up',
+    'eyebrowUp', 'EyebrowUp',
+  ];
+
   for (const browExpr of customBrowExpressions) {
     const expr = expressionManager.getExpression(browExpr);
     if (expr) {
-      expressionManager.setValue(browExpr, browInnerUp * 1.2);
+      expressionManager.setValue(browExpr, browInnerUp * 1.5);
       break;
+    }
+  }
+
+  // 利用可能な表情一覧をログ出力（デバッグ用、初回のみ）
+  if (!expressionsLogged) {
+    expressionsLogged = true;
+    const expressions = expressionManager.expressions;
+    if (expressions) {
+      console.log('Available VRM expressions:', expressions.map(e => e.expressionName));
     }
   }
 
