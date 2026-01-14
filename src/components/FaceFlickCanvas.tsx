@@ -32,7 +32,7 @@ export function FaceFlickCanvas() {
   // リソース初期化
   const { videoRef, isReady: cameraReady, error: cameraError } = useCamera();
   const { isReady: faceReady, error: faceError, detectFace } = useFaceLandmarker();
-  const { vrm, error: vrmError } = useVRMAvatar({ modelUrl: '/models/7166319171751032579.vrm' });
+  const { vrm, error: vrmError } = useVRMAvatar({ modelUrl: '/models/8675584217814262223.vrm' });
 
   // Three.js refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -102,15 +102,14 @@ export function FaceFlickCanvas() {
     sceneRef.current = scene;
 
     // カメラ（顔をキーボード2段目の高さに表示）
-    // VRMの顔は約y=1.4-1.5にある。顔より上を見ることで、顔が画面下部に表示される
     const camera = new THREE.PerspectiveCamera(
       30, // FOVを広めに
       container.clientWidth / container.clientHeight,
       0.1,
       100
     );
-    camera.position.set(0, 1.6, 1.2); // カメラを顔より上に配置
-    camera.lookAt(0, 1.6, 0); // 顔より上（首あたり）を見ることで、顔が画面下部に表示
+    camera.position.set(0, 1.4, 1.5); // 顔の高さ、やや離れて
+    camera.lookAt(0, 1.4, 0); // 顔の中心を見る
     cameraRef.current = camera;
 
     // ライト
