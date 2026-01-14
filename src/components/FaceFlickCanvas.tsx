@@ -48,7 +48,7 @@ export function FaceFlickCanvas() {
   const { vrm, isLoading: vrmLoading, error: vrmError } = useVRMAvatar({
     modelUrl: '/models/avatar.vrm'
   });
-  const { render: renderVRM, forceResize } = useThreeScene({
+  const { render: renderVRM, forceResize, isInitialized: threeInitialized } = useThreeScene({
     canvasRef: canvasWebGLRef,
     vrm
   });
@@ -77,7 +77,9 @@ export function FaceFlickCanvas() {
 
   // VRMモードに切り替わった、またはVRMがロードされたタイミングでリサイズを強制実行
   useEffect(() => {
-    if (faceDisplayMode === 'vrm' && forceResize) {
+    if (faceDisplayMode === 'vrm' && forceResize && threeInitialized) {
+      // Three.jsが初期化されたらすぐにリサイズ
+      forceResize();
       // 少し遅延させて、DOMレイアウトが確定するのを待つ
       const timer1 = setTimeout(() => {
         forceResize();
@@ -86,12 +88,17 @@ export function FaceFlickCanvas() {
       const timer2 = setTimeout(() => {
         forceResize();
       }, 300);
+      // さらに遅延したリサイズ（確実性を高めるため）
+      const timer3 = setTimeout(() => {
+        forceResize();
+      }, 500);
       return () => {
         clearTimeout(timer1);
         clearTimeout(timer2);
+        clearTimeout(timer3);
       };
     }
-  }, [faceDisplayMode, forceResize, vrm]);
+  }, [faceDisplayMode, forceResize, vrm, threeInitialized]);
   const animationFrameRef = useRef<number | null>(null);
   const triggerStartTimeRef = useRef<number | null>(null);
   const headRotationHistoryRef = useRef<HeadRotationSample[]>([]);
@@ -786,14 +793,26 @@ export function FaceFlickCanvas() {
   if (isCalibrating) {
     return (
       <div className="relative w-full h-full">
-        {/* Canvas */}
+        {/* Canvas 2D */}
         <canvas
           ref={canvasRef}
-          className="w-full h-full object-cover"
+          className="absolute top-0 left-0 w-full h-full object-cover z-0"
+        />
+
+        {/* WebGL Canvas (VRMアバター) - キャリブレーション中も存在させてThree.js初期化を行う */}
+        <canvas
+          ref={canvasWebGLRef}
+          className="absolute top-0 left-0 z-10"
+          style={{
+            width: '100%',
+            height: '100%',
+            visibility: 'hidden',
+            pointerEvents: 'none',
+          }}
         />
 
         {/* キャリブレーション オーバーレイ */}
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20">
           <div className="bg-gray-800 text-white p-8 rounded-lg text-center max-w-md">
             <h2 className="text-2xl font-bold mb-4">初期設定</h2>
             <p className="mb-6">

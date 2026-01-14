@@ -1,10 +1,38 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { VRM } from '@pixiv/three-vrm';
 
 interface UseThreeSceneOptions {
   canvasRef: React.RefObject<HTMLCanvasElement>;
   vrm: VRM | null;
+}
+
+/**
+ * キャンバスのサイズを取得するヘルパー関数
+ */
+function getCanvasSize(canvas: HTMLCanvasElement): { width: number; height: number } {
+  // 複数の方法でサイズを取得を試みる
+  const rect = canvas.getBoundingClientRect();
+  let width = rect.width || canvas.clientWidth || canvas.offsetWidth;
+  let height = rect.height || canvas.clientHeight || canvas.offsetHeight;
+
+  // それでも0の場合、親要素のサイズを使用
+  if (width === 0 || height === 0) {
+    const parent = canvas.parentElement;
+    if (parent) {
+      const parentRect = parent.getBoundingClientRect();
+      width = parentRect.width || parent.clientWidth || parent.offsetWidth;
+      height = parentRect.height || parent.clientHeight || parent.offsetHeight;
+    }
+  }
+
+  // それでも0の場合、window.innerWidthを使用（フォールバック）
+  if (width === 0 || height === 0) {
+    width = window.innerWidth;
+    height = window.innerHeight;
+  }
+
+  return { width, height };
 }
 
 /**
@@ -15,33 +43,19 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const clockRef = useRef(new THREE.Clock());
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // シーン初期化
   useEffect(() => {
     if (!canvasRef.current) return;
 
+    // すでに初期化されている場合はスキップ
+    if (rendererRef.current) return;
+
     const canvas = canvasRef.current;
 
     // Canvasの実際の表示サイズを取得
-    const rect = canvas.getBoundingClientRect();
-    let width = rect.width || canvas.clientWidth || canvas.offsetWidth;
-    let height = rect.height || canvas.clientHeight || canvas.offsetHeight;
-
-    // それでも0の場合、親要素のサイズを使用
-    if (width === 0 || height === 0) {
-      const parent = canvas.parentElement;
-      if (parent) {
-        const parentRect = parent.getBoundingClientRect();
-        width = parentRect.width || parent.clientWidth || parent.offsetWidth;
-        height = parentRect.height || parent.clientHeight || parent.offsetHeight;
-      }
-    }
-
-    // それでも0の場合、window.innerWidthを使用（フォールバック）
-    if (width === 0 || height === 0) {
-      width = window.innerWidth;
-      height = window.innerHeight;
-    }
+    const { width, height } = getCanvasSize(canvas);
 
     // Scene作成
     const scene = new THREE.Scene();
@@ -81,29 +95,15 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     cameraRef.current = camera;
     rendererRef.current = renderer;
 
+    // 初期化完了をマーク
+    setIsInitialized(true);
+    console.log('[useThreeScene] Three.js scene initialized', { width, height });
+
     // リサイズハンドラー
     const handleResize = () => {
       if (!canvas || !camera || !renderer) return;
 
-      const rect = canvas.getBoundingClientRect();
-      let width = rect.width || canvas.clientWidth || canvas.offsetWidth;
-      let height = rect.height || canvas.clientHeight || canvas.offsetHeight;
-
-      // それでも0の場合、親要素のサイズを使用
-      if (width === 0 || height === 0) {
-        const parent = canvas.parentElement;
-        if (parent) {
-          const parentRect = parent.getBoundingClientRect();
-          width = parentRect.width || parent.clientWidth || parent.offsetWidth;
-          height = parentRect.height || parent.clientHeight || parent.offsetHeight;
-        }
-      }
-
-      // それでも0の場合、window.innerWidthを使用
-      if (width === 0 || height === 0) {
-        width = window.innerWidth;
-        height = window.innerHeight;
-      }
+      const { width, height } = getCanvasSize(canvas);
 
       if (width === 0 || height === 0) {
         return;
@@ -169,20 +169,25 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
 
   // VRMをシーンに追加/削除
   useEffect(() => {
-    if (!vrm || !sceneRef.current) return;
+    if (!vrm || !sceneRef.current) {
+      console.log('[useThreeScene] Waiting for VRM or scene...', { hasVrm: !!vrm, hasScene: !!sceneRef.current });
+      return;
+    }
 
     const scene = sceneRef.current;
 
     // VRMモデルをシーンに追加
     scene.add(vrm.scene);
+    console.log('[useThreeScene] VRM added to scene');
 
     // クリーンアップ: VRMをシーンから削除
     return () => {
       if (scene && vrm) {
         scene.remove(vrm.scene);
+        console.log('[useThreeScene] VRM removed from scene');
       }
     };
-  }, [vrm]);
+  }, [vrm, isInitialized]); // isInitializedを依存配列に追加してシーン初期化後に再評価
 
   // レンダリング関数
   const render = useCallback(() => {
@@ -198,13 +203,12 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     // レンダラーのサイズが0の場合、動的に更新（初期化タイミング問題の対策）
     const rendererSize = renderer.getSize(new THREE.Vector2());
     if (rendererSize.x === 0 || rendererSize.y === 0) {
-      const rect = canvas.getBoundingClientRect();
-      const width = rect.width || canvas.clientWidth || window.innerWidth;
-      const height = rect.height || canvas.clientHeight || window.innerHeight;
+      const { width, height } = getCanvasSize(canvas);
       if (width > 0 && height > 0) {
         renderer.setSize(width, height, false);
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
+        console.log('[useThreeScene] Renderer size fixed in render loop', { width, height });
       }
     }
 
@@ -225,33 +229,17 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     const renderer = rendererRef.current;
 
     if (!canvas || !camera || !renderer) {
+      console.log('[useThreeScene] forceResize: not ready', { hasCanvas: !!canvas, hasCamera: !!camera, hasRenderer: !!renderer });
       return;
     }
 
-    const rect = canvas.getBoundingClientRect();
-    let width = rect.width || canvas.clientWidth || canvas.offsetWidth;
-    let height = rect.height || canvas.clientHeight || canvas.offsetHeight;
-
-    // それでも0の場合、親要素のサイズを使用
-    if (width === 0 || height === 0) {
-      const parent = canvas.parentElement;
-      if (parent) {
-        const parentRect = parent.getBoundingClientRect();
-        width = parentRect.width || parent.clientWidth || parent.offsetWidth;
-        height = parentRect.height || parent.clientHeight || parent.offsetHeight;
-      }
-    }
-
-    // それでも0の場合、window.innerWidthを使用
-    if (width === 0 || height === 0) {
-      width = window.innerWidth;
-      height = window.innerHeight;
-    }
+    const { width, height } = getCanvasSize(canvas);
 
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
 
     renderer.setSize(width, height, false);
+    console.log('[useThreeScene] forceResize executed', { width, height });
   }, [canvasRef]);
 
   return {
@@ -260,5 +248,6 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     renderer: rendererRef.current,
     render,
     forceResize,
+    isInitialized,
   };
 }
