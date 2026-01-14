@@ -45,6 +45,20 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
   const clockRef = useRef(new THREE.Clock());
   const renderDebugRef = useRef<number | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<{
+    rendererSize: { x: number; y: number };
+    sceneChildren: number;
+    vrmBounds: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null;
+    cameraPosition: { x: number; y: number; z: number };
+    renderCount: number;
+  }>({
+    rendererSize: { x: 0, y: 0 },
+    sceneChildren: 0,
+    vrmBounds: null,
+    cameraPosition: { x: 0, y: 0, z: 0 },
+    renderCount: 0,
+  });
+  const renderCountRef = useRef(0);
 
   // シーン初期化
   useEffect(() => {
@@ -196,6 +210,16 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
       childrenCount: vrm.scene.children.length,
     });
 
+    // デバッグ情報を更新
+    setDebugInfo(prev => ({
+      ...prev,
+      vrmBounds: {
+        min: { x: box.min.x, y: box.min.y, z: box.min.z },
+        max: { x: box.max.x, y: box.max.y, z: box.max.z },
+      },
+      sceneChildren: scene.children.length,
+    }));
+
     // クリーンアップ: VRMをシーンから削除
     return () => {
       if (scene && vrm) {
@@ -237,14 +261,20 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     // シーンをレンダリング
     renderer.render(scene, camera);
 
-    // デバッグ: 1秒に1回レンダリング状態をログ出力
+    // レンダリングカウント更新
+    renderCountRef.current += 1;
+
+    // デバッグ: 1秒に1回デバッグ情報を更新
     if (!renderDebugRef.current || Date.now() - renderDebugRef.current > 1000) {
       renderDebugRef.current = Date.now();
-      console.log('[useThreeScene] Render called', {
+      const size = renderer.getSize(new THREE.Vector2());
+      setDebugInfo(prev => ({
+        ...prev,
+        rendererSize: { x: size.x, y: size.y },
         sceneChildren: scene.children.length,
-        cameraPosition: camera.position,
-        rendererSize: renderer.getSize(new THREE.Vector2()),
-      });
+        cameraPosition: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+        renderCount: renderCountRef.current,
+      }));
     }
   }, [vrm, canvasRef]);
 
@@ -275,5 +305,6 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     render,
     forceResize,
     isInitialized,
+    threeDebugInfo: debugInfo,
   };
 }

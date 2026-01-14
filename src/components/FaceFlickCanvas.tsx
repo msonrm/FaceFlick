@@ -48,7 +48,7 @@ export function FaceFlickCanvas() {
   const { vrm, isLoading: vrmLoading, error: vrmError } = useVRMAvatar({
     modelUrl: '/models/avatar.vrm'
   });
-  const { render: renderVRM, forceResize, isInitialized: threeInitialized } = useThreeScene({
+  const { render: renderVRM, forceResize, isInitialized: threeInitialized, threeDebugInfo } = useThreeScene({
     canvasRef: canvasWebGLRef,
     vrm
   });
@@ -917,6 +917,8 @@ export function FaceFlickCanvas() {
             hasVRM: !!vrm,
             error: vrmError
           }}
+          threeDebugInfo={threeDebugInfo}
+          threeInitialized={threeInitialized}
         />
       )}
 
