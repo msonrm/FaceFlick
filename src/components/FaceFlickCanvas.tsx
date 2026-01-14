@@ -75,15 +75,23 @@ export function FaceFlickCanvas() {
     flickSensitivity: FLICK_SENSITIVITY,
   });
 
-  // VRMモードに切り替わったタイミングでリサイズを強制実行
+  // VRMモードに切り替わった、またはVRMがロードされたタイミングでリサイズを強制実行
   useEffect(() => {
     if (faceDisplayMode === 'vrm' && forceResize) {
       // 少し遅延させて、DOMレイアウトが確定するのを待つ
-      setTimeout(() => {
+      const timer1 = setTimeout(() => {
         forceResize();
       }, 100);
+      // 追加のリサイズ（レイアウト確定までの時間差対策）
+      const timer2 = setTimeout(() => {
+        forceResize();
+      }, 300);
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
     }
-  }, [faceDisplayMode, forceResize]);
+  }, [faceDisplayMode, forceResize, vrm]);
   const animationFrameRef = useRef<number | null>(null);
   const triggerStartTimeRef = useRef<number | null>(null);
   const headRotationHistoryRef = useRef<HeadRotationSample[]>([]);
@@ -114,6 +122,8 @@ export function FaceFlickCanvas() {
   const calibrationSettingsRef = useRef(calibrationSettings);
   const faceDisplayModeRef = useRef(faceDisplayMode);
   const isCalibratingRef = useRef(isCalibrating);
+  const vrmRef = useRef(vrm);
+  const renderVRMRef = useRef(renderVRM);
 
   // refを最新の値で更新
   inputStateRef.current = inputState;
@@ -121,6 +131,8 @@ export function FaceFlickCanvas() {
   calibrationSettingsRef.current = calibrationSettings;
   faceDisplayModeRef.current = faceDisplayMode;
   isCalibratingRef.current = isCalibrating;
+  vrmRef.current = vrm;
+  renderVRMRef.current = renderVRM;
 
   // ジェスチャーフィードバックを自動消去
   useEffect(() => {
@@ -335,8 +347,8 @@ export function FaceFlickCanvas() {
           if (faceDisplayModeRef.current !== 'none') {
             if (faceDisplayModeRef.current === 'vrm') {
               // VRMモード: MediaPipeの結果をVRMに適用
-              if (vrm) {
-                applyMediaPipeToVRM(vrm, result);
+              if (vrmRef.current) {
+                applyMediaPipeToVRM(vrmRef.current, result);
               }
             } else {
               // ポイント/メッシュモード: 2Dランドマークを描画
@@ -446,9 +458,9 @@ export function FaceFlickCanvas() {
       });
 
       // VRMレンダリング
-      if (faceDisplayModeRef.current === 'vrm' && vrm && renderVRM) {
+      if (faceDisplayModeRef.current === 'vrm' && vrmRef.current && renderVRMRef.current) {
         try {
-          renderVRM();
+          renderVRMRef.current();
         } catch (error) {
           console.error('VRM rendering error:', error);
         }
@@ -836,8 +848,10 @@ export function FaceFlickCanvas() {
       {/* WebGL Canvas (VRMアバター) */}
       <canvas
         ref={canvasWebGLRef}
-        className="absolute top-0 left-0 w-full h-full object-cover z-10"
+        className="absolute top-0 left-0 z-10"
         style={{
+          width: '100%',
+          height: '100%',
           visibility: faceDisplayMode === 'vrm' ? 'visible' : 'hidden',
           pointerEvents: 'none',
         }}
