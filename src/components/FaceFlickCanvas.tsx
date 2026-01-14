@@ -32,7 +32,7 @@ export function FaceFlickCanvas() {
   // リソース初期化
   const { videoRef, isReady: cameraReady, error: cameraError } = useCamera();
   const { isReady: faceReady, error: faceError, detectFace } = useFaceLandmarker();
-  const { vrm, error: vrmError } = useVRMAvatar({ modelUrl: '/models/8675584217814262223.vrm' });
+  const { vrm, error: vrmError } = useVRMAvatar({ modelUrl: '/models/avatar.vrm' });
 
   // Three.js refs
   const containerRef = useRef<HTMLDivElement>(null);
