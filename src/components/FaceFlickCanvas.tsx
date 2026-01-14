@@ -48,7 +48,7 @@ export function FaceFlickCanvas() {
   const { vrm, isLoading: vrmLoading, error: vrmError } = useVRMAvatar({
     modelUrl: '/models/avatar.vrm'
   });
-  const { render: renderVRM, forceResize, isInitialized: threeInitialized, threeDebugInfo } = useThreeScene({
+  const { render: renderVRM, forceResize, forceInit, isInitialized: threeInitialized, threeDebugInfo } = useThreeScene({
     canvasRef: canvasWebGLRef,
     vrm
   });
@@ -99,6 +99,20 @@ export function FaceFlickCanvas() {
       };
     }
   }, [faceDisplayMode, forceResize, vrm, threeInitialized]);
+
+  // キャリブレーション終了後にThree.jsを再初期化
+  useEffect(() => {
+    if (!isCalibrating && forceInit) {
+      // キャリブレーションが終了したら、少し遅延してからThree.jsを再初期化
+      // （DOMが更新されてcanvas要素が利用可能になるのを待つ）
+      const timer = setTimeout(() => {
+        console.log('[FaceFlickCanvas] Calibration ended, forcing Three.js init');
+        forceInit();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isCalibrating, forceInit]);
+
   const animationFrameRef = useRef<number | null>(null);
   const triggerStartTimeRef = useRef<number | null>(null);
   const headRotationHistoryRef = useRef<HeadRotationSample[]>([]);

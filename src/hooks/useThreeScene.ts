@@ -348,6 +348,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     renderer: rendererRef.current,
     render,
     forceResize,
+    forceInit: initScene, // 外部から初期化を強制実行
     isInitialized,
     threeDebugInfo: debugInfo,
   };
