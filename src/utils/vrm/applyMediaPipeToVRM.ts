@@ -156,9 +156,11 @@ function applyBlendshapes(vrm: VRM, result: FaceLandmarkerResult): void {
 
   const blendshapes = result.faceBlendshapes[0].categories;
 
+  // browInnerUpの値を取得（眉上げ用）
+  const browInnerUp = blendshapes.find(b => b.categoryName === 'browInnerUp')?.score ?? 0;
+
   // MediaPipe Blendshapes → VRM Expression のマッピング
   // VRM標準表情: happy, angry, sad, relaxed, surprised, aa, ih, ou, ee, oh, blink, blinkLeft, blinkRight, lookUp, lookDown, lookLeft, lookRight
-  // 注意: VRM標準には「眉を上げる」表情がないため、browInnerUpはマッピングしない
   const expressionMap: Record<string, { vrmExpression: string; weight: number }> = {
     // 口の動き
     'jawOpen': { vrmExpression: 'aa', weight: 1.0 },           // あ
@@ -192,6 +194,51 @@ function applyBlendshapes(vrm: VRM, result: FaceLandmarkerResult): void {
     }
   }
 
+  // 眉毛の直接制御を試行
+  // VRMにカスタム眉毛表情があればそれを使用
+  const customBrowExpressions = ['browUp', 'browRaise', 'Brows_Up', 'brow_up'];
+  for (const browExpr of customBrowExpressions) {
+    const expr = expressionManager.getExpression(browExpr);
+    if (expr) {
+      expressionManager.setValue(browExpr, browInnerUp * 1.2);
+      break;
+    }
+  }
+
   // 表情を更新
   expressionManager.update();
+
+  // 眉毛ボーンを直接操作（モデルによってはボーンがある）
+  applyEyebrowBones(vrm, browInnerUp);
+}
+
+/**
+ * 眉毛ボーンを直接操作（モデルに眉毛ボーンがある場合）
+ */
+function applyEyebrowBones(vrm: VRM, browInnerUp: number): void {
+  // 眉毛ボーンの候補名
+  const leftBrowNames = ['LeftEyebrow', 'Eyebrow_L', 'J_Brow_L', 'eyebrow_L', 'brow_L'];
+  const rightBrowNames = ['RightEyebrow', 'Eyebrow_R', 'J_Brow_R', 'eyebrow_R', 'brow_R'];
+
+  // VRMシーンから眉毛ボーンを探す
+  const findBone = (names: string[]) => {
+    for (const name of names) {
+      const bone = vrm.scene.getObjectByName(name);
+      if (bone) return bone;
+    }
+    return null;
+  };
+
+  const leftBrow = findBone(leftBrowNames);
+  const rightBrow = findBone(rightBrowNames);
+
+  // 眉毛ボーンがあれば回転させる（上げる）
+  const browRotation = browInnerUp * 0.15; // 最大約8.6度
+
+  if (leftBrow) {
+    leftBrow.rotation.z = -browRotation; // 左眉は反対方向
+  }
+  if (rightBrow) {
+    rightBrow.rotation.z = browRotation;
+  }
 }
