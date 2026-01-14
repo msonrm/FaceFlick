@@ -108,27 +108,30 @@ function FlickKeyCell({
 }: FlickKeyCellProps) {
   const isSelecting = inputPhase === 'selecting' || inputPhase === 'flicking';
 
-  // ベースのスタイル（透明度を上げる）
-  let bgClass = 'bg-gray-800/40';
-  let borderClass = 'border-gray-600/50';
+  // ベースのスタイル（通常時はほぼ透明、後ろのアバターが見える）
+  let bgClass = 'bg-gray-800/10';
+  let borderClass = 'border-gray-500/20';
+  let textOpacity = 'opacity-40';
   let scaleClass = '';
 
   if (isSelected) {
     if (isSelecting) {
-      // 入力中：青くハイライト
-      bgClass = 'bg-blue-600/70';
+      // 入力中：青くハイライト（しっかり表示）
+      bgClass = 'bg-blue-600/60';
       borderClass = 'border-blue-400';
+      textOpacity = 'opacity-100';
       scaleClass = 'scale-105';
     } else {
-      // ホバー中：薄く枠線のみ強調
-      bgClass = 'bg-gray-700/50';
-      borderClass = 'border-white/60';
+      // ホバー中：少し見える程度
+      bgClass = 'bg-gray-700/30';
+      borderClass = 'border-white/40';
+      textOpacity = 'opacity-70';
     }
   }
 
   // フリック方向のハイライト
   const getDirectionHighlight = (dir: 'up' | 'down' | 'left' | 'right') => {
-    if (!isSelecting || flickDirection !== dir) return 'text-gray-400 text-xs';
+    if (!isSelecting || flickDirection !== dir) return `text-gray-400 text-xs ${textOpacity}`;
     return 'text-yellow-300 text-sm font-bold';
   };
 
@@ -138,7 +141,6 @@ function FlickKeyCell({
         relative flex flex-col items-center justify-center
         rounded-lg border-2 transition-all duration-150
         ${bgClass} ${borderClass} ${scaleClass}
-        backdrop-blur-sm
       `}
     >
       {/* 上の文字 */}
@@ -162,12 +164,12 @@ function FlickKeyCell({
       {/* 中央の文字 */}
       <span
         className={`
-          text-xl font-bold
+          text-xl font-bold transition-opacity duration-150
           ${isSelected && isSelecting && flickDirection === 'center'
             ? 'text-yellow-300'
             : isSelected
             ? 'text-white'
-            : 'text-gray-200'
+            : `text-gray-200 ${textOpacity}`
           }
         `}
       >
@@ -275,16 +277,20 @@ interface TapKeyCellProps {
 function TapKeyCell({ keyData, isSelected, inputPhase }: TapKeyCellProps) {
   const isSelecting = inputPhase === 'selecting' || inputPhase === 'flicking';
 
-  let bgClass = 'bg-gray-800/70';
-  let borderClass = 'border-gray-600';
+  // 通常時はほぼ透明
+  let bgClass = 'bg-gray-800/10';
+  let borderClass = 'border-gray-500/20';
+  let textOpacity = 'opacity-40';
 
   if (isSelected) {
     if (isSelecting) {
-      bgClass = 'bg-blue-600/80';
+      bgClass = 'bg-blue-600/60';
       borderClass = 'border-blue-400';
+      textOpacity = 'opacity-100';
     } else {
-      bgClass = 'bg-gray-700/80';
-      borderClass = 'border-gray-400';
+      bgClass = 'bg-gray-700/30';
+      borderClass = 'border-white/40';
+      textOpacity = 'opacity-70';
     }
   }
 
@@ -294,14 +300,13 @@ function TapKeyCell({ keyData, isSelected, inputPhase }: TapKeyCellProps) {
         flex items-center justify-center
         rounded border transition-all duration-100
         ${bgClass} ${borderClass}
-        backdrop-blur-sm
         py-1.5
       `}
     >
       <span
         className={`
-          text-sm font-medium
-          ${isSelected && isSelecting ? 'text-yellow-300' : isSelected ? 'text-white' : 'text-gray-200'}
+          text-sm font-medium transition-opacity duration-150
+          ${isSelected && isSelecting ? 'text-yellow-300' : isSelected ? 'text-white' : `text-gray-200 ${textOpacity}`}
         `}
       >
         {keyData.char}

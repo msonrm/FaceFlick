@@ -158,7 +158,7 @@ function applyBlendshapes(vrm: VRM, result: FaceLandmarkerResult): void {
 
   // MediaPipe Blendshapes → VRM Expression のマッピング
   // VRM標準表情: happy, angry, sad, relaxed, surprised, aa, ih, ou, ee, oh, blink, blinkLeft, blinkRight, lookUp, lookDown, lookLeft, lookRight
-  // 注意: surprisedは口も開くので使用しない。browInnerUpは目の表情のみに影響させる
+  // 注意: VRM標準には「眉を上げる」表情がないため、browInnerUpはマッピングしない
   const expressionMap: Record<string, { vrmExpression: string; weight: number }> = {
     // 口の動き
     'jawOpen': { vrmExpression: 'aa', weight: 1.0 },           // あ
@@ -172,10 +172,6 @@ function applyBlendshapes(vrm: VRM, result: FaceLandmarkerResult): void {
     // 瞬き
     'eyeBlinkLeft': { vrmExpression: 'blinkLeft', weight: 1.0 },
     'eyeBlinkRight': { vrmExpression: 'blinkRight', weight: 1.0 },
-
-    // 目を見開く（lookUpで代用、口は開かない）
-    'eyeWideLeft': { vrmExpression: 'lookUp', weight: 0.3 },
-    'eyeWideRight': { vrmExpression: 'lookUp', weight: 0.3 },
 
     // その他の母音
     'mouthClose': { vrmExpression: 'ee', weight: 0.8 },        // い
