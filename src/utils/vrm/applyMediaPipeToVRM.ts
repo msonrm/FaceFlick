@@ -12,6 +12,14 @@ export interface FacePosition {
 }
 
 /**
+ * キャリブレーションオフセット（ラジアン）
+ */
+export interface CalibrationOffset {
+  pitch: number; // 上下
+  yaw: number;   // 左右
+}
+
+/**
  * MediaPipeのランドマークから顔の位置を抽出する
  */
 export function getFacePosition(result: FaceLandmarkerResult): FacePosition | null {
@@ -39,10 +47,14 @@ export function getFacePosition(result: FaceLandmarkerResult): FacePosition | nu
 
 /**
  * MediaPipeの顔検出結果をVRMモデルに適用する
+ * @param vrm VRMモデル
+ * @param result MediaPipeの検出結果
+ * @param calibrationOffset キャリブレーション時の頭部角度（この角度を正面とする）
  */
 export function applyMediaPipeToVRM(
   vrm: VRM,
-  result: FaceLandmarkerResult
+  result: FaceLandmarkerResult,
+  calibrationOffset?: CalibrationOffset
 ): void {
   if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
     return;
@@ -60,8 +72,8 @@ export function applyMediaPipeToVRM(
     return;
   }
 
-  // 1. 頭部の回転を適用
-  applyHeadRotation(vrm, riggedFace);
+  // 1. 頭部の回転を適用（キャリブレーションオフセット考慮）
+  applyHeadRotation(vrm, riggedFace, calibrationOffset);
 
   // 2. 目の動きを適用
   applyEyeRotation(vrm, riggedFace);
@@ -73,7 +85,7 @@ export function applyMediaPipeToVRM(
 /**
  * 頭部の回転をVRMに適用
  */
-function applyHeadRotation(vrm: VRM, riggedFace: any): void {
+function applyHeadRotation(vrm: VRM, riggedFace: any, calibrationOffset?: CalibrationOffset): void {
   if (!riggedFace.head || !vrm.humanoid) {
     return;
   }
@@ -84,40 +96,68 @@ function applyHeadRotation(vrm: VRM, riggedFace: any): void {
   }
 
   // Kalidokitの頭部回転（Euler angles）を適用
-  // Kalidokitの出力はラジアンで、座標系がVRMと異なる場合があるため調整
-  // Pitch（上下）は符号を反転して自然な動きにする
+  // キャリブレーションオフセットがある場合は差分を適用（オフセット位置が正面になる）
+  let pitch = -riggedFace.head.x; // 上下（符号反転）
+  let yaw = riggedFace.head.y;    // 左右
+  const roll = riggedFace.head.z; // 傾き
+
+  if (calibrationOffset) {
+    // キャリブレーション時の角度を基準（0）とする
+    pitch = pitch - calibrationOffset.pitch;
+    yaw = yaw - calibrationOffset.yaw;
+  }
+
   headBone.rotation.set(
-    -riggedFace.head.x * 0.8, // Pitch（上下）- 反転してやや抑える
-    riggedFace.head.y * 0.8,  // Yaw（左右）- やや抑える
-    riggedFace.head.z * 0.5   // Roll（傾き）- さらに抑える
+    pitch * 0.6, // Pitch - やや抑える
+    yaw * 0.6,   // Yaw - やや抑える
+    roll * 0.4   // Roll - さらに抑える
   );
 }
 
 /**
  * 目の動きをVRMに適用
+ * VRM 1.0ではlookAtを使用、それ以外は直接ボーン回転
  */
 function applyEyeRotation(vrm: VRM, riggedFace: any): void {
-  if (!riggedFace.eye || !vrm.humanoid) {
+  if (!riggedFace.eye) {
     return;
   }
 
-  const leftEyeBone = vrm.humanoid.getNormalizedBoneNode('leftEye');
-  const rightEyeBone = vrm.humanoid.getNormalizedBoneNode('rightEye');
+  // VRM lookAt が利用可能な場合はそちらを使う（虹彩・瞳孔が正しく動く）
+  if (vrm.lookAt) {
+    // Kalidokitの目の回転をlookAt用の角度に変換
+    // 左右の目の平均を使用
+    const avgX = ((riggedFace.eye.l?.x ?? 0) + (riggedFace.eye.r?.x ?? 0)) / 2;
+    const avgY = ((riggedFace.eye.l?.y ?? 0) + (riggedFace.eye.r?.y ?? 0)) / 2;
 
-  if (leftEyeBone && riggedFace.eye.l) {
-    leftEyeBone.rotation.set(
-      riggedFace.eye.l.x,
-      riggedFace.eye.l.y,
-      0
-    );
+    // ラジアンから度に変換（VRM lookAtは度を使用することが多い）
+    const pitchDeg = avgX * (180 / Math.PI) * 2; // 感度調整
+    const yawDeg = avgY * (180 / Math.PI) * 2;
+
+    // lookAtのターゲットを設定（applier経由で適用される）
+    vrm.lookAt.applier?.applyYawPitch(yawDeg, pitchDeg);
   }
 
-  if (rightEyeBone && riggedFace.eye.r) {
-    rightEyeBone.rotation.set(
-      riggedFace.eye.r.x,
-      riggedFace.eye.r.y,
-      0
-    );
+  // 直接ボーン回転も適用（lookAtがない場合のフォールバック）
+  if (vrm.humanoid) {
+    const leftEyeBone = vrm.humanoid.getNormalizedBoneNode('leftEye');
+    const rightEyeBone = vrm.humanoid.getNormalizedBoneNode('rightEye');
+
+    if (leftEyeBone && riggedFace.eye.l) {
+      leftEyeBone.rotation.set(
+        riggedFace.eye.l.x * 0.5,
+        riggedFace.eye.l.y * 0.5,
+        0
+      );
+    }
+
+    if (rightEyeBone && riggedFace.eye.r) {
+      rightEyeBone.rotation.set(
+        riggedFace.eye.r.x * 0.5,
+        riggedFace.eye.r.y * 0.5,
+        0
+      );
+    }
   }
 }
 

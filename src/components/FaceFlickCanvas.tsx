@@ -11,7 +11,7 @@ import { useAppState } from '../hooks/useAppState';
 import { analyzeFace, PrevFaceState, isSmiling, isBrowRaised } from '../utils/face-detection';
 import { getSelectedKeyPosition, getFlickDirection, getCharFromPosition } from '../utils/input-logic';
 import { detectGesture } from '../utils/gesture-detection';
-import { applyMediaPipeToVRM } from '../utils/vrm/applyMediaPipeToVRM';
+import { applyMediaPipeToVRM, CalibrationOffset } from '../utils/vrm/applyMediaPipeToVRM';
 import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS } from '../utils/keyboard-layout';
 
 // Components
@@ -98,15 +98,15 @@ export function FaceFlickCanvas() {
     const scene = new THREE.Scene();
     sceneRef.current = scene;
 
-    // カメラ（顔をキーボード領域に表示）
+    // カメラ（顔をキーボード2段目の高さに表示）
     const camera = new THREE.PerspectiveCamera(
-      25, // FOVをやや広めに
+      30, // FOVを広めに
       container.clientWidth / container.clientHeight,
       0.1,
       100
     );
-    camera.position.set(0, 1.5, 0.7); // 少し上から見下ろす
-    camera.lookAt(0, 1.55, 0); // 顔より上を見ることで、顔が画面下部に表示される
+    camera.position.set(0, 1.45, 1.2); // 顔から離す
+    camera.lookAt(0, 1.35, 0); // 顔の少し下を見て、画面上部にアバター顔を表示
     cameraRef.current = camera;
 
     // ライト
@@ -293,9 +293,18 @@ export function FaceFlickCanvas() {
               blendshapes: faceState.blendshapes,
             };
 
-            // VRMに表情適用
+            // VRMに表情適用（キャリブレーション角度を正面とする）
             if (vrm) {
-              applyMediaPipeToVRM(vrm, result);
+              let calibrationOffset: CalibrationOffset | undefined;
+              if (state.calibration) {
+                // 度からラジアンに変換
+                const degToRad = Math.PI / 180;
+                calibrationOffset = {
+                  pitch: -state.calibration.basePitch * degToRad, // 符号反転（applyHeadRotationと合わせる）
+                  yaw: state.calibration.baseYaw * degToRad,
+                };
+              }
+              applyMediaPipeToVRM(vrm, result, calibrationOffset);
             }
 
             // キャリブレーション中はサンプル収集
