@@ -160,10 +160,19 @@ export function FaceFlickCanvas() {
     function animate(timestamp: number) {
       // 毎フレームcanvasRef.currentを参照（条件付きレンダリングでCanvas再作成時に対応）
       const canvas = canvasRef.current;
-      if (!canvas || !video) return;
+      if (!canvas || !video) {
+        // canvasまたはvideoが一時的にnullでもアニメーションループを継続
+        // （画面遷移時にcanvasが再作成される間もループを維持）
+        animationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
 
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) {
+        // ctxが取得できない場合もループを継続
+        animationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
 
       // キャンバスサイズをビューポートサイズに合わせる（高DPI対応）
       // パフォーマンス最適化: サイズ変更時のみ更新

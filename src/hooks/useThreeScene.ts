@@ -42,6 +42,7 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const currentCanvasRef = useRef<HTMLCanvasElement | null>(null); // 現在のcanvas要素を追跡
   const clockRef = useRef(new THREE.Clock());
   const renderDebugRef = useRef<number | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -66,27 +67,61 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
       console.log('[useThreeScene] initScene: canvas not ready');
       return false;
     }
+
+    const canvas = canvasRef.current;
+
+    // Canvas要素が変更された場合、既存のrendererを破棄して再作成
+    if (currentCanvasRef.current && currentCanvasRef.current !== canvas) {
+      console.log('[useThreeScene] initScene: canvas element changed, reinitializing');
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+        rendererRef.current = null;
+      }
+      // シーンとカメラは保持（VRMが追加されている可能性があるため）
+    }
+
     if (rendererRef.current) {
       console.log('[useThreeScene] initScene: already initialized');
       return true;
     }
 
-    const canvas = canvasRef.current;
+    currentCanvasRef.current = canvas;
     console.log('[useThreeScene] initScene: starting initialization');
 
     // Canvasの実際の表示サイズを取得
     const { width, height } = getCanvasSize(canvas);
 
-    // Scene作成
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a1a2e); // デバッグ用ダークブルー
+    // Scene作成（既存のシーンがあれば再利用してVRMを保持）
+    let scene = sceneRef.current;
+    if (!scene) {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x1a1a2e); // デバッグ用ダークブルー
 
-    // Camera作成
-    const camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 20);
-    camera.position.set(0, 1.0, 3.0);
-    camera.lookAt(0, 1, 0);
+      // ライティング（シーン作成時のみ追加）
+      const directionalLight = new THREE.DirectionalLight(0xffffff, Math.PI);
+      directionalLight.position.set(1, 1, 1).normalize();
+      scene.add(directionalLight);
 
-    // Renderer作成
+      const ambientLight = new THREE.AmbientLight(0xffffff, Math.PI / 2);
+      scene.add(ambientLight);
+
+      sceneRef.current = scene;
+    }
+
+    // Camera作成（既存のカメラがあれば再利用）
+    let camera = cameraRef.current;
+    if (!camera) {
+      camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 20);
+      camera.position.set(0, 1.0, 3.0);
+      camera.lookAt(0, 1, 0);
+      cameraRef.current = camera;
+    } else {
+      // 既存のカメラのアスペクト比を更新
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+
+    // Renderer作成（新しいcanvasに対して作成）
     const renderer = new THREE.WebGLRenderer({
       canvas,
       alpha: true,
@@ -96,17 +131,6 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    // ライティング
-    const directionalLight = new THREE.DirectionalLight(0xffffff, Math.PI);
-    directionalLight.position.set(1, 1, 1).normalize();
-    scene.add(directionalLight);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, Math.PI / 2);
-    scene.add(ambientLight);
-
-    // Refs に保存
-    sceneRef.current = scene;
-    cameraRef.current = camera;
     rendererRef.current = renderer;
 
     setIsInitialized(true);
@@ -115,21 +139,27 @@ export function useThreeScene({ canvasRef, vrm }: UseThreeSceneOptions) {
     return true;
   }, [canvasRef]);
 
-  // シーン初期化 - 継続的な監視で初期化
+  // シーン初期化 - 継続的な監視で初期化（canvas要素の変更も検出）
   useEffect(() => {
     // 即座に試行
-    if (initScene()) return;
+    initScene();
 
-    // canvasRef.currentがnullの場合、継続的に監視して初期化を試みる
-    console.log('[useThreeScene] Canvas not ready, starting continuous retry...');
+    // 継続的に監視（canvas要素の変更も検出するため、初期化成功後も監視を継続）
+    console.log('[useThreeScene] Starting continuous canvas monitoring...');
     const interval = setInterval(() => {
-      if (initScene()) {
-        clearInterval(interval);
+      const canvas = canvasRef.current;
+      // canvas要素が変更された場合、再初期化を試行
+      if (canvas && canvas !== currentCanvasRef.current) {
+        console.log('[useThreeScene] Canvas element changed, triggering reinit');
+        initScene();
+      } else if (!rendererRef.current && canvas) {
+        // rendererがない場合も再初期化を試行
+        initScene();
       }
-    }, 100); // 100msごとに試行
+    }, 100); // 100msごとに監視
 
     return () => clearInterval(interval);
-  }, [initScene]);
+  }, [initScene, canvasRef]);
 
   // リサイズ監視（初期化後）
   useEffect(() => {
