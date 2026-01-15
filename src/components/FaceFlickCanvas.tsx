@@ -52,9 +52,6 @@ export function FaceFlickCanvas() {
   const [calibrationSamples, setCalibrationSamples] = useState<HeadRotationSample[]>([]);
   const [blendshapeSamples, setBlendshapeSamples] = useState<{ browInnerUp: number }[]>([]);
 
-  // デバッグ用：現在のbrowInnerUp値
-  const [debugBrowValue, setDebugBrowValue] = useState<number>(0);
-
   // アバター表示切替
   const [showAvatar, setShowAvatar] = useState(true);
 
@@ -299,9 +296,6 @@ export function FaceFlickCanvas() {
               isTriggered: faceState.isTriggered,
               blendshapes: faceState.blendshapes,
             };
-
-            // デバッグ用：browInnerUp値を更新
-            setDebugBrowValue(faceState.blendshapes.browInnerUp);
 
             // GLBアバターに表情適用（キャリブレーション角度を正面とする）
             if (avatar) {
