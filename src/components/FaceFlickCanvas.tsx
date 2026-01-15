@@ -4,14 +4,14 @@ import * as THREE from 'three';
 // Hooks
 import { useCamera } from '../hooks/useCamera';
 import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
-import { useVRMAvatar } from '../hooks/useVRMAvatar';
+import { useGLBAvatar } from '../hooks/useGLBAvatar';
 import { useAppState } from '../hooks/useAppState';
 
 // Utils
 import { analyzeFace, PrevFaceState, isSmiling, isBrowRaised } from '../utils/face-detection';
 import { getSelectedKeyPosition, getFlickDirection, getCharFromPosition } from '../utils/input-logic';
 import { detectGesture } from '../utils/gesture-detection';
-import { applyMediaPipeToVRM, CalibrationOffset } from '../utils/vrm/applyMediaPipeToVRM';
+import { applyMediaPipeToGLB, CalibrationOffset } from '../utils/glb/applyMediaPipeToGLB';
 import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS } from '../utils/keyboard-layout';
 
 // Components
@@ -32,7 +32,7 @@ export function FaceFlickCanvas() {
   // リソース初期化
   const { videoRef, isReady: cameraReady, error: cameraError } = useCamera();
   const { isReady: faceReady, error: faceError, detectFace } = useFaceLandmarker();
-  const { vrm, error: vrmError } = useVRMAvatar({ modelUrl: '/models/8675584217814262223.vrm' });
+  const { avatar, error: avatarError } = useGLBAvatar({ modelUrl: '/models/raccoon_head.glb' });
 
   // Three.js refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -68,17 +68,17 @@ export function FaceFlickCanvas() {
       });
     } else if (faceError) {
       actions.setError({ type: 'face_landmarker_failed', message: faceError });
-    } else if (vrmError) {
-      actions.setError({ type: 'vrm_load_failed', message: vrmError });
+    } else if (avatarError) {
+      actions.setError({ type: 'vrm_load_failed', message: avatarError });
     }
-  }, [cameraError, faceError, vrmError, actions]);
+  }, [cameraError, faceError, avatarError, actions]);
 
   // リソース準備完了チェック
   useEffect(() => {
-    if (cameraReady && faceReady && vrm && state.phase === 'loading') {
+    if (cameraReady && faceReady && avatar && state.phase === 'loading') {
       actions.resourcesLoaded();
     }
-  }, [cameraReady, faceReady, vrm, state.phase, actions]);
+  }, [cameraReady, faceReady, avatar, state.phase, actions]);
 
   // Three.js初期化
   useEffect(() => {
@@ -101,15 +101,15 @@ export function FaceFlickCanvas() {
     const scene = new THREE.Scene();
     sceneRef.current = scene;
 
-    // カメラ（顔をキーボード2段目の高さに表示）
+    // カメラ（GLBモデル用に調整）
     const camera = new THREE.PerspectiveCamera(
       30, // FOVを広めに
       container.clientWidth / container.clientHeight,
       0.1,
       100
     );
-    camera.position.set(0, 1.0, 1.5); // 顔の高さに合わせてさらに下げる
-    camera.lookAt(0, 1.0, 0); // 顔の中心を見る
+    camera.position.set(0, 0, 2); // GLBモデルは原点付近にある想定
+    camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
     // ライト
@@ -139,16 +139,16 @@ export function FaceFlickCanvas() {
     };
   }, []);
 
-  // VRMをシーンに追加
+  // GLBアバターをシーンに追加
   useEffect(() => {
-    if (!vrm || !sceneRef.current) return;
-    sceneRef.current.add(vrm.scene);
+    if (!avatar || !sceneRef.current) return;
+    sceneRef.current.add(avatar.scene);
     return () => {
       if (sceneRef.current) {
-        sceneRef.current.remove(vrm.scene);
+        sceneRef.current.remove(avatar.scene);
       }
     };
-  }, [vrm]);
+  }, [avatar]);
 
   // 入力処理
   const processInput = useCallback(
@@ -299,18 +299,18 @@ export function FaceFlickCanvas() {
             // デバッグ用：browInnerUp値を更新
             setDebugBrowValue(faceState.blendshapes.browInnerUp);
 
-            // VRMに表情適用（キャリブレーション角度を正面とする）
-            if (vrm) {
+            // GLBアバターに表情適用（キャリブレーション角度を正面とする）
+            if (avatar) {
               let calibrationOffset: CalibrationOffset | undefined;
               if (state.calibration) {
                 // 度からラジアンに変換
                 const degToRad = Math.PI / 180;
                 calibrationOffset = {
-                  pitch: -state.calibration.basePitch * degToRad, // 符号反転（applyHeadRotationと合わせる）
+                  pitch: -state.calibration.basePitch * degToRad,
                   yaw: state.calibration.baseYaw * degToRad,
                 };
               }
-              applyMediaPipeToVRM(vrm, result, calibrationOffset);
+              applyMediaPipeToGLB(avatar, result, calibrationOffset);
             }
 
             // キャリブレーション中はサンプル収集
@@ -337,11 +337,6 @@ export function FaceFlickCanvas() {
         }
       }
 
-      // VRM更新
-      if (vrm) {
-        vrm.update(1 / 60);
-      }
-
       // 描画
       renderer.render(scene, camera);
     };
@@ -357,7 +352,7 @@ export function FaceFlickCanvas() {
     videoRef,
     cameraReady,
     faceReady,
-    vrm,
+    avatar,
     state.phase,
     state.calibration,
     detectFace,
@@ -423,7 +418,7 @@ export function FaceFlickCanvas() {
         <LoadingOverlay
           cameraReady={cameraReady}
           faceReady={faceReady}
-          vrmReady={!!vrm}
+          vrmReady={!!avatar}
         />
       )}
 
@@ -445,7 +440,7 @@ export function FaceFlickCanvas() {
       {/* デバッグ情報 */}
       {state.phase === 'ready' && (
         <div className="absolute top-20 right-2 bg-black/70 text-white text-xs p-2 rounded max-w-[150px]">
-          <div>VRM: {vrm ? '✓' : '✗'}</div>
+          <div>GLB: {avatar ? '✓' : '✗'}</div>
           <div>Brow: {debugBrowValue.toFixed(2)}</div>
           <div>Key: {state.input.selectedKey ? `${state.input.selectedKey.row},${state.input.selectedKey.col}` : '-'}</div>
           <div>Phase: {state.input.phase}</div>
