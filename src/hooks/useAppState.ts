@@ -14,7 +14,7 @@ import {
   getCharacter,
 } from '../utils/keyboard-layout';
 import { toggleCharacter } from '../utils/character-utils';
-import { speakText, cancelSpeech } from '../utils/speech';
+import { speakText, cancelSpeech, SpeechCallbacks } from '../utils/speech';
 
 // ============================================
 // 初期状態
@@ -237,10 +237,10 @@ export function useAppState() {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
   // 読み上げ＆クリアのラッパー（副作用を含む）
-  const speakAndClear = useCallback(() => {
+  const speakAndClear = useCallback((callbacks?: SpeechCallbacks) => {
     if (state.text) {
       cancelSpeech();
-      speakText(state.text, 'human_high');
+      speakText(state.text, 'human_high', callbacks);
     }
     dispatch({ type: 'SPEAK_AND_CLEAR' });
   }, [state.text]);

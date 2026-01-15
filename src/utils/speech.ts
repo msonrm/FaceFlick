@@ -1,6 +1,15 @@
 export type VoiceType = 'robot_low' | 'robot_normal' | 'human_high';
 
 /**
+ * 読み上げイベントのコールバック
+ */
+export interface SpeechCallbacks {
+  onStart?: () => void;
+  onBoundary?: () => void;
+  onEnd?: () => void;
+}
+
+/**
  * 特殊文字の読み替えマップ
  */
 const SPECIAL_TEXT_MAP: Record<string, string> = {
@@ -20,7 +29,11 @@ const VOICE_SETTINGS: Record<VoiceType, { rate: number; pitch: number }> = {
 /**
  * テキストを読み上げる
  */
-export function speakText(text: string, voice: VoiceType = 'human_high'): void {
+export function speakText(
+  text: string,
+  voice: VoiceType = 'human_high',
+  callbacks?: SpeechCallbacks
+): void {
   if (!text || !window.speechSynthesis) return;
 
   // 特殊文字の読み替え
@@ -32,6 +45,19 @@ export function speakText(text: string, voice: VoiceType = 'human_high'): void {
   const settings = VOICE_SETTINGS[voice];
   utterance.rate = settings.rate;
   utterance.pitch = settings.pitch;
+
+  // コールバックを設定
+  if (callbacks) {
+    if (callbacks.onStart) {
+      utterance.onstart = callbacks.onStart;
+    }
+    if (callbacks.onBoundary) {
+      utterance.onboundary = callbacks.onBoundary;
+    }
+    if (callbacks.onEnd) {
+      utterance.onend = callbacks.onEnd;
+    }
+  }
 
   window.speechSynthesis.speak(utterance);
 }

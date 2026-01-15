@@ -14,6 +14,7 @@ interface KeyboardProps {
   flickDirection: FlickDirection;
   inputPhase: 'idle' | 'selecting' | 'flicking';
   previewChar: string | null;
+  isHidden?: boolean;
 }
 
 export function Keyboard({
@@ -22,27 +23,39 @@ export function Keyboard({
   flickDirection,
   inputPhase,
   previewChar,
+  isHidden = false,
 }: KeyboardProps) {
   const layout = useMemo(() => getLayout(layoutId), [layoutId]);
 
+  // フェードアウト/イン用のスタイル
+  const containerStyle = {
+    opacity: isHidden ? 0 : 1,
+    transition: 'opacity 0.3s ease-in-out',
+    pointerEvents: isHidden ? 'none' as const : 'auto' as const,
+  };
+
   if (layout.type === 'flick') {
     return (
-      <FlickKeyboard
-        layout={layout}
-        selectedKey={selectedKey}
-        flickDirection={flickDirection}
-        inputPhase={inputPhase}
-        previewChar={previewChar}
-      />
+      <div style={containerStyle}>
+        <FlickKeyboard
+          layout={layout}
+          selectedKey={selectedKey}
+          flickDirection={flickDirection}
+          inputPhase={inputPhase}
+          previewChar={previewChar}
+        />
+      </div>
     );
   }
 
   return (
-    <TapKeyboard
-      layout={layout}
-      selectedKey={selectedKey}
-      inputPhase={inputPhase}
-    />
+    <div style={containerStyle}>
+      <TapKeyboard
+        layout={layout}
+        selectedKey={selectedKey}
+        inputPhase={inputPhase}
+      />
+    </div>
   );
 }
 
