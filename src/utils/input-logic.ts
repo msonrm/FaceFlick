@@ -96,18 +96,28 @@ export function getFlickDirection(
   const absYawOffset = Math.abs(yawOffset);
   const absPitchOffset = Math.abs(pitchOffset);
 
-  // 各方向が閾値を超えているかチェック
-  const isUpFlick = pitchOffset < 0 && absPitchOffset > upFlickThreshold;
-  const isDownFlick = pitchOffset > 0 && absPitchOffset > downFlickThreshold;
-  const isLeftFlick = yawOffset > 0 && absYawOffset > leftFlickThreshold; // 鏡像反転
-  const isRightFlick = yawOffset < 0 && absYawOffset > rightFlickThreshold; // 鏡像反転
+  // 各方向の超過率を計算（閾値を超えた度合い）
+  // 閾値を超えていない場合は0
+  const upExcess = (pitchOffset < 0 && absPitchOffset > upFlickThreshold)
+    ? absPitchOffset / upFlickThreshold : 0;
+  const downExcess = (pitchOffset > 0 && absPitchOffset > downFlickThreshold)
+    ? absPitchOffset / downFlickThreshold : 0;
+  const leftExcess = (yawOffset > 0 && absYawOffset > leftFlickThreshold)  // 鏡像反転
+    ? absYawOffset / leftFlickThreshold : 0;
+  const rightExcess = (yawOffset < 0 && absYawOffset > rightFlickThreshold)  // 鏡像反転
+    ? absYawOffset / rightFlickThreshold : 0;
 
-  // 上下と左右で最も強い方向を選択
-  if ((isUpFlick || isDownFlick) && absPitchOffset > absYawOffset) {
-    return pitchOffset < 0 ? 'up' : 'down';
-  } else if ((isLeftFlick || isRightFlick) && absYawOffset > absPitchOffset) {
-    return yawOffset < 0 ? 'right' : 'left';
+  // 最も超過率が高い方向を選択
+  const maxExcess = Math.max(upExcess, downExcess, leftExcess, rightExcess);
+
+  if (maxExcess <= 1) {
+    return 'center';  // どの方向も閾値を超えていない
   }
+
+  if (upExcess === maxExcess) return 'up';
+  if (downExcess === maxExcess) return 'down';
+  if (leftExcess === maxExcess) return 'left';
+  if (rightExcess === maxExcess) return 'right';
 
   return 'center';
 }
