@@ -15,6 +15,7 @@ interface KeyboardProps {
   inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
   previewChar: string | null;
   isHidden?: boolean;
+  speakClearProgress?: number | null; // 0-1: 発声&クリアの進捗（「や」キー上で笑顔/眉上げ時）
 }
 
 export function Keyboard({
@@ -24,6 +25,7 @@ export function Keyboard({
   inputPhase,
   previewChar,
   isHidden = false,
+  speakClearProgress = null,
 }: KeyboardProps) {
   const layout = useMemo(() => getLayout(layoutId), [layoutId]);
 
@@ -43,6 +45,7 @@ export function Keyboard({
           flickDirection={flickDirection}
           inputPhase={inputPhase}
           previewChar={previewChar}
+          speakClearProgress={speakClearProgress}
         />
       </div>
     );
@@ -69,6 +72,7 @@ interface FlickKeyboardProps {
   flickDirection: FlickDirection;
   inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
   previewChar: string | null;
+  speakClearProgress: number | null;
 }
 
 function FlickKeyboard({
@@ -77,6 +81,7 @@ function FlickKeyboard({
   flickDirection,
   inputPhase,
   previewChar,
+  speakClearProgress,
 }: FlickKeyboardProps) {
   return (
     <div className="grid grid-rows-4 gap-1 w-full max-w-sm mx-auto aspect-[3/4]">
@@ -86,6 +91,8 @@ function FlickKeyboard({
             const isSelected =
               selectedKey?.row === rowIndex && selectedKey?.col === colIndex;
             const flickKey = key as FlickKey;
+            // 「や」キー（row:2, col:1）の発声&クリア進捗
+            const isYaKey = rowIndex === 2 && colIndex === 1;
 
             return (
               <FlickKeyCell
@@ -95,6 +102,7 @@ function FlickKeyboard({
                 flickDirection={isSelected ? flickDirection : null}
                 inputPhase={isSelected ? inputPhase : 'idle'}
                 previewChar={isSelected ? previewChar : null}
+                speakClearProgress={isYaKey ? speakClearProgress : null}
               />
             );
           })}
@@ -110,6 +118,7 @@ interface FlickKeyCellProps {
   flickDirection: FlickDirection;
   inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
   previewChar: string | null;
+  speakClearProgress: number | null;
 }
 
 function FlickKeyCell({
@@ -118,17 +127,27 @@ function FlickKeyCell({
   flickDirection,
   inputPhase,
   previewChar,
+  speakClearProgress,
 }: FlickKeyCellProps) {
   const isTriggering = inputPhase === 'triggering';
   const isSelecting = inputPhase === 'selecting' || inputPhase === 'flicking';
+  const isSpeakClearHolding = speakClearProgress !== null && speakClearProgress > 0;
 
   // ベースのスタイル（通常時はほぼ透明、後ろのアバターが見える）
   let bgClass = 'bg-gray-800/10';
   let borderClass = 'border-gray-500/20';
   let textOpacity = 'opacity-40';
   let scaleClass = '';
+  let customBgStyle: React.CSSProperties | undefined;
 
-  if (isSelected) {
+  // 発声&クリアホールド中（オレンジ背景、不透明度が進捗に応じて増加）
+  if (isSpeakClearHolding) {
+    const alpha = 0.2 + speakClearProgress * 0.6; // 0.2 → 0.8
+    customBgStyle = { backgroundColor: `rgba(255, 140, 0, ${alpha})` };
+    borderClass = 'border-orange-400';
+    textOpacity = 'opacity-100';
+    scaleClass = 'scale-105';
+  } else if (isSelected) {
     if (isSelecting) {
       // ホールド完了：青くハイライト（しっかり表示）+ 文字色も変更
       bgClass = 'bg-blue-600/60';
@@ -160,79 +179,82 @@ function FlickKeyCell({
       className={`
         relative flex flex-col items-center justify-center
         rounded-lg border-2 transition-all duration-150
-        ${bgClass} ${borderClass} ${scaleClass}
+        ${isSpeakClearHolding ? '' : bgClass} ${borderClass} ${scaleClass}
       `}
+      style={customBgStyle}
     >
-      {/* 上の文字 */}
-      {keyData.up && (
-        <span
-          className={`absolute top-1 ${getDirectionHighlight('up')}`}
-        >
-          {keyData.up}
+      {/* 発声&クリアホールド中はスピーカーアイコンのみ表示 */}
+      {isSpeakClearHolding ? (
+        <span className="material-symbols-outlined text-4xl text-white">
+          volume_up
         </span>
-      )}
+      ) : (
+        <>
+          {/* 上の文字 */}
+          {keyData.up && (
+            <span
+              className={`absolute top-1 ${getDirectionHighlight('up')}`}
+            >
+              {keyData.up}
+            </span>
+          )}
 
-      {/* 左の文字 */}
-      {keyData.left && (
-        <span
-          className={`absolute left-2 ${getDirectionHighlight('left')}`}
-        >
-          {keyData.left}
-        </span>
-      )}
+          {/* 左の文字 */}
+          {keyData.left && (
+            <span
+              className={`absolute left-2 ${getDirectionHighlight('left')}`}
+            >
+              {keyData.left}
+            </span>
+          )}
 
-      {/* 中央の文字 */}
-      <span
-        className={`
-          text-xl font-bold transition-opacity duration-150
-          ${isSelected && isSelecting && flickDirection === 'center'
-            ? 'text-yellow-300'
-            : isSelected
-            ? 'text-white'
-            : `text-gray-200 ${textOpacity}`
-          }
-        `}
-      >
-        {keyData.base}
-      </span>
+          {/* 中央の文字 */}
+          <span
+            className={`
+              text-xl font-bold transition-opacity duration-150
+              ${isSelected && isSelecting && flickDirection === 'center'
+                ? 'text-yellow-300'
+                : isSelected
+                ? 'text-white'
+                : `text-gray-200 ${textOpacity}`
+              }
+            `}
+          >
+            {keyData.base}
+          </span>
 
-      {/* 右の文字 */}
-      {keyData.right && (
-        <span
-          className={`absolute right-2 ${getDirectionHighlight('right')}`}
-        >
-          {keyData.right}
-        </span>
-      )}
+          {/* 右の文字 */}
+          {keyData.right && (
+            <span
+              className={`absolute right-2 ${getDirectionHighlight('right')}`}
+            >
+              {keyData.right}
+            </span>
+          )}
 
-      {/* 下の文字 */}
-      {keyData.down && (
-        <span
-          className={`absolute bottom-1 ${getDirectionHighlight('down')}`}
-        >
-          {keyData.down}
-        </span>
-      )}
+          {/* 下の文字 */}
+          {keyData.down && (
+            <span
+              className={`absolute bottom-1 ${getDirectionHighlight('down')}`}
+            >
+              {keyData.down}
+            </span>
+          )}
 
-      {/* プレビュー表示（選択中の文字を大きく表示） */}
-      {isSelected && isSelecting && previewChar && (
-        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-gray-900 px-3 py-1 rounded-lg text-2xl font-bold shadow-lg">
-          {previewChar}
-        </div>
-      )}
+          {/* プレビュー表示（選択中の文字を大きく表示） */}
+          {isSelected && isSelecting && previewChar && (
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-gray-900 px-3 py-1 rounded-lg text-2xl font-bold shadow-lg">
+              {previewChar}
+            </div>
+          )}
 
-      {/* モディファイアキー用のアイコン */}
-      {keyData.isModifier && (
-        <div className="absolute bottom-0.5 right-0.5 text-xs text-gray-500">
-          変換
-        </div>
-      )}
-
-      {/* 特殊キー用のアイコン（読み上げトリガー） */}
-      {keyData.isSpecial && (
-        <div className="absolute top-0.5 right-0.5 text-xs text-green-400">
-          読
-        </div>
+          {/* 特殊キー用のアイコン（読み上げトリガー）- フリック中は非表示 */}
+          {keyData.isSpecial && !isSelecting && (
+            <span className="absolute top-0.5 right-0.5 material-symbols-outlined text-green-400 text-sm">
+              volume_up
+            </span>
+          )}
+        </>
       )}
     </div>
   );

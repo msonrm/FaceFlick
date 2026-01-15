@@ -58,6 +58,7 @@ export function FaceFlickCanvas() {
 
   // 読み上げフィードバック用状態
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakClearProgress, setSpeakClearProgress] = useState<number | null>(null);
   const jawOpenOverrideRef = useRef<number | null>(null);
   const mouthAnimationRef = useRef<number | null>(null);
 
@@ -229,7 +230,7 @@ export function FaceFlickCanvas() {
       // ホバー用に頭の回転を平滑化（EMA: 指数移動平均）
       // フリック中は速く反応、通常時は滑らかに
       const isFlicking = state.input.phase === 'selecting' || state.input.phase === 'flicking';
-      const SMOOTHING_ALPHA = isFlicking ? 0.7 : 0.4;
+      const SMOOTHING_ALPHA = isFlicking ? 0.7 : 0.2;
 
       if (smoothedHeadRotationRef.current === null) {
         // 初回は現在値をそのまま使用
@@ -293,32 +294,42 @@ export function FaceFlickCanvas() {
             if (smiling || browRaised) {
               if (!smileStartTimeRef.current) {
                 smileStartTimeRef.current = now;
-              } else if (now - smileStartTimeRef.current >= SMILE_HOLD_MS) {
-                // 読み上げ開始
-                startSpeaking();
-                actions.speakAndClear({
-                  onStart: () => {
-                    // 口パクアニメーション開始
-                    startMouthAnimation();
-                  },
-                  onBoundary: () => {
-                    // 単語境界で口を大きく開ける
-                    jawOpenOverrideRef.current = 0.5;
-                    setTimeout(() => { jawOpenOverrideRef.current = null; }, 100);
-                  },
-                  onEnd: () => {
-                    // 読み上げ終了
-                    stopMouthAnimation();
-                    stopSpeaking();
-                  },
-                });
-                smileStartTimeRef.current = null;
+                setSpeakClearProgress(0);
+              } else {
+                const elapsed = now - smileStartTimeRef.current;
+                const progress = Math.min(elapsed / SMILE_HOLD_MS, 1);
+                setSpeakClearProgress(progress);
+
+                if (elapsed >= SMILE_HOLD_MS) {
+                  // 読み上げ開始
+                  setSpeakClearProgress(null);
+                  startSpeaking();
+                  actions.speakAndClear({
+                    onStart: () => {
+                      // 口パクアニメーション開始
+                      startMouthAnimation();
+                    },
+                    onBoundary: () => {
+                      // 単語境界で口を大きく開ける
+                      jawOpenOverrideRef.current = 0.5;
+                      setTimeout(() => { jawOpenOverrideRef.current = null; }, 100);
+                    },
+                    onEnd: () => {
+                      // 読み上げ終了
+                      stopMouthAnimation();
+                      stopSpeaking();
+                    },
+                  });
+                  smileStartTimeRef.current = null;
+                }
               }
             } else {
               smileStartTimeRef.current = null;
+              setSpeakClearProgress(null);
             }
           } else {
             smileStartTimeRef.current = null;
+            setSpeakClearProgress(null);
           }
         }
 
@@ -471,6 +482,7 @@ export function FaceFlickCanvas() {
             headRotationHistoryRef.current = [];
             smileStartTimeRef.current = null;
             smoothedHeadRotationRef.current = null;
+            setSpeakClearProgress(null);
           }
 
           // アバターは更新しない（最後の状態で一時停止）
@@ -570,6 +582,7 @@ export function FaceFlickCanvas() {
               inputPhase={state.input.phase}
               previewChar={state.input.previewChar}
               isHidden={isSpeaking}
+              speakClearProgress={speakClearProgress}
             />
             {/* ヘルプ */}
             <p className="text-gray-400 text-xs text-center mt-2" style={{ opacity: isSpeaking ? 0 : 1, transition: 'opacity 0.3s' }}>

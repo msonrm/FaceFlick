@@ -146,7 +146,7 @@ export const FLICK_SENSITIVITY = 10; // 度
 // ============================================
 
 export const DEFAULT_TRIGGER_THRESHOLD = 0.45; // 口開け/すぼめの統一閾値
-export const DEFAULT_TRIGGER_END_THRESHOLD = 0.2; // ヒステリシス終了閾値
+export const DEFAULT_TRIGGER_END_THRESHOLD = 0.1; // ヒステリシス終了閾値
 export const SMILE_THRESHOLD = 0.6;
 export const BROW_THRESHOLD = 0.5;
 
