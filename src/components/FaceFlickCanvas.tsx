@@ -226,7 +226,10 @@ export function FaceFlickCanvas() {
       );
 
       // ホバー用に頭の回転を平滑化（EMA: 指数移動平均）
-      const SMOOTHING_ALPHA = 0.5; // 0に近いほど滑らか、1に近いほど反応が速い
+      // フリック中は速く反応、通常時は滑らかに
+      const isFlicking = state.input.phase === 'selecting' || state.input.phase === 'flicking';
+      const SMOOTHING_ALPHA = isFlicking ? 0.7 : 0.4;
+
       if (smoothedHeadRotationRef.current === null) {
         // 初回は現在値をそのまま使用
         smoothedHeadRotationRef.current = {
@@ -322,7 +325,11 @@ export function FaceFlickCanvas() {
         if (isTriggered) {
           if (!triggerStartTimeRef.current) {
             triggerStartTimeRef.current = now;
-            holdPositionRef.current = { yaw: headRotation.yaw, pitch: headRotation.pitch };
+            // ホールド位置は平滑化された値を使用（フリック検出と基準を合わせる）
+            holdPositionRef.current = {
+              yaw: smoothedHeadRotationRef.current!.yaw,
+              pitch: smoothedHeadRotationRef.current!.pitch,
+            };
           } else if (now - triggerStartTimeRef.current >= HOLD_DELAY_MS) {
             // ホールド時間経過 → selecting状態へ
             actions.triggerStart(keyPosition, holdPositionRef.current!);
