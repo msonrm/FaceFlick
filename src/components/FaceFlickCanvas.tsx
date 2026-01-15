@@ -374,19 +374,21 @@ export function FaceFlickCanvas() {
 
   return (
     <div ref={containerRef} className="relative w-full h-full overflow-hidden">
-      {/* ビデオ背景 */}
+      {/* ビデオ背景（アバター表示時はぼかす） */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
-        className="absolute inset-0 w-full h-full object-cover -scale-x-100"
+        className={`absolute inset-0 w-full h-full object-cover -scale-x-100 transition-all duration-300 ${
+          showAvatar ? 'blur-md brightness-75' : ''
+        }`}
       />
 
       {/* WebGL Canvas (GLB Avatar) */}
       <canvas
         ref={canvasRef}
-        className={`absolute inset-0 w-full h-full pointer-events-none ${
+        className={`absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-300 ${
           showAvatar ? 'opacity-100' : 'opacity-0'
         }`}
       />

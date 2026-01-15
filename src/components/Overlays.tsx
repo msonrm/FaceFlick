@@ -55,7 +55,7 @@ export function LoadingOverlay({
 // キャリブレーションオーバーレイ
 // ============================================
 
-type CalibrationStep = 'neutral' | 'vertical' | 'horizontal' | 'complete';
+type CalibrationStep = 'neutral' | 'range' | 'complete';
 
 interface CalibrationOverlayProps {
   samples: HeadRotationSample[];
@@ -63,7 +63,8 @@ interface CalibrationOverlayProps {
   onComplete: (settings: CalibrationSettings) => void;
 }
 
-const STEP_DURATION_MS = 2500; // 各ステップの最低時間
+const NEUTRAL_DURATION_MS = 2000; // 正面測定
+const RANGE_DURATION_MS = 3000;   // 可動域測定
 
 export function CalibrationOverlay({
   samples,
@@ -76,57 +77,49 @@ export function CalibrationOverlay({
 
   // 各ステップで収集したデータ
   const neutralSamplesRef = useRef<HeadRotationSample[]>([]);
-  const verticalSamplesRef = useRef<HeadRotationSample[]>([]);
-  const horizontalSamplesRef = useRef<HeadRotationSample[]>([]);
+  const rangeSamplesRef = useRef<HeadRotationSample[]>([]);
   const completedRef = useRef(false);
 
   // ステップの説明
-  const stepInfo: Record<CalibrationStep, { title: string; instruction: string }> = {
-    neutral: { title: '1/3: 正面', instruction: '正面を向いてリラックスしてください' },
-    vertical: { title: '2/3: 上下', instruction: '顔を上下にゆっくり動かしてください' },
-    horizontal: { title: '3/3: 左右', instruction: '顔を左右にゆっくり動かしてください' },
-    complete: { title: '完了', instruction: '設定を保存しています...' },
+  const stepInfo: Record<CalibrationStep, { title: string; instruction: string; duration: number }> = {
+    neutral: { title: '1/2', instruction: '正面を向いてリラックス', duration: NEUTRAL_DURATION_MS },
+    range: { title: '2/2', instruction: '顔を上下左右にゆっくり動かす', duration: RANGE_DURATION_MS },
+    complete: { title: '完了', instruction: '設定を保存しています...', duration: 0 },
   };
 
   useEffect(() => {
     if (completedRef.current || step === 'complete') return;
 
+    const duration = stepInfo[step].duration;
     const elapsed = Date.now() - stepStartTime;
-    const progressPercent = Math.min(100, (elapsed / STEP_DURATION_MS) * 100);
+    const progressPercent = Math.min(100, (elapsed / duration) * 100);
     setProgress(progressPercent);
 
     // 現在のステップにサンプルを追加
     if (samples.length > 0) {
-      const latestSamples = samples.slice(-5); // 直近5サンプル
+      const latestSamples = samples.slice(-5);
 
       if (step === 'neutral') {
         neutralSamplesRef.current.push(...latestSamples);
-      } else if (step === 'vertical') {
-        verticalSamplesRef.current.push(...latestSamples);
-      } else if (step === 'horizontal') {
-        horizontalSamplesRef.current.push(...latestSamples);
+      } else if (step === 'range') {
+        rangeSamplesRef.current.push(...latestSamples);
       }
     }
 
     // ステップ完了判定
-    if (elapsed >= STEP_DURATION_MS) {
+    if (elapsed >= duration) {
       if (step === 'neutral') {
-        setStep('vertical');
+        setStep('range');
         setStepStartTime(Date.now());
         setProgress(0);
-      } else if (step === 'vertical') {
-        setStep('horizontal');
-        setStepStartTime(Date.now());
-        setProgress(0);
-      } else if (step === 'horizontal') {
+      } else if (step === 'range') {
         setStep('complete');
         completedRef.current = true;
 
         // キャリブレーション設定を計算
         const settings = calculateCalibrationSettingsFromSteps(
           neutralSamplesRef.current,
-          verticalSamplesRef.current,
-          horizontalSamplesRef.current,
+          rangeSamplesRef.current,
           blendshapeSamples
         );
         onComplete(settings);
@@ -160,13 +153,13 @@ export function CalibrationOverlay({
 
         {/* ステップインジケーター */}
         <div className="flex justify-center gap-2 mt-4">
-          {['neutral', 'vertical', 'horizontal'].map((s, i) => (
+          {['neutral', 'range'].map((s, i) => (
             <div
               key={s}
               className={`w-3 h-3 rounded-full ${
                 step === s
                   ? 'bg-blue-500'
-                  : ['neutral', 'vertical', 'horizontal'].indexOf(step) > i || step === 'complete'
+                  : ['neutral', 'range'].indexOf(step) > i || step === 'complete'
                   ? 'bg-green-500'
                   : 'bg-gray-600'
               }`}
@@ -180,8 +173,7 @@ export function CalibrationOverlay({
 
 function calculateCalibrationSettingsFromSteps(
   neutralSamples: HeadRotationSample[],
-  verticalSamples: HeadRotationSample[],
-  horizontalSamples: HeadRotationSample[],
+  rangeSamples: HeadRotationSample[],
   blendshapeSamples: { browInnerUp: number }[]
 ): CalibrationSettings {
   // 正面位置の平均を計算
@@ -192,15 +184,14 @@ function calculateCalibrationSettingsFromSteps(
     ? neutralSamples.reduce((a, b) => a + b.pitch, 0) / neutralSamples.length
     : 0;
 
-  // 上下の可動域を計算
-  const verticalPitches = verticalSamples.map((s) => s.pitch);
-  const pitchMin = verticalPitches.length > 0 ? Math.min(...verticalPitches) : basePitch - 12;
-  const pitchMax = verticalPitches.length > 0 ? Math.max(...verticalPitches) : basePitch + 12;
+  // 可動域を計算（上下左右同時に収集したデータから）
+  const pitches = rangeSamples.map((s) => s.pitch);
+  const yaws = rangeSamples.map((s) => s.yaw);
 
-  // 左右の可動域を計算
-  const horizontalYaws = horizontalSamples.map((s) => s.yaw);
-  const yawMin = horizontalYaws.length > 0 ? Math.min(...horizontalYaws) : baseYaw - 15;
-  const yawMax = horizontalYaws.length > 0 ? Math.max(...horizontalYaws) : baseYaw + 15;
+  const pitchMin = pitches.length > 0 ? Math.min(...pitches) : basePitch - 12;
+  const pitchMax = pitches.length > 0 ? Math.max(...pitches) : basePitch + 12;
+  const yawMin = yaws.length > 0 ? Math.min(...yaws) : baseYaw - 15;
+  const yawMax = yaws.length > 0 ? Math.max(...yaws) : baseYaw + 15;
 
   // 眉のベース値
   const browValues = blendshapeSamples.map((s) => s.browInnerUp);
