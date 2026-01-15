@@ -79,15 +79,15 @@ export function getFlickDirection(
   let upFlickThreshold: number;
   let downFlickThreshold: number;
 
-  if (row === 0) { // 最上行: 上は敏感、下は鈍感
+  if (row === 0) { // 最上行: 上は敏感、下は大幅に鈍感
     upFlickThreshold = keyHeight * 0.03;
-    downFlickThreshold = keyHeight * 0.80;
-  } else if (row === rows - 1) { // 最下行: 下は敏感、上は鈍感
-    upFlickThreshold = keyHeight * 0.80;
+    downFlickThreshold = keyHeight * 1.60;
+  } else if (row === rows - 1) { // 最下行: 下は敏感、上は大幅に鈍感
+    upFlickThreshold = keyHeight * 1.60;
     downFlickThreshold = keyHeight * 0.05;
-  } else { // 中央行: 両方とも中程度（2倍に増加）
-    upFlickThreshold = keyHeight * 0.70;
-    downFlickThreshold = keyHeight * 0.70;
+  } else { // 中央行: 両方とも鈍感（中央を選びやすく）
+    upFlickThreshold = keyHeight * 1.40;
+    downFlickThreshold = keyHeight * 1.40;
   }
 
   // ホールド位置からの相対的な移動量
