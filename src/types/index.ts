@@ -143,6 +143,7 @@ export type AppAction =
   | { type: 'TRIGGER_START'; position: KeyPosition; holdPosition: { yaw: number; pitch: number } }
   | { type: 'FLICK_DETECTED'; direction: FlickDirection }
   | { type: 'TRIGGER_END' }
+  | { type: 'RECOGNITION_LOST' }
   // テキスト操作
   | { type: 'CHAR_INPUT'; char: string }
   | { type: 'BACKSPACE' }

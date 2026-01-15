@@ -159,6 +159,20 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
     }
 
+    case 'RECOGNITION_LOST': {
+      // 顔認識が途切れた → すべての入力状態をリセット（確定せずキャンセル）
+      return {
+        ...state,
+        input: {
+          phase: 'idle',
+          selectedKey: null, // ホバーも解除
+          flickDirection: null,
+          holdPosition: null,
+          previewChar: null,
+        },
+      };
+    }
+
     // ----------------------------------------
     // テキスト操作
     // ----------------------------------------
@@ -275,6 +289,7 @@ export function useAppState() {
     flickDetected: (direction: FlickDirection) =>
       dispatch({ type: 'FLICK_DETECTED', direction }),
     triggerEnd: () => dispatch({ type: 'TRIGGER_END' }),
+    recognitionLost: () => dispatch({ type: 'RECOGNITION_LOST' }),
     charInput: (char: string) => dispatch({ type: 'CHAR_INPUT', char }),
     backspace: () => dispatch({ type: 'BACKSPACE' }),
     toggleModifier: () => dispatch({ type: 'TOGGLE_MODIFIER' }),
