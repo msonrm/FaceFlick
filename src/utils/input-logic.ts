@@ -61,32 +61,33 @@ export function getFlickDirection(
   const { row, col } = selectedKey;
 
   // 列・行に応じたフリック閾値を設定（方向別・エッジ補正）
+  // 端方向は敏感（小さい閾値）、端と逆方向は鈍感（大きい閾値）で中央を選びやすく
   let leftFlickThreshold: number;
   let rightFlickThreshold: number;
 
-  if (col === 0) { // 左列
+  if (col === 0) { // 左列: 左は敏感、右は鈍感
     leftFlickThreshold = keyWidth * 0.05;
-    rightFlickThreshold = keyWidth * 0.40;
-  } else if (col === cols - 1) { // 右列
-    leftFlickThreshold = keyWidth * 0.40;
+    rightFlickThreshold = keyWidth * 0.80;
+  } else if (col === cols - 1) { // 右列: 右は敏感、左は鈍感
+    leftFlickThreshold = keyWidth * 0.80;
     rightFlickThreshold = keyWidth * 0.05;
-  } else { // 中央列
-    leftFlickThreshold = keyWidth * 0.35;
-    rightFlickThreshold = keyWidth * 0.35;
+  } else { // 中央列: 両方とも中程度（2倍に増加）
+    leftFlickThreshold = keyWidth * 0.70;
+    rightFlickThreshold = keyWidth * 0.70;
   }
 
   let upFlickThreshold: number;
   let downFlickThreshold: number;
 
-  if (row === 0) { // 最上行
+  if (row === 0) { // 最上行: 上は敏感、下は鈍感
     upFlickThreshold = keyHeight * 0.03;
-    downFlickThreshold = keyHeight * 0.40;
-  } else if (row === rows - 1) { // 最下行
-    upFlickThreshold = keyHeight * 0.40;
+    downFlickThreshold = keyHeight * 0.80;
+  } else if (row === rows - 1) { // 最下行: 下は敏感、上は鈍感
+    upFlickThreshold = keyHeight * 0.80;
     downFlickThreshold = keyHeight * 0.05;
-  } else { // 中央行
-    upFlickThreshold = keyHeight * 0.35;
-    downFlickThreshold = keyHeight * 0.35;
+  } else { // 中央行: 両方とも中程度（2倍に増加）
+    upFlickThreshold = keyHeight * 0.70;
+    downFlickThreshold = keyHeight * 0.70;
   }
 
   // ホールド位置からの相対的な移動量
