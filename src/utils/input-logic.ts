@@ -79,7 +79,7 @@ export function getFlickDirection(
   let downFlickThreshold: number;
 
   if (row === 0) { // 最上行
-    upFlickThreshold = keyHeight * 0.05;
+    upFlickThreshold = keyHeight * 0.03;
     downFlickThreshold = keyHeight * 0.40;
   } else if (row === rows - 1) { // 最下行
     upFlickThreshold = keyHeight * 0.40;
