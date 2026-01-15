@@ -1,13 +1,4 @@
-/**
- * 頭の回転履歴からジェスチャーを検出するユーティリティ
- */
-
-export interface HeadRotationSample {
-  yaw: number;
-  pitch: number;
-  roll: number;
-  timestamp: number;
-}
+import { HeadRotationSample } from '../types';
 
 /**
  * 頭の回転履歴からジェスチャーを検出
