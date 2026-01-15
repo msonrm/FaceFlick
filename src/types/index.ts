@@ -133,6 +133,7 @@ export type AppAction =
   // フェーズ遷移
   | { type: 'RESOURCES_LOADED' }
   | { type: 'CALIBRATION_COMPLETE'; settings: CalibrationSettings }
+  | { type: 'RECALIBRATE' }
   // 入力状態
   | { type: 'KEY_HOVER'; position: KeyPosition }
   | { type: 'TRIGGER_START'; position: KeyPosition; holdPosition: { yaw: number; pitch: number } }

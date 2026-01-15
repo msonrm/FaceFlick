@@ -182,14 +182,14 @@ function calculateCalibrationSettings(
   const yawStd = standardDeviation(yawValues);
   const pitchStd = standardDeviation(pitchValues);
 
-  // 範囲をデフォルト±20度またはサンプルから推定
+  // 範囲をデフォルト設定（全4段にアクセスできるよう上下は広めに）
   const yawRange = {
     min: baseYaw - Math.max(20, yawStd * 3),
     max: baseYaw + Math.max(20, yawStd * 3),
   };
   const pitchRange = {
-    min: basePitch - Math.max(15, pitchStd * 3),
-    max: basePitch + Math.max(15, pitchStd * 3),
+    min: basePitch - Math.max(25, pitchStd * 3), // 上方向（1段目）
+    max: basePitch + Math.max(25, pitchStd * 3), // 下方向（4段目）
   };
 
   // 眉のベース値
@@ -270,17 +270,14 @@ interface TextDisplayProps {
 
 export function TextDisplay({ text, previewChar }: TextDisplayProps) {
   return (
-    <div className="bg-gray-800/60 backdrop-blur-sm rounded-lg p-4 min-h-[100px]">
-      <p className="text-white text-xl font-medium break-all leading-relaxed line-clamp-3">
+    <div className="bg-gray-800/60 backdrop-blur-sm rounded-lg p-4 min-h-[60px]">
+      <p className="text-white text-xl font-medium break-all leading-relaxed line-clamp-2">
         {text}
         {previewChar && (
           <span className="text-yellow-400 animate-pulse">{previewChar}</span>
         )}
         <span className="animate-pulse text-gray-400">|</span>
       </p>
-      {text.length === 0 && !previewChar && (
-        <p className="text-gray-500 text-sm">顔を動かして入力...</p>
-      )}
     </div>
   );
 }

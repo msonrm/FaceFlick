@@ -58,6 +58,20 @@ function appReducer(state: AppState, action: AppAction): AppState {
         calibration: action.settings,
       };
 
+    case 'RECALIBRATE':
+      return {
+        ...state,
+        phase: 'calibrating',
+        calibration: null,
+        input: {
+          phase: 'idle',
+          selectedKey: null,
+          flickDirection: null,
+          holdPosition: null,
+          previewChar: null,
+        },
+      };
+
     // ----------------------------------------
     // 入力状態
     // ----------------------------------------
@@ -253,6 +267,7 @@ export function useAppState() {
       dispatch({ type: 'SET_FACE_DISPLAY_MODE', mode }),
     setError: (error: AppError) => dispatch({ type: 'SET_ERROR', error }),
     clearError: () => dispatch({ type: 'CLEAR_ERROR' }),
+    recalibrate: () => dispatch({ type: 'RECALIBRATE' }),
   };
 
   return { state, dispatch, actions };

@@ -16,6 +16,7 @@ import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS } from '
 
 // Components
 import { Keyboard } from './Keyboard';
+import { Toolbar } from './Toolbar';
 import {
   LoadingOverlay,
   CalibrationOverlay,
@@ -53,6 +54,9 @@ export function FaceFlickCanvas() {
 
   // デバッグ用：現在のbrowInnerUp値
   const [debugBrowValue, setDebugBrowValue] = useState<number>(0);
+
+  // アバター表示切替
+  const [showAvatar, setShowAvatar] = useState(true);
 
   // 入力状態管理用refs
   const triggerStartTimeRef = useRef<number | null>(null);
@@ -367,6 +371,13 @@ export function FaceFlickCanvas() {
     [actions]
   );
 
+  // 再キャリブレーション
+  const handleRecalibrate = useCallback(() => {
+    setCalibrationSamples([]);
+    setBlendshapeSamples([]);
+    actions.recalibrate();
+  }, [actions]);
+
   return (
     <div ref={containerRef} className="relative w-full h-full overflow-hidden">
       {/* ビデオ背景 */}
@@ -378,17 +389,30 @@ export function FaceFlickCanvas() {
         className="absolute inset-0 w-full h-full object-cover -scale-x-100"
       />
 
-      {/* WebGL Canvas (VRM) */}
+      {/* WebGL Canvas (GLB Avatar) */}
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full pointer-events-none"
+        className={`absolute inset-0 w-full h-full pointer-events-none ${
+          showAvatar ? 'opacity-100' : 'opacity-0'
+        }`}
       />
 
       {/* UI Layer */}
       <div className="absolute inset-0 flex flex-col pointer-events-none">
+        {/* ツールバー */}
+        {state.phase === 'ready' && (
+          <div className="pointer-events-auto">
+            <Toolbar
+              showAvatar={showAvatar}
+              onToggleAvatar={() => setShowAvatar(!showAvatar)}
+              onRecalibrate={handleRecalibrate}
+            />
+          </div>
+        )}
+
         {/* テキスト表示エリア */}
         {state.phase === 'ready' && (
-          <div className="p-4 pointer-events-auto">
+          <div className="px-4 pt-2 pointer-events-auto">
             <TextDisplay
               text={state.text}
               previewChar={state.input.previewChar}
@@ -396,9 +420,9 @@ export function FaceFlickCanvas() {
           </div>
         )}
 
-        {/* キーボード（テキストエリアの直下に配置） */}
+        {/* キーボード */}
         {state.phase === 'ready' && (
-          <div className="px-4 pointer-events-auto">
+          <div className="px-4 pt-2 pointer-events-auto">
             <Keyboard
               layoutId={state.keyboardModeId}
               selectedKey={state.input.selectedKey}
@@ -406,10 +430,14 @@ export function FaceFlickCanvas() {
               inputPhase={state.input.phase}
               previewChar={state.input.previewChar}
             />
+            {/* ヘルプ */}
+            <p className="text-gray-400 text-xs text-center mt-2">
+              顔を動かしてキー選択 / 口を開けて決定 / 首振りで削除
+            </p>
           </div>
         )}
 
-        {/* 下部スペーサー（アバターの顔が見える領域） */}
+        {/* 下部スペーサー */}
         <div className="flex-1" />
       </div>
 
@@ -435,16 +463,6 @@ export function FaceFlickCanvas() {
           error={state.error}
           onRetry={() => window.location.reload()}
         />
-      )}
-
-      {/* デバッグ情報 */}
-      {state.phase === 'ready' && (
-        <div className="absolute top-20 right-2 bg-black/70 text-white text-xs p-2 rounded max-w-[150px]">
-          <div>GLB: {avatar ? '✓' : '✗'}</div>
-          <div>Brow: {debugBrowValue.toFixed(2)}</div>
-          <div>Key: {state.input.selectedKey ? `${state.input.selectedKey.row},${state.input.selectedKey.col}` : '-'}</div>
-          <div>Phase: {state.input.phase}</div>
-        </div>
       )}
     </div>
   );
