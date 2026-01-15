@@ -78,13 +78,29 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'KEY_HOVER': {
       // ready状態でないとホバー無効
       if (state.phase !== 'ready') return state;
-      // selecting/flicking中はホバー位置変更しない（ホールド位置で固定）
+      // triggering/selecting/flicking中はホバー位置変更しない（ホールド位置で固定）
       if (state.input.phase !== 'idle') return state;
 
       return {
         ...state,
         input: {
           ...state.input,
+          selectedKey: action.position,
+        },
+      };
+    }
+
+    case 'TRIGGER_DETECTED': {
+      // トリガー検出（ホールド時間前）→ triggering状態へ
+      if (state.phase !== 'ready') return state;
+      // すでにtriggering以降の場合は無視
+      if (state.input.phase !== 'idle') return state;
+
+      return {
+        ...state,
+        input: {
+          ...state.input,
+          phase: 'triggering',
           selectedKey: action.position,
         },
       };
@@ -252,6 +268,8 @@ export function useAppState() {
       dispatch({ type: 'CALIBRATION_COMPLETE', settings }),
     keyHover: (position: KeyPosition) =>
       dispatch({ type: 'KEY_HOVER', position }),
+    triggerDetected: (position: KeyPosition) =>
+      dispatch({ type: 'TRIGGER_DETECTED', position }),
     triggerStart: (position: KeyPosition, holdPosition: { yaw: number; pitch: number }) =>
       dispatch({ type: 'TRIGGER_START', position, holdPosition }),
     flickDetected: (direction: FlickDirection) =>

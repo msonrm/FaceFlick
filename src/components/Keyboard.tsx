@@ -12,7 +12,7 @@ interface KeyboardProps {
   layoutId: string;
   selectedKey: KeyPosition | null;
   flickDirection: FlickDirection;
-  inputPhase: 'idle' | 'selecting' | 'flicking';
+  inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
   previewChar: string | null;
   isHidden?: boolean;
 }
@@ -67,7 +67,7 @@ interface FlickKeyboardProps {
   layout: KeyboardLayout;
   selectedKey: KeyPosition | null;
   flickDirection: FlickDirection;
-  inputPhase: 'idle' | 'selecting' | 'flicking';
+  inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
   previewChar: string | null;
 }
 
@@ -108,7 +108,7 @@ interface FlickKeyCellProps {
   keyData: FlickKey;
   isSelected: boolean;
   flickDirection: FlickDirection;
-  inputPhase: 'idle' | 'selecting' | 'flicking';
+  inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
   previewChar: string | null;
 }
 
@@ -119,6 +119,7 @@ function FlickKeyCell({
   inputPhase,
   previewChar,
 }: FlickKeyCellProps) {
+  const isTriggering = inputPhase === 'triggering';
   const isSelecting = inputPhase === 'selecting' || inputPhase === 'flicking';
 
   // ベースのスタイル（通常時はほぼ透明、後ろのアバターが見える）
@@ -129,11 +130,17 @@ function FlickKeyCell({
 
   if (isSelected) {
     if (isSelecting) {
-      // 入力中：青くハイライト（しっかり表示）
+      // ホールド完了：青くハイライト（しっかり表示）+ 文字色も変更
       bgClass = 'bg-blue-600/60';
       borderClass = 'border-blue-400';
       textOpacity = 'opacity-100';
       scaleClass = 'scale-105';
+    } else if (isTriggering) {
+      // トリガー検出中：背景のみ変更（文字色はホバーと同じ）
+      bgClass = 'bg-blue-600/40';
+      borderClass = 'border-blue-300/60';
+      textOpacity = 'opacity-70';
+      scaleClass = 'scale-102';
     } else {
       // ホバー中：少し見える程度
       bgClass = 'bg-gray-700/30';
@@ -238,7 +245,7 @@ function FlickKeyCell({
 interface TapKeyboardProps {
   layout: KeyboardLayout;
   selectedKey: KeyPosition | null;
-  inputPhase: 'idle' | 'selecting' | 'flicking';
+  inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
 }
 
 function TapKeyboard({
@@ -284,10 +291,11 @@ function TapKeyboard({
 interface TapKeyCellProps {
   keyData: TapKey;
   isSelected: boolean;
-  inputPhase: 'idle' | 'selecting' | 'flicking';
+  inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
 }
 
 function TapKeyCell({ keyData, isSelected, inputPhase }: TapKeyCellProps) {
+  const isTriggering = inputPhase === 'triggering';
   const isSelecting = inputPhase === 'selecting' || inputPhase === 'flicking';
 
   // 通常時はほぼ透明
@@ -300,6 +308,11 @@ function TapKeyCell({ keyData, isSelected, inputPhase }: TapKeyCellProps) {
       bgClass = 'bg-blue-600/60';
       borderClass = 'border-blue-400';
       textOpacity = 'opacity-100';
+    } else if (isTriggering) {
+      // トリガー検出中：背景のみ変更
+      bgClass = 'bg-blue-600/40';
+      borderClass = 'border-blue-300/60';
+      textOpacity = 'opacity-70';
     } else {
       bgClass = 'bg-gray-700/30';
       borderClass = 'border-white/40';

@@ -321,20 +321,27 @@ export function FaceFlickCanvas() {
           }
         }
 
-        // トリガー開始
+        // トリガー検出 → 即座にtriggering状態へ（背景色変更）
         if (isTriggered) {
-          if (!triggerStartTimeRef.current) {
-            triggerStartTimeRef.current = now;
-            // ホールド位置は平滑化された値を使用（フリック検出と基準を合わせる）
-            holdPositionRef.current = {
-              yaw: smoothedHeadRotationRef.current!.yaw,
-              pitch: smoothedHeadRotationRef.current!.pitch,
-            };
-          } else if (now - triggerStartTimeRef.current >= HOLD_DELAY_MS) {
-            // ホールド時間経過 → selecting状態へ
-            actions.triggerStart(keyPosition, holdPositionRef.current!);
+          triggerStartTimeRef.current = now;
+          // ホールド位置は平滑化された値を使用（フリック検出と基準を合わせる）
+          holdPositionRef.current = {
+            yaw: smoothedHeadRotationRef.current!.yaw,
+            pitch: smoothedHeadRotationRef.current!.pitch,
+          };
+          actions.triggerDetected(keyPosition);
+        }
+      } else if (state.input.phase === 'triggering') {
+        // トリガー検出中（ホールド時間待ち）
+        // ※ この状態ではキー位置は固定（ホバー更新しない）
+        if (isTriggered) {
+          if (triggerStartTimeRef.current && now - triggerStartTimeRef.current >= HOLD_DELAY_MS) {
+            // ホールド時間経過 → selecting状態へ（文字色も変更）
+            actions.triggerStart(state.input.selectedKey!, holdPositionRef.current!);
           }
         } else {
+          // トリガー解除 → idleに戻る（文字入力なし）
+          actions.triggerEnd();
           triggerStartTimeRef.current = null;
           holdPositionRef.current = null;
         }
