@@ -108,7 +108,7 @@ export function FaceFlickCanvas() {
       0.1,
       100
     );
-    camera.position.set(0, 0, 2); // GLBモデルは原点付近にある想定
+    camera.position.set(0, 0, 3.5); // 顔を小さく表示
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
