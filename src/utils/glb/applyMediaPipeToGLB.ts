@@ -12,13 +12,21 @@ export interface CalibrationOffset {
 }
 
 /**
+ * Blendshapeのオーバーライド設定
+ */
+export interface BlendshapeOverride {
+  jawOpen?: number;
+}
+
+/**
  * MediaPipeのblendshapesをGLBモデルに適用する
  * VRMと違い、morph targetsに直接値を設定できる
  */
 export function applyMediaPipeToGLB(
   avatar: GLBAvatar,
   result: FaceLandmarkerResult,
-  calibrationOffset?: CalibrationOffset
+  calibrationOffset?: CalibrationOffset,
+  blendshapeOverride?: BlendshapeOverride
 ): void {
   if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
     return;
@@ -30,7 +38,7 @@ export function applyMediaPipeToGLB(
   applyHeadRotation(avatar, landmarks, calibrationOffset);
 
   // Blendshapesを適用
-  applyBlendshapes(avatar, result);
+  applyBlendshapes(avatar, result, blendshapeOverride);
 }
 
 /**
@@ -99,7 +107,11 @@ function applyHeadRotation(
 /**
  * MediaPipeのBlendshapesをGLBのmorph targetsに適用
  */
-function applyBlendshapes(avatar: GLBAvatar, result: FaceLandmarkerResult): void {
+function applyBlendshapes(
+  avatar: GLBAvatar,
+  result: FaceLandmarkerResult,
+  override?: BlendshapeOverride
+): void {
   if (!result.faceBlendshapes || result.faceBlendshapes.length === 0) {
     return;
   }
@@ -115,6 +127,12 @@ function applyBlendshapes(avatar: GLBAvatar, result: FaceLandmarkerResult): void
     // MediaPipeのblendshapeをGLBのmorph targetにマッピング
     for (const bs of blendshapes) {
       const name = bs.categoryName;
+      let value = bs.score;
+
+      // オーバーライドが設定されている場合は適用
+      if (override?.jawOpen !== undefined && name === 'jawOpen') {
+        value = override.jawOpen;
+      }
 
       // 直接一致
       let targetIndex = mesh.morphTargetDictionary[name];
@@ -132,7 +150,7 @@ function applyBlendshapes(avatar: GLBAvatar, result: FaceLandmarkerResult): void
 
       // morph targetが見つかった場合、値を設定
       if (targetIndex !== undefined) {
-        mesh.morphTargetInfluences[targetIndex] = bs.score;
+        mesh.morphTargetInfluences[targetIndex] = value;
       }
     }
   }

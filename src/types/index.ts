@@ -97,6 +97,9 @@ export interface CalibrationSettings {
   // トリガー閾値
   triggerThreshold: number;      // 統一した開始閾値
   triggerEndThreshold: number;   // 統一した終了閾値（ヒステリシス）
+  // 口のベース値（第一段階で測定）
+  jawOpenBaseValue: number;
+  mouthPuckerBaseValue: number;
   // ジェスチャー閾値
   smileThreshold: number;
   browInnerUpThreshold: number;

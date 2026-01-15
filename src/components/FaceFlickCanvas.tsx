@@ -11,7 +11,7 @@ import { useAppState } from '../hooks/useAppState';
 import { analyzeFace, PrevFaceState, isSmiling, isBrowRaised } from '../utils/face-detection';
 import { getSelectedKeyPosition, getFlickDirection, getCharFromPosition } from '../utils/input-logic';
 import { detectGesture } from '../utils/gesture-detection';
-import { applyMediaPipeToGLB, CalibrationOffset } from '../utils/glb/applyMediaPipeToGLB';
+import { applyMediaPipeToGLB, CalibrationOffset, BlendshapeOverride } from '../utils/glb/applyMediaPipeToGLB';
 import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS } from '../utils/keyboard-layout';
 
 // Components
@@ -22,6 +22,7 @@ import {
   CalibrationOverlay,
   ErrorOverlay,
   TextDisplay,
+  BlendshapeSample,
 } from './Overlays';
 
 // Types
@@ -50,16 +51,22 @@ export function FaceFlickCanvas() {
 
   // キャリブレーション用サンプル
   const [calibrationSamples, setCalibrationSamples] = useState<HeadRotationSample[]>([]);
-  const [blendshapeSamples, setBlendshapeSamples] = useState<{ browInnerUp: number }[]>([]);
+  const [blendshapeSamples, setBlendshapeSamples] = useState<BlendshapeSample[]>([]);
 
   // アバター表示切替
   const [showAvatar, setShowAvatar] = useState(true);
+
+  // 読み上げフィードバック用状態
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const jawOpenOverrideRef = useRef<number | null>(null);
+  const mouthAnimationRef = useRef<number | null>(null);
 
   // 入力状態管理用refs
   const triggerStartTimeRef = useRef<number | null>(null);
   const holdPositionRef = useRef<{ yaw: number; pitch: number } | null>(null);
   const headRotationHistoryRef = useRef<HeadRotationSample[]>([]);
   const smileStartTimeRef = useRef<number | null>(null);
+  const lastBackspaceTimeRef = useRef<number>(0); // 首振り（削除）のクールダウン用
 
   // エラーチェック
   useEffect(() => {
@@ -151,6 +158,48 @@ export function FaceFlickCanvas() {
     };
   }, [avatar]);
 
+  // 読み上げフィードバック: 開始
+  const startSpeaking = useCallback(() => {
+    setIsSpeaking(true);
+  }, []);
+
+  // 読み上げフィードバック: 終了
+  const stopSpeaking = useCallback(() => {
+    setIsSpeaking(false);
+    jawOpenOverrideRef.current = null;
+  }, []);
+
+  // 口パクアニメーション開始（一定周期で上下）
+  const startMouthAnimation = useCallback(() => {
+    let phase = 0;
+    const animate = () => {
+      phase += 0.15; // 速度調整
+      // 0.1〜0.3の範囲で上下
+      const jawOpen = 0.2 + Math.sin(phase) * 0.1;
+      jawOpenOverrideRef.current = jawOpen;
+      mouthAnimationRef.current = requestAnimationFrame(animate);
+    };
+    mouthAnimationRef.current = requestAnimationFrame(animate);
+  }, []);
+
+  // 口パクアニメーション停止
+  const stopMouthAnimation = useCallback(() => {
+    if (mouthAnimationRef.current) {
+      cancelAnimationFrame(mouthAnimationRef.current);
+      mouthAnimationRef.current = null;
+    }
+    jawOpenOverrideRef.current = null;
+  }, []);
+
+  // クリーンアップ
+  useEffect(() => {
+    return () => {
+      if (mouthAnimationRef.current) {
+        cancelAnimationFrame(mouthAnimationRef.current);
+      }
+    };
+  }, []);
+
   // 入力処理
   const processInput = useCallback(
     (faceState: FaceState) => {
@@ -158,9 +207,9 @@ export function FaceFlickCanvas() {
 
       const layout = getLayout(state.keyboardModeId);
       const { headRotation, isTriggered, blendshapes } = faceState;
+      const now = Date.now();
 
       // 頭の回転履歴を更新（ジェスチャー検出用）
-      const now = Date.now();
       headRotationHistoryRef.current.push({
         yaw: headRotation.yaw,
         pitch: headRotation.pitch,
@@ -171,14 +220,6 @@ export function FaceFlickCanvas() {
         (s) => now - s.timestamp < 1000
       );
 
-      // 首振りジェスチャー検出（バックスペース）
-      const gesture = detectGesture(headRotationHistoryRef.current);
-      if (gesture === 'head_shake' && state.input.phase === 'idle') {
-        actions.backspace();
-        headRotationHistoryRef.current = []; // 履歴クリア
-        return;
-      }
-
       // キー位置計算
       const keyPosition = getSelectedKeyPosition(
         headRotation,
@@ -186,33 +227,74 @@ export function FaceFlickCanvas() {
         state.calibration
       );
 
+      // ===== 優先度付きトリガー・ジェスチャー検出 =====
+      // 優先度: 1.口開け/口すぼめ > 2.首振り > 3.笑顔/眉上げ
+
+      // 【優先度1】口開け/口すぼめ（キー入力トリガー）がアクティブな場合
+      // → 他のすべてのジェスチャータイマーをリセット
+      if (isTriggered) {
+        smileStartTimeRef.current = null;
+        // 首振り検出もスキップ（トリガー中は無効）
+      }
+
       // 入力状態に応じた処理
       if (state.input.phase === 'idle') {
         // ホバー更新
         actions.keyHover(keyPosition);
 
-        // 笑顔/眉上げジェスチャー検出（「や」キー上で）
-        const isOnYaKey = keyPosition.row === 2 && keyPosition.col === 1;
-        if (isOnYaKey) {
-          const smiling = isSmiling(blendshapes, state.calibration.smileThreshold);
-          const browRaised = isBrowRaised(
-            blendshapes,
-            state.calibration.browInnerUpBaseValue,
-            state.calibration.browInnerUpThreshold
-          );
+        // トリガーなしの場合のみジェスチャー検出
+        if (!isTriggered) {
+          // 【優先度2】首振りジェスチャー検出（バックスペース）
+          const BACKSPACE_COOLDOWN_MS = 1000; // 1秒のクールダウン
+          const gesture = detectGesture(headRotationHistoryRef.current);
+          if (gesture === 'head_shake' && now - lastBackspaceTimeRef.current >= BACKSPACE_COOLDOWN_MS) {
+            actions.backspace();
+            headRotationHistoryRef.current = []; // 履歴クリア
+            lastBackspaceTimeRef.current = now;
+            smileStartTimeRef.current = null; // 他のジェスチャータイマーもリセット
+            return;
+          }
 
-          if (smiling || browRaised) {
-            if (!smileStartTimeRef.current) {
-              smileStartTimeRef.current = now;
-            } else if (now - smileStartTimeRef.current >= SMILE_HOLD_MS) {
-              actions.speakAndClear();
+          // 【優先度3】笑顔/眉上げジェスチャー検出（「や」キー上で）
+          const isOnYaKey = keyPosition.row === 2 && keyPosition.col === 1;
+          if (isOnYaKey && state.text.length > 0) { // 文字がある時のみ
+            const smiling = isSmiling(blendshapes, state.calibration.smileThreshold);
+            const browRaised = isBrowRaised(
+              blendshapes,
+              state.calibration.browInnerUpBaseValue,
+              state.calibration.browInnerUpThreshold
+            );
+
+            if (smiling || browRaised) {
+              if (!smileStartTimeRef.current) {
+                smileStartTimeRef.current = now;
+              } else if (now - smileStartTimeRef.current >= SMILE_HOLD_MS) {
+                // 読み上げ開始
+                startSpeaking();
+                actions.speakAndClear({
+                  onStart: () => {
+                    // 口パクアニメーション開始
+                    startMouthAnimation();
+                  },
+                  onBoundary: () => {
+                    // 単語境界で口を大きく開ける
+                    jawOpenOverrideRef.current = 0.5;
+                    setTimeout(() => { jawOpenOverrideRef.current = null; }, 100);
+                  },
+                  onEnd: () => {
+                    // 読み上げ終了
+                    stopMouthAnimation();
+                    stopSpeaking();
+                  },
+                });
+                smileStartTimeRef.current = null;
+              }
+            } else {
               smileStartTimeRef.current = null;
             }
           } else {
             smileStartTimeRef.current = null;
           }
-        } else {
-          smileStartTimeRef.current = null;
         }
 
         // トリガー開始
@@ -308,7 +390,12 @@ export function FaceFlickCanvas() {
                   yaw: state.calibration.baseYaw * degToRad,
                 };
               }
-              applyMediaPipeToGLB(avatar, result, calibrationOffset);
+              // 口パクオーバーライド（読み上げ中）
+              const blendshapeOverride: BlendshapeOverride | undefined =
+                jawOpenOverrideRef.current !== null
+                  ? { jawOpen: jawOpenOverrideRef.current }
+                  : undefined;
+              applyMediaPipeToGLB(avatar, result, calibrationOffset, blendshapeOverride);
             }
 
             // キャリブレーション中はサンプル収集
@@ -323,7 +410,11 @@ export function FaceFlickCanvas() {
               ]);
               setBlendshapeSamples((prev) => [
                 ...prev,
-                { browInnerUp: faceState.blendshapes.browInnerUp },
+                {
+                  jawOpen: faceState.blendshapes.jawOpen,
+                  mouthPucker: faceState.blendshapes.mouthPucker,
+                  browInnerUp: faceState.blendshapes.browInnerUp,
+                },
               ]);
             }
 
@@ -412,6 +503,7 @@ export function FaceFlickCanvas() {
             <TextDisplay
               text={state.text}
               previewChar={state.input.previewChar}
+              isSpeaking={isSpeaking}
             />
           </div>
         )}
@@ -425,9 +517,10 @@ export function FaceFlickCanvas() {
               flickDirection={state.input.flickDirection}
               inputPhase={state.input.phase}
               previewChar={state.input.previewChar}
+              isHidden={isSpeaking}
             />
             {/* ヘルプ */}
-            <p className="text-gray-400 text-xs text-center mt-2">
+            <p className="text-gray-400 text-xs text-center mt-2" style={{ opacity: isSpeaking ? 0 : 1, transition: 'opacity 0.3s' }}>
               顔を動かしてキー選択 / 口を開けて決定 / 首振りで削除
             </p>
           </div>
