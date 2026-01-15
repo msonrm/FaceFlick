@@ -67,6 +67,7 @@ export function FaceFlickCanvas() {
   const headRotationHistoryRef = useRef<HeadRotationSample[]>([]);
   const smileStartTimeRef = useRef<number | null>(null);
   const lastBackspaceTimeRef = useRef<number>(0); // 首振り（削除）のクールダウン用
+  const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number } | null>(null); // ホバー平滑化用
 
   // エラーチェック
   useEffect(() => {
@@ -81,10 +82,14 @@ export function FaceFlickCanvas() {
     }
   }, [cameraError, faceError, avatarError, actions]);
 
-  // リソース準備完了チェック
+  // リソース準備完了チェック（少し遅延させてからキャリブレーション開始）
   useEffect(() => {
     if (cameraReady && faceReady && avatar && state.phase === 'loading') {
-      actions.resourcesLoaded();
+      // 起動プロセスが安定するまで500ms待機
+      const timer = setTimeout(() => {
+        actions.resourcesLoaded();
+      }, 500);
+      return () => clearTimeout(timer);
     }
   }, [cameraReady, faceReady, avatar, state.phase, actions]);
 
@@ -209,7 +214,7 @@ export function FaceFlickCanvas() {
       const { headRotation, isTriggered, blendshapes } = faceState;
       const now = Date.now();
 
-      // 頭の回転履歴を更新（ジェスチャー検出用）
+      // 頭の回転履歴を更新（ジェスチャー検出用：生の値を使用）
       headRotationHistoryRef.current.push({
         yaw: headRotation.yaw,
         pitch: headRotation.pitch,
@@ -220,9 +225,25 @@ export function FaceFlickCanvas() {
         (s) => now - s.timestamp < 1000
       );
 
-      // キー位置計算
+      // ホバー用に頭の回転を平滑化（EMA: 指数移動平均）
+      const SMOOTHING_ALPHA = 0.5; // 0に近いほど滑らか、1に近いほど反応が速い
+      if (smoothedHeadRotationRef.current === null) {
+        // 初回は現在値をそのまま使用
+        smoothedHeadRotationRef.current = {
+          yaw: headRotation.yaw,
+          pitch: headRotation.pitch,
+        };
+      } else {
+        // EMAで平滑化
+        smoothedHeadRotationRef.current = {
+          yaw: SMOOTHING_ALPHA * headRotation.yaw + (1 - SMOOTHING_ALPHA) * smoothedHeadRotationRef.current.yaw,
+          pitch: SMOOTHING_ALPHA * headRotation.pitch + (1 - SMOOTHING_ALPHA) * smoothedHeadRotationRef.current.pitch,
+        };
+      }
+
+      // キー位置計算（平滑化された値を使用）
       const keyPosition = getSelectedKeyPosition(
-        headRotation,
+        smoothedHeadRotationRef.current,
         layout,
         state.calibration
       );
@@ -312,9 +333,9 @@ export function FaceFlickCanvas() {
         }
       } else if (state.input.phase === 'selecting' || state.input.phase === 'flicking') {
         if (isTriggered && state.input.holdPosition) {
-          // フリック方向検出
+          // フリック方向検出（平滑化された値を使用）
           const flickDir = getFlickDirection(
-            headRotation,
+            smoothedHeadRotationRef.current!,
             state.input.holdPosition,
             state.input.selectedKey!,
             layout,
