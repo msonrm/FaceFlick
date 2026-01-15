@@ -182,14 +182,14 @@ function calculateCalibrationSettings(
   const yawStd = standardDeviation(yawValues);
   const pitchStd = standardDeviation(pitchValues);
 
-  // 範囲をデフォルト設定（全4段にアクセスできるよう上下は広めに）
+  // 範囲をデフォルト設定（少ない動きで全段アクセス可能に）
   const yawRange = {
-    min: baseYaw - Math.max(20, yawStd * 3),
-    max: baseYaw + Math.max(20, yawStd * 3),
+    min: baseYaw - Math.max(15, yawStd * 3), // 左右は±15度
+    max: baseYaw + Math.max(15, yawStd * 3),
   };
   const pitchRange = {
-    min: basePitch - Math.max(25, pitchStd * 3), // 上方向（1段目）
-    max: basePitch + Math.max(25, pitchStd * 3), // 下方向（4段目）
+    min: basePitch - Math.max(12, pitchStd * 3), // 上方向（1段目）±12度
+    max: basePitch + Math.max(12, pitchStd * 3), // 下方向（4段目）
   };
 
   // 眉のベース値
