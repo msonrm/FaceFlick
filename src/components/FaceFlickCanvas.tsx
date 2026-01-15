@@ -230,7 +230,7 @@ export function FaceFlickCanvas() {
       // ホバー用に頭の回転を平滑化（EMA: 指数移動平均）
       // フリック中は速く反応、通常時は滑らかに
       const isFlicking = state.input.phase === 'selecting' || state.input.phase === 'flicking';
-      const SMOOTHING_ALPHA = isFlicking ? 0.7 : 0.4;
+      const SMOOTHING_ALPHA = isFlicking ? 0.7 : 0.2;
 
       if (smoothedHeadRotationRef.current === null) {
         // 初回は現在値をそのまま使用

@@ -248,18 +248,11 @@ function FlickKeyCell({
             </div>
           )}
 
-          {/* モディファイアキー用のアイコン */}
-          {keyData.isModifier && (
-            <div className="absolute bottom-0.5 right-0.5 text-xs text-gray-500">
-              変換
-            </div>
-          )}
-
-          {/* 特殊キー用のアイコン（読み上げトリガー） */}
-          {keyData.isSpecial && (
-            <div className="absolute top-0.5 right-0.5 text-xs text-green-400">
-              読
-            </div>
+          {/* 特殊キー用のアイコン（読み上げトリガー）- フリック中は非表示 */}
+          {keyData.isSpecial && !isSelecting && (
+            <span className="absolute top-0.5 right-0.5 material-symbols-outlined text-green-400 text-sm">
+              volume_up
+            </span>
           )}
         </>
       )}
