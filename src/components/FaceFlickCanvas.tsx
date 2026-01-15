@@ -67,6 +67,8 @@ export function FaceFlickCanvas() {
   const headRotationHistoryRef = useRef<HeadRotationSample[]>([]);
   const smileStartTimeRef = useRef<number | null>(null);
   const lastBackspaceTimeRef = useRef<number>(0); // 首振り（削除）のクールダウン用
+  const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number } | null>(null); // ホバー平滑化用
+  const wasRecognizedRef = useRef<boolean>(false); // 顔認識状態追跡用
 
   // エラーチェック
   useEffect(() => {
@@ -81,10 +83,14 @@ export function FaceFlickCanvas() {
     }
   }, [cameraError, faceError, avatarError, actions]);
 
-  // リソース準備完了チェック
+  // リソース準備完了チェック（少し遅延させてからキャリブレーション開始）
   useEffect(() => {
     if (cameraReady && faceReady && avatar && state.phase === 'loading') {
-      actions.resourcesLoaded();
+      // 起動プロセスが安定するまで500ms待機
+      const timer = setTimeout(() => {
+        actions.resourcesLoaded();
+      }, 500);
+      return () => clearTimeout(timer);
     }
   }, [cameraReady, faceReady, avatar, state.phase, actions]);
 
@@ -209,7 +215,7 @@ export function FaceFlickCanvas() {
       const { headRotation, isTriggered, blendshapes } = faceState;
       const now = Date.now();
 
-      // 頭の回転履歴を更新（ジェスチャー検出用）
+      // 頭の回転履歴を更新（ジェスチャー検出用：生の値を使用）
       headRotationHistoryRef.current.push({
         yaw: headRotation.yaw,
         pitch: headRotation.pitch,
@@ -220,9 +226,28 @@ export function FaceFlickCanvas() {
         (s) => now - s.timestamp < 1000
       );
 
-      // キー位置計算
+      // ホバー用に頭の回転を平滑化（EMA: 指数移動平均）
+      // フリック中は速く反応、通常時は滑らかに
+      const isFlicking = state.input.phase === 'selecting' || state.input.phase === 'flicking';
+      const SMOOTHING_ALPHA = isFlicking ? 0.7 : 0.4;
+
+      if (smoothedHeadRotationRef.current === null) {
+        // 初回は現在値をそのまま使用
+        smoothedHeadRotationRef.current = {
+          yaw: headRotation.yaw,
+          pitch: headRotation.pitch,
+        };
+      } else {
+        // EMAで平滑化
+        smoothedHeadRotationRef.current = {
+          yaw: SMOOTHING_ALPHA * headRotation.yaw + (1 - SMOOTHING_ALPHA) * smoothedHeadRotationRef.current.yaw,
+          pitch: SMOOTHING_ALPHA * headRotation.pitch + (1 - SMOOTHING_ALPHA) * smoothedHeadRotationRef.current.pitch,
+        };
+      }
+
+      // キー位置計算（平滑化された値を使用）
       const keyPosition = getSelectedKeyPosition(
-        headRotation,
+        smoothedHeadRotationRef.current,
         layout,
         state.calibration
       );
@@ -297,24 +322,35 @@ export function FaceFlickCanvas() {
           }
         }
 
-        // トリガー開始
+        // トリガー検出 → 即座にtriggering状態へ（背景色変更）
         if (isTriggered) {
-          if (!triggerStartTimeRef.current) {
-            triggerStartTimeRef.current = now;
-            holdPositionRef.current = { yaw: headRotation.yaw, pitch: headRotation.pitch };
-          } else if (now - triggerStartTimeRef.current >= HOLD_DELAY_MS) {
-            // ホールド時間経過 → selecting状態へ
-            actions.triggerStart(keyPosition, holdPositionRef.current!);
+          triggerStartTimeRef.current = now;
+          // ホールド位置は平滑化された値を使用（フリック検出と基準を合わせる）
+          holdPositionRef.current = {
+            yaw: smoothedHeadRotationRef.current!.yaw,
+            pitch: smoothedHeadRotationRef.current!.pitch,
+          };
+          actions.triggerDetected(keyPosition);
+        }
+      } else if (state.input.phase === 'triggering') {
+        // トリガー検出中（ホールド時間待ち）
+        // ※ この状態ではキー位置は固定（ホバー更新しない）
+        if (isTriggered) {
+          if (triggerStartTimeRef.current && now - triggerStartTimeRef.current >= HOLD_DELAY_MS) {
+            // ホールド時間経過 → selecting状態へ（文字色も変更）
+            actions.triggerStart(state.input.selectedKey!, holdPositionRef.current!);
           }
         } else {
+          // トリガー解除 → idleに戻る（文字入力なし）
+          actions.triggerEnd();
           triggerStartTimeRef.current = null;
           holdPositionRef.current = null;
         }
       } else if (state.input.phase === 'selecting' || state.input.phase === 'flicking') {
         if (isTriggered && state.input.holdPosition) {
-          // フリック方向検出
+          // フリック方向検出（平滑化された値を使用）
           const flickDir = getFlickDirection(
-            headRotation,
+            smoothedHeadRotationRef.current!,
             state.input.holdPosition,
             state.input.selectedKey!,
             layout,
@@ -365,64 +401,79 @@ export function FaceFlickCanvas() {
         lastDetectionTimeRef.current = timestamp;
 
         const result = detectFace(video, timestamp);
-        if (result) {
-          const faceState = analyzeFace(
-            result,
-            state.calibration,
-            prevFaceStateRef.current
-          );
+        const faceState = result
+          ? analyzeFace(result, state.calibration, prevFaceStateRef.current)
+          : null;
 
-          if (faceState) {
-            currentFaceStateRef.current = faceState;
-            prevFaceStateRef.current = {
-              isTriggered: faceState.isTriggered,
-              blendshapes: faceState.blendshapes,
-            };
+        if (faceState) {
+          // 顔認識成功
+          wasRecognizedRef.current = true;
+          currentFaceStateRef.current = faceState;
+          prevFaceStateRef.current = {
+            isTriggered: faceState.isTriggered,
+            blendshapes: faceState.blendshapes,
+          };
 
-            // GLBアバターに表情適用（キャリブレーション角度を正面とする）
-            if (avatar) {
-              let calibrationOffset: CalibrationOffset | undefined;
-              if (state.calibration) {
-                // 度からラジアンに変換
-                const degToRad = Math.PI / 180;
-                calibrationOffset = {
-                  pitch: -state.calibration.basePitch * degToRad,
-                  yaw: state.calibration.baseYaw * degToRad,
-                };
-              }
-              // 口パクオーバーライド（読み上げ中）
-              const blendshapeOverride: BlendshapeOverride | undefined =
-                jawOpenOverrideRef.current !== null
-                  ? { jawOpen: jawOpenOverrideRef.current }
-                  : undefined;
-              applyMediaPipeToGLB(avatar, result, calibrationOffset, blendshapeOverride);
+          // GLBアバターに表情適用（キャリブレーション角度を正面とする）
+          if (avatar) {
+            let calibrationOffset: CalibrationOffset | undefined;
+            if (state.calibration) {
+              // 度からラジアンに変換
+              const degToRad = Math.PI / 180;
+              calibrationOffset = {
+                pitch: -state.calibration.basePitch * degToRad,
+                yaw: state.calibration.baseYaw * degToRad,
+              };
             }
-
-            // キャリブレーション中はサンプル収集
-            if (state.phase === 'calibrating') {
-              setCalibrationSamples((prev) => [
-                ...prev,
-                {
-                  yaw: faceState.headRotation.yaw,
-                  pitch: faceState.headRotation.pitch,
-                  timestamp: Date.now(),
-                },
-              ]);
-              setBlendshapeSamples((prev) => [
-                ...prev,
-                {
-                  jawOpen: faceState.blendshapes.jawOpen,
-                  mouthPucker: faceState.blendshapes.mouthPucker,
-                  browInnerUp: faceState.blendshapes.browInnerUp,
-                },
-              ]);
-            }
-
-            // 入力処理
-            if (state.phase === 'ready') {
-              processInput(faceState);
-            }
+            // 口パクオーバーライド（読み上げ中）
+            const blendshapeOverride: BlendshapeOverride | undefined =
+              jawOpenOverrideRef.current !== null
+                ? { jawOpen: jawOpenOverrideRef.current }
+                : undefined;
+            applyMediaPipeToGLB(avatar, result!, calibrationOffset, blendshapeOverride);
           }
+
+          // キャリブレーション中はサンプル収集
+          if (state.phase === 'calibrating') {
+            setCalibrationSamples((prev) => [
+              ...prev,
+              {
+                yaw: faceState.headRotation.yaw,
+                pitch: faceState.headRotation.pitch,
+                timestamp: Date.now(),
+              },
+            ]);
+            setBlendshapeSamples((prev) => [
+              ...prev,
+              {
+                jawOpen: faceState.blendshapes.jawOpen,
+                mouthPucker: faceState.blendshapes.mouthPucker,
+                browInnerUp: faceState.blendshapes.browInnerUp,
+              },
+            ]);
+          }
+
+          // 入力処理
+          if (state.phase === 'ready') {
+            processInput(faceState);
+          }
+        } else if (wasRecognizedRef.current) {
+          // 顔認識が途切れた → 状態をリセット（アバターは一時停止）
+          wasRecognizedRef.current = false;
+
+          // ready状態であれば入力をリセット
+          if (state.phase === 'ready') {
+            actions.recognitionLost();
+
+            // refsもリセット
+            triggerStartTimeRef.current = null;
+            holdPositionRef.current = null;
+            headRotationHistoryRef.current = [];
+            smileStartTimeRef.current = null;
+            smoothedHeadRotationRef.current = null;
+          }
+
+          // アバターは更新しない（最後の状態で一時停止）
         }
       }
 
@@ -446,6 +497,7 @@ export function FaceFlickCanvas() {
     state.calibration,
     detectFace,
     processInput,
+    actions,
   ]);
 
   // キャリブレーション完了ハンドラ

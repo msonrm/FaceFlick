@@ -61,32 +61,33 @@ export function getFlickDirection(
   const { row, col } = selectedKey;
 
   // 列・行に応じたフリック閾値を設定（方向別・エッジ補正）
+  // 端方向は敏感（小さい閾値）、端と逆方向は鈍感（大きい閾値）で中央を選びやすく
   let leftFlickThreshold: number;
   let rightFlickThreshold: number;
 
-  if (col === 0) { // 左列
+  if (col === 0) { // 左列: 左は敏感、右は鈍感
     leftFlickThreshold = keyWidth * 0.05;
-    rightFlickThreshold = keyWidth * 0.40;
-  } else if (col === cols - 1) { // 右列
-    leftFlickThreshold = keyWidth * 0.40;
+    rightFlickThreshold = keyWidth * 0.80;
+  } else if (col === cols - 1) { // 右列: 右は敏感、左は鈍感
+    leftFlickThreshold = keyWidth * 0.80;
     rightFlickThreshold = keyWidth * 0.05;
-  } else { // 中央列
-    leftFlickThreshold = keyWidth * 0.35;
-    rightFlickThreshold = keyWidth * 0.35;
+  } else { // 中央列: 両方とも中程度（2倍に増加）
+    leftFlickThreshold = keyWidth * 0.70;
+    rightFlickThreshold = keyWidth * 0.70;
   }
 
   let upFlickThreshold: number;
   let downFlickThreshold: number;
 
-  if (row === 0) { // 最上行
+  if (row === 0) { // 最上行: 上は敏感、下は大幅に鈍感
     upFlickThreshold = keyHeight * 0.03;
-    downFlickThreshold = keyHeight * 0.40;
-  } else if (row === rows - 1) { // 最下行
-    upFlickThreshold = keyHeight * 0.40;
+    downFlickThreshold = keyHeight * 1.60;
+  } else if (row === rows - 1) { // 最下行: 下は敏感、上は大幅に鈍感
+    upFlickThreshold = keyHeight * 1.60;
     downFlickThreshold = keyHeight * 0.05;
-  } else { // 中央行
-    upFlickThreshold = keyHeight * 0.35;
-    downFlickThreshold = keyHeight * 0.35;
+  } else { // 中央行: 両方とも鈍感（中央を選びやすく）
+    upFlickThreshold = keyHeight * 1.40;
+    downFlickThreshold = keyHeight * 1.40;
   }
 
   // ホールド位置からの相対的な移動量
@@ -96,18 +97,28 @@ export function getFlickDirection(
   const absYawOffset = Math.abs(yawOffset);
   const absPitchOffset = Math.abs(pitchOffset);
 
-  // 各方向が閾値を超えているかチェック
-  const isUpFlick = pitchOffset < 0 && absPitchOffset > upFlickThreshold;
-  const isDownFlick = pitchOffset > 0 && absPitchOffset > downFlickThreshold;
-  const isLeftFlick = yawOffset > 0 && absYawOffset > leftFlickThreshold; // 鏡像反転
-  const isRightFlick = yawOffset < 0 && absYawOffset > rightFlickThreshold; // 鏡像反転
+  // 各方向の超過率を計算（閾値を超えた度合い）
+  // 閾値を超えていない場合は0
+  const upExcess = (pitchOffset < 0 && absPitchOffset > upFlickThreshold)
+    ? absPitchOffset / upFlickThreshold : 0;
+  const downExcess = (pitchOffset > 0 && absPitchOffset > downFlickThreshold)
+    ? absPitchOffset / downFlickThreshold : 0;
+  const leftExcess = (yawOffset > 0 && absYawOffset > leftFlickThreshold)  // 鏡像反転
+    ? absYawOffset / leftFlickThreshold : 0;
+  const rightExcess = (yawOffset < 0 && absYawOffset > rightFlickThreshold)  // 鏡像反転
+    ? absYawOffset / rightFlickThreshold : 0;
 
-  // 上下と左右で最も強い方向を選択
-  if ((isUpFlick || isDownFlick) && absPitchOffset > absYawOffset) {
-    return pitchOffset < 0 ? 'up' : 'down';
-  } else if ((isLeftFlick || isRightFlick) && absYawOffset > absPitchOffset) {
-    return yawOffset < 0 ? 'right' : 'left';
+  // 最も超過率が高い方向を選択
+  const maxExcess = Math.max(upExcess, downExcess, leftExcess, rightExcess);
+
+  if (maxExcess <= 1) {
+    return 'center';  // どの方向も閾値を超えていない
   }
+
+  if (upExcess === maxExcess) return 'up';
+  if (downExcess === maxExcess) return 'down';
+  if (leftExcess === maxExcess) return 'left';
+  if (rightExcess === maxExcess) return 'right';
 
   return 'center';
 }

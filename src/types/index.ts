@@ -70,7 +70,7 @@ export interface KeyPosition {
 // 入力状態関連
 // ============================================
 
-export type InputPhase = 'idle' | 'selecting' | 'flicking';
+export type InputPhase = 'idle' | 'triggering' | 'selecting' | 'flicking';
 
 export interface InputState {
   phase: InputPhase;
@@ -139,9 +139,11 @@ export type AppAction =
   | { type: 'RECALIBRATE' }
   // 入力状態
   | { type: 'KEY_HOVER'; position: KeyPosition }
+  | { type: 'TRIGGER_DETECTED'; position: KeyPosition }
   | { type: 'TRIGGER_START'; position: KeyPosition; holdPosition: { yaw: number; pitch: number } }
   | { type: 'FLICK_DETECTED'; direction: FlickDirection }
   | { type: 'TRIGGER_END' }
+  | { type: 'RECOGNITION_LOST' }
   // テキスト操作
   | { type: 'CHAR_INPUT'; char: string }
   | { type: 'BACKSPACE' }

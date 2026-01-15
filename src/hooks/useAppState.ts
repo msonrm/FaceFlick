@@ -78,13 +78,29 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'KEY_HOVER': {
       // ready状態でないとホバー無効
       if (state.phase !== 'ready') return state;
-      // selecting/flicking中はホバー位置変更しない（ホールド位置で固定）
+      // triggering/selecting/flicking中はホバー位置変更しない（ホールド位置で固定）
       if (state.input.phase !== 'idle') return state;
 
       return {
         ...state,
         input: {
           ...state.input,
+          selectedKey: action.position,
+        },
+      };
+    }
+
+    case 'TRIGGER_DETECTED': {
+      // トリガー検出（ホールド時間前）→ triggering状態へ
+      if (state.phase !== 'ready') return state;
+      // すでにtriggering以降の場合は無視
+      if (state.input.phase !== 'idle') return state;
+
+      return {
+        ...state,
+        input: {
+          ...state.input,
+          phase: 'triggering',
           selectedKey: action.position,
         },
       };
@@ -136,6 +152,20 @@ function appReducer(state: AppState, action: AppAction): AppState {
         input: {
           phase: 'idle',
           selectedKey: state.input.selectedKey, // 位置は維持
+          flickDirection: null,
+          holdPosition: null,
+          previewChar: null,
+        },
+      };
+    }
+
+    case 'RECOGNITION_LOST': {
+      // 顔認識が途切れた → すべての入力状態をリセット（確定せずキャンセル）
+      return {
+        ...state,
+        input: {
+          phase: 'idle',
+          selectedKey: null, // ホバーも解除
           flickDirection: null,
           holdPosition: null,
           previewChar: null,
@@ -252,11 +282,14 @@ export function useAppState() {
       dispatch({ type: 'CALIBRATION_COMPLETE', settings }),
     keyHover: (position: KeyPosition) =>
       dispatch({ type: 'KEY_HOVER', position }),
+    triggerDetected: (position: KeyPosition) =>
+      dispatch({ type: 'TRIGGER_DETECTED', position }),
     triggerStart: (position: KeyPosition, holdPosition: { yaw: number; pitch: number }) =>
       dispatch({ type: 'TRIGGER_START', position, holdPosition }),
     flickDetected: (direction: FlickDirection) =>
       dispatch({ type: 'FLICK_DETECTED', direction }),
     triggerEnd: () => dispatch({ type: 'TRIGGER_END' }),
+    recognitionLost: () => dispatch({ type: 'RECOGNITION_LOST' }),
     charInput: (char: string) => dispatch({ type: 'CHAR_INPUT', char }),
     backspace: () => dispatch({ type: 'BACKSPACE' }),
     toggleModifier: () => dispatch({ type: 'TOGGLE_MODIFIER' }),
