@@ -265,25 +265,39 @@ export function FaceFlickCanvas() {
 
       // 入力状態に応じた処理
       if (state.input.phase === 'idle') {
-        // ホバー更新
-        actions.keyHover(keyPosition);
+        // 笑顔/眉上げ検出中は「や」キーのフォーカスを固定
+        const isSmileHolding = smileStartTimeRef.current !== null;
+        const yaKeyPosition = { row: 2, col: 1 };
+
+        // ホバー更新（笑顔/眉上げホールド中は「や」キーに固定）
+        if (isSmileHolding) {
+          actions.keyHover(yaKeyPosition);
+        } else {
+          actions.keyHover(keyPosition);
+        }
 
         // トリガーなしの場合のみジェスチャー検出
         if (!isTriggered) {
           // 【優先度2】首振りジェスチャー検出（バックスペース）
-          const BACKSPACE_COOLDOWN_MS = 1000; // 1秒のクールダウン
-          const gesture = detectGesture(headRotationHistoryRef.current);
-          if (gesture === 'head_shake' && now - lastBackspaceTimeRef.current >= BACKSPACE_COOLDOWN_MS) {
-            actions.backspace();
-            headRotationHistoryRef.current = []; // 履歴クリア
-            lastBackspaceTimeRef.current = now;
-            smileStartTimeRef.current = null; // 他のジェスチャータイマーもリセット
-            return;
+          // ※笑顔/眉上げホールド中は首振り検出をスキップ
+          if (!isSmileHolding) {
+            const BACKSPACE_COOLDOWN_MS = 1000; // 1秒のクールダウン
+            const gesture = detectGesture(headRotationHistoryRef.current);
+            if (gesture === 'head_shake' && now - lastBackspaceTimeRef.current >= BACKSPACE_COOLDOWN_MS) {
+              actions.backspace();
+              headRotationHistoryRef.current = []; // 履歴クリア
+              lastBackspaceTimeRef.current = now;
+              smileStartTimeRef.current = null; // 他のジェスチャータイマーもリセット
+              return;
+            }
           }
 
           // 【優先度3】笑顔/眉上げジェスチャー検出（「や」キー上で）
+          // ホールド中は継続判定、それ以外は「や」キー上でのみ開始
           const isOnYaKey = keyPosition.row === 2 && keyPosition.col === 1;
-          if (isOnYaKey && state.text.length > 0) { // 文字がある時のみ
+          const shouldCheckSmile = isSmileHolding || (isOnYaKey && state.text.length > 0);
+
+          if (shouldCheckSmile && state.text.length > 0) {
             const smiling = isSmiling(blendshapes, state.calibration.smileThreshold);
             const browRaised = isBrowRaised(
               blendshapes,
@@ -327,7 +341,8 @@ export function FaceFlickCanvas() {
               smileStartTimeRef.current = null;
               setSpeakClearProgress(null);
             }
-          } else {
+          } else if (!isSmileHolding) {
+            // ホールド中でなく、「や」キー上でもない場合のみリセット
             smileStartTimeRef.current = null;
             setSpeakClearProgress(null);
           }
