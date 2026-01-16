@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import * as THREE from 'three';
 
 // Hooks
@@ -12,8 +12,8 @@ import { analyzeFace, PrevFaceState, isSmiling, isBrowRaised } from '../utils/fa
 import { getSelectedKeyPosition, getFlickDirection, getCharFromPosition } from '../utils/input-logic';
 import { detectGesture } from '../utils/gesture-detection';
 import { applyMediaPipeToGLB, CalibrationOffset, BlendshapeOverride } from '../utils/glb/applyMediaPipeToGLB';
-import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS, INPUT_COOLDOWN_MS } from '../utils/keyboard-layout';
-import { canToggleCharacter } from '../utils/character-utils';
+import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS, INPUT_COOLDOWN_MS, MODIFIER_HOLD_MS } from '../utils/keyboard-layout';
+import { canToggleCharacter, toggleCharacter } from '../utils/character-utils';
 
 // Components
 import { Keyboard } from './Keyboard';
@@ -61,9 +61,11 @@ export function FaceFlickCanvas() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakClearProgress, setSpeakClearProgress] = useState<number | null>(null);
   const [modifierJustUsed, setModifierJustUsed] = useState(false);
+  const [modifierProgress, setModifierProgress] = useState<number | null>(null);
   const jawOpenOverrideRef = useRef<number | null>(null);
   const mouthAnimationRef = useRef<number | null>(null);
   const modifierTimeoutRef = useRef<number | null>(null);
+  const modifierStartTimeRef = useRef<number | null>(null);
 
   // 入力状態管理用refs
   const triggerStartTimeRef = useRef<number | null>(null);
@@ -74,6 +76,18 @@ export function FaceFlickCanvas() {
   const lastInputTimeRef = useRef<number>(0); // 文字入力後のクールダウン用
   const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number } | null>(null); // ホバー平滑化用
   const wasRecognizedRef = useRef<boolean>(false); // 顔認識状態追跡用
+
+  // 変換キー用: 最後の文字と変換プレビュー
+  const lastChar = useMemo(() => {
+    if (state.text.length === 0) return null;
+    return [...state.text][state.text.length - 1];
+  }, [state.text]);
+
+  const conversionPreview = useMemo(() => {
+    if (!lastChar || !canToggleCharacter(lastChar)) return null;
+    const nextChar = toggleCharacter(lastChar);
+    return `${lastChar}→${nextChar}`;
+  }, [lastChar]);
 
   // エラーチェック
   useEffect(() => {
@@ -271,11 +285,15 @@ export function FaceFlickCanvas() {
       if (state.input.phase === 'idle') {
         // 笑顔/眉上げ検出中は「や」キーのフォーカスを固定
         const isSmileHolding = smileStartTimeRef.current !== null;
+        const isModifierHolding = modifierStartTimeRef.current !== null;
         const yaKeyPosition = { row: 2, col: 1 };
+        const modifierKeyPosition = { row: 3, col: 0 };
 
-        // ホバー更新（笑顔/眉上げホールド中は「や」キーに固定）
+        // ホバー更新（笑顔/眉上げホールド中は「や」キーに固定、変換キー保持中は変換キーに固定）
         if (isSmileHolding) {
           actions.keyHover(yaKeyPosition);
+        } else if (isModifierHolding) {
+          actions.keyHover(modifierKeyPosition);
         } else {
           actions.keyHover(keyPosition);
         }
@@ -352,23 +370,66 @@ export function FaceFlickCanvas() {
           }
         }
 
-        // トリガー検出 → 即座にtriggering状態へ（背景色変更）
+        // トリガー検出処理
         // ただし、以下の場合はトリガーを無効化:
         // 1. 文字入力後のクールダウン中（0.5秒）
         // 2. モディファイアキー（左下）上で、最後の文字が変換不可の場合
         const isInCooldown = now - lastInputTimeRef.current < INPUT_COOLDOWN_MS;
         const isOnModifierKey = keyPosition.row === 3 && keyPosition.col === 0;
         const lastChar = state.text.length > 0 ? [...state.text][state.text.length - 1] : null;
-        const isModifierDisabled = isOnModifierKey && (!lastChar || !canToggleCharacter(lastChar));
+        const canConvert = lastChar && canToggleCharacter(lastChar);
+        const isModifierDisabled = isOnModifierKey && !canConvert;
 
-        if (isTriggered && !isInCooldown && !isModifierDisabled) {
-          triggerStartTimeRef.current = now;
-          // ホールド位置は平滑化された値を使用（フリック検出と基準を合わせる）
-          holdPositionRef.current = {
-            yaw: smoothedHeadRotationRef.current!.yaw,
-            pitch: smoothedHeadRotationRef.current!.pitch,
-          };
-          actions.triggerDetected(keyPosition);
+        // 変換キー上でのトリガー検出 → 保持処理（「や」キーの笑顔検出と同様）
+        if (isOnModifierKey && canConvert && !isInCooldown) {
+          if (isTriggered) {
+            if (!modifierStartTimeRef.current) {
+              modifierStartTimeRef.current = now;
+              setModifierProgress(0);
+            } else {
+              const elapsed = now - modifierStartTimeRef.current;
+              const progress = Math.min(elapsed / MODIFIER_HOLD_MS, 1);
+              setModifierProgress(progress);
+
+              if (elapsed >= MODIFIER_HOLD_MS) {
+                // 変換実行
+                actions.toggleModifier();
+                lastInputTimeRef.current = now; // クールダウン開始
+                // 変換キーのフィードバック（0.3秒間オレンジ表示）
+                if (modifierTimeoutRef.current) {
+                  clearTimeout(modifierTimeoutRef.current);
+                }
+                setModifierJustUsed(true);
+                modifierTimeoutRef.current = window.setTimeout(() => {
+                  setModifierJustUsed(false);
+                }, 300);
+                // リセット
+                modifierStartTimeRef.current = null;
+                setModifierProgress(null);
+              }
+            }
+          } else {
+            // トリガー解除 → 保持キャンセル
+            modifierStartTimeRef.current = null;
+            setModifierProgress(null);
+          }
+        } else if (!isOnModifierKey || !isModifierHolding) {
+          // 変換キー以外に移動した場合、または保持中でない場合はリセット
+          if (modifierStartTimeRef.current !== null) {
+            modifierStartTimeRef.current = null;
+            setModifierProgress(null);
+          }
+
+          // 通常のトリガー検出 → 即座にtriggering状態へ（背景色変更）
+          if (isTriggered && !isInCooldown && !isModifierDisabled) {
+            triggerStartTimeRef.current = now;
+            // ホールド位置は平滑化された値を使用（フリック検出と基準を合わせる）
+            holdPositionRef.current = {
+              yaw: smoothedHeadRotationRef.current!.yaw,
+              pitch: smoothedHeadRotationRef.current!.pitch,
+            };
+            actions.triggerDetected(keyPosition);
+          }
         }
       } else if (state.input.phase === 'triggering') {
         // トリガー検出中（ホールド時間待ち）
@@ -518,8 +579,10 @@ export function FaceFlickCanvas() {
             holdPositionRef.current = null;
             headRotationHistoryRef.current = [];
             smileStartTimeRef.current = null;
+            modifierStartTimeRef.current = null;
             smoothedHeadRotationRef.current = null;
             setSpeakClearProgress(null);
+            setModifierProgress(null);
           }
 
           // アバターは更新しない（最後の状態で一時停止）
@@ -622,6 +685,9 @@ export function FaceFlickCanvas() {
               speakClearProgress={speakClearProgress}
               hasText={state.text.length > 0}
               modifierJustUsed={modifierJustUsed}
+              lastChar={lastChar && canToggleCharacter(lastChar) ? lastChar : null}
+              modifierProgress={modifierProgress}
+              conversionPreview={conversionPreview}
             />
             {/* ヘルプ */}
             <div
