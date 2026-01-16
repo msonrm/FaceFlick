@@ -631,9 +631,7 @@ export function FaceFlickCanvas() {
 
   // 録画開始
   const handleStartRecording = useCallback(() => {
-    if (canvasRef.current) {
-      startRecording(canvasRef.current);
-    }
+    startRecording();
   }, [startRecording]);
 
   return (

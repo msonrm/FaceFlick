@@ -50,65 +50,39 @@ export function useRecording() {
   const recordingFormatRef = useRef<{ mimeType: string; extension: string } | null>(null);
   const displayStreamRef = useRef<MediaStream | null>(null);
 
-  // Canvas映像 + タブ音声を録画開始
-  const startRecording = useCallback(async (canvas: HTMLCanvasElement) => {
+  // タブ全体（映像 + 音声）を録画開始
+  const startRecording = useCallback(async () => {
     if (status !== 'idle') return;
 
     setStatus('requesting');
 
     try {
-      // Canvas映像ストリームを取得
-      const canvasStream = canvas.captureStream(30); // 30 fps
+      // getDisplayMedia でタブ全体をキャプチャ（映像 + 音声）
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          displaySurface: 'browser',
+          frameRate: 30,
+        },
+        audio: true,
+        preferCurrentTab: true,
+        selfBrowserSurface: 'include',
+        systemAudio: 'include',
+      } as DisplayMediaStreamOptions);
 
-      // タブ音声をキャプチャするために getDisplayMedia を使用
-      // preferCurrentTab: true でダイアログをスキップ（サポートされている場合）
-      let displayStream: MediaStream | null = null;
-      let audioTrack: MediaStreamTrack | null = null;
+      displayStreamRef.current = displayStream;
 
-      try {
-        displayStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            displaySurface: 'browser',
-          },
-          audio: true,
-          preferCurrentTab: true,
-          selfBrowserSurface: 'include',
-          systemAudio: 'include',
-        } as DisplayMediaStreamOptions);
-
-        displayStreamRef.current = displayStream;
-
-        // 音声トラックを取得
-        const audioTracks = displayStream.getAudioTracks();
-        if (audioTracks.length > 0) {
-          audioTrack = audioTracks[0];
-          console.log('Audio track captured:', audioTrack.label);
+      // ストリームが途中で停止された場合（ユーザーが共有を停止）
+      displayStream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        if (mediaRecorderRef.current?.state === 'recording') {
+          mediaRecorderRef.current.stop();
+          mediaRecorderRef.current = null;
         }
-
-        // ビデオトラックは不要なので停止（Canvas映像を使用するため）
-        displayStream.getVideoTracks().forEach((track) => track.stop());
-      } catch (err) {
-        console.warn('Could not capture tab audio, recording without audio:', err);
-        // 音声キャプチャに失敗しても、映像のみで続行
-      }
-
-      // 最終的なストリームを構築
-      const combinedStream = new MediaStream();
-
-      // Canvas映像トラックを追加
-      canvasStream.getVideoTracks().forEach((track) => {
-        combinedStream.addTrack(track);
       });
-
-      // 音声トラックがあれば追加
-      if (audioTrack) {
-        combinedStream.addTrack(audioTrack);
-      }
 
       const format = getSupportedMimeType();
       recordingFormatRef.current = format;
 
-      const mediaRecorder = new MediaRecorder(combinedStream, {
+      const mediaRecorder = new MediaRecorder(displayStream, {
         mimeType: format.mimeType,
       });
 
@@ -121,7 +95,7 @@ export function useRecording() {
       };
 
       mediaRecorder.onstop = () => {
-        // 音声ストリームのクリーンアップ
+        // ストリームのクリーンアップ
         if (displayStreamRef.current) {
           displayStreamRef.current.getTracks().forEach((track) => track.stop());
           displayStreamRef.current = null;
