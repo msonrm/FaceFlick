@@ -6,7 +6,6 @@ import { useCamera } from '../hooks/useCamera';
 import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
 import { useGLBAvatar } from '../hooks/useGLBAvatar';
 import { useAppState } from '../hooks/useAppState';
-import { useRecording } from '../hooks/useRecording';
 
 // Utils
 import { analyzeFace, PrevFaceState, isSmiling, isBrowRaised } from '../utils/face-detection';
@@ -37,7 +36,6 @@ export function FaceFlickCanvas() {
   const { videoRef, isReady: cameraReady, error: cameraError } = useCamera();
   const { isReady: faceReady, error: faceError, detectFace } = useFaceLandmarker();
   const { avatar, error: avatarError } = useGLBAvatar({ modelUrl: '/models/raccoon_head.glb' });
-  const { status: recordingStatus, startRecording, stopRecording } = useRecording();
 
   // Three.js refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -629,13 +627,6 @@ export function FaceFlickCanvas() {
     actions.recalibrate();
   }, [actions]);
 
-  // 録画開始
-  const handleStartRecording = useCallback(() => {
-    if (containerRef.current) {
-      startRecording(containerRef.current);
-    }
-  }, [startRecording]);
-
   return (
     <div ref={containerRef} className="relative w-full h-full overflow-hidden">
       {/* ビデオ背景（アバター表示時はぼかす） */}
@@ -666,9 +657,6 @@ export function FaceFlickCanvas() {
               showAvatar={showAvatar}
               onToggleAvatar={() => setShowAvatar(!showAvatar)}
               onRecalibrate={handleRecalibrate}
-              recordingStatus={recordingStatus}
-              onStartRecording={handleStartRecording}
-              onStopRecording={stopRecording}
             />
           </div>
         )}
