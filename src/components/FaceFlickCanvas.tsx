@@ -11,7 +11,7 @@ import { useAppState } from '../hooks/useAppState';
 import { analyzeFace, PrevFaceState, isSmiling, isBrowRaised } from '../utils/face-detection';
 import { getSelectedKeyPosition, getFlickDirection, getCharFromPosition } from '../utils/input-logic';
 import { detectGesture } from '../utils/gesture-detection';
-import { applyMediaPipeToGLB, CalibrationOffset, BlendshapeOverride, setGLBOpacity } from '../utils/glb/applyMediaPipeToGLB';
+import { applyMediaPipeToGLB, CalibrationOffset, BlendshapeOverride } from '../utils/glb/applyMediaPipeToGLB';
 import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS, INPUT_COOLDOWN_MS } from '../utils/keyboard-layout';
 import { canToggleCharacter } from '../utils/character-utils';
 
@@ -445,10 +445,6 @@ export function FaceFlickCanvas() {
 
         if (faceState) {
           // 顔認識成功
-          if (!wasRecognizedRef.current && avatar) {
-            // 認識復帰時に不透明に戻す
-            setGLBOpacity(avatar, 1.0);
-          }
           wasRecognizedRef.current = true;
           currentFaceStateRef.current = faceState;
           prevFaceStateRef.current = {
@@ -500,11 +496,8 @@ export function FaceFlickCanvas() {
             processInput(faceState);
           }
         } else if (wasRecognizedRef.current) {
-          // 顔認識が途切れた → 状態をリセット（アバターを半透明に）
+          // 顔認識が途切れた → 状態をリセット（アバターは一時停止）
           wasRecognizedRef.current = false;
-          if (avatar) {
-            setGLBOpacity(avatar, 0.5);
-          }
 
           // ready状態であれば入力をリセット
           if (state.phase === 'ready') {
