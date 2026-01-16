@@ -613,9 +613,16 @@ export function FaceFlickCanvas() {
               hasText={state.text.length > 0}
             />
             {/* ヘルプ */}
-            <p className="text-gray-400 text-xs text-center mt-2" style={{ opacity: isSpeaking ? 0 : 1, transition: 'opacity 0.3s' }}>
-              顔を動かしてキー選択 / 口を開けて決定 / 首振りで削除
-            </p>
+            <div
+              className="bg-gray-800/60 backdrop-blur-sm rounded-lg px-4 py-3 mt-2"
+              style={{ opacity: isSpeaking ? 0 : 1, transition: 'opacity 0.3s' }}
+            >
+              <p className="text-gray-300 text-xs text-center leading-relaxed">
+                顔を動かしてキー選択 → 口開け/すぼめでフリック開始 → 顔を動かして文字選択 → 口を戻して決定
+                <br />
+                首振りで1文字削除 / 「や」キー上で笑顔か眉上げで読み上げ
+              </p>
+            </div>
           </div>
         )}
 
