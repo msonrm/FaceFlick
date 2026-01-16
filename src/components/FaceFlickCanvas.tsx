@@ -381,7 +381,8 @@ export function FaceFlickCanvas() {
         const isModifierDisabled = isOnModifierKey && !canConvert;
 
         // 変換キー上でのトリガー検出 → 通常キーと同様の操作（ホールド→リリースで確定）
-        if (isOnModifierKey && canConvert && !isInCooldown) {
+        // ホールド中は顔を動かしても変換キーに固定
+        if ((isOnModifierKey || isModifierHolding) && canConvert && !isInCooldown) {
           if (isTriggered) {
             if (!modifierStartTimeRef.current) {
               modifierStartTimeRef.current = now;
