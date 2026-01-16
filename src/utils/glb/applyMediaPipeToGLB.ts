@@ -168,3 +168,26 @@ export function resetGLBBlendshapes(avatar: GLBAvatar): void {
     }
   }
 }
+
+/**
+ * GLBモデルの透明度を設定
+ * @param avatar GLBAvatar
+ * @param opacity 0.0（完全透明）〜 1.0（不透明）
+ */
+export function setGLBOpacity(avatar: GLBAvatar, opacity: number): void {
+  avatar.scene.traverse((object) => {
+    if (object instanceof THREE.Mesh) {
+      const materials = Array.isArray(object.material)
+        ? object.material
+        : [object.material];
+
+      for (const material of materials) {
+        if (material instanceof THREE.Material) {
+          material.transparent = true;
+          material.opacity = opacity;
+          material.needsUpdate = true;
+        }
+      }
+    }
+  });
+}
