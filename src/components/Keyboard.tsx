@@ -16,6 +16,7 @@ interface KeyboardProps {
   previewChar: string | null;
   isHidden?: boolean;
   speakClearProgress?: number | null; // 0-1: 発声&クリアの進捗（「や」キー上で笑顔/眉上げ時）
+  hasText?: boolean; // テキストエリアに文字があるか（「や」キーのアイコン表示用）
 }
 
 export function Keyboard({
@@ -26,6 +27,7 @@ export function Keyboard({
   previewChar,
   isHidden = false,
   speakClearProgress = null,
+  hasText = false,
 }: KeyboardProps) {
   const layout = useMemo(() => getLayout(layoutId), [layoutId]);
 
@@ -46,6 +48,7 @@ export function Keyboard({
           inputPhase={inputPhase}
           previewChar={previewChar}
           speakClearProgress={speakClearProgress}
+          hasText={hasText}
         />
       </div>
     );
@@ -73,6 +76,7 @@ interface FlickKeyboardProps {
   inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
   previewChar: string | null;
   speakClearProgress: number | null;
+  hasText: boolean;
 }
 
 function FlickKeyboard({
@@ -82,6 +86,7 @@ function FlickKeyboard({
   inputPhase,
   previewChar,
   speakClearProgress,
+  hasText,
 }: FlickKeyboardProps) {
   return (
     <div className="grid grid-rows-4 gap-1 w-full max-w-sm mx-auto aspect-[3/4]">
@@ -103,6 +108,7 @@ function FlickKeyboard({
                 inputPhase={isSelected ? inputPhase : 'idle'}
                 previewChar={isSelected ? previewChar : null}
                 speakClearProgress={isYaKey ? speakClearProgress : null}
+                hasText={hasText}
               />
             );
           })}
@@ -119,6 +125,7 @@ interface FlickKeyCellProps {
   inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
   previewChar: string | null;
   speakClearProgress: number | null;
+  hasText: boolean;
 }
 
 function FlickKeyCell({
@@ -128,6 +135,7 @@ function FlickKeyCell({
   inputPhase,
   previewChar,
   speakClearProgress,
+  hasText,
 }: FlickKeyCellProps) {
   const isTriggering = inputPhase === 'triggering';
   const isSelecting = inputPhase === 'selecting' || inputPhase === 'flicking';
@@ -248,8 +256,8 @@ function FlickKeyCell({
             </div>
           )}
 
-          {/* 特殊キー用のアイコン（読み上げトリガー）- フリック中は非表示 */}
-          {keyData.isSpecial && !isSelecting && (
+          {/* 特殊キー用のアイコン（読み上げトリガー）- フリック中/テキストなしは非表示 */}
+          {keyData.isSpecial && !isSelecting && hasText && (
             <span className="absolute top-0.5 right-0.5 material-symbols-outlined text-green-400 text-sm">
               volume_up
             </span>

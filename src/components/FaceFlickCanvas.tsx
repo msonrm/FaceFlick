@@ -598,6 +598,7 @@ export function FaceFlickCanvas() {
               previewChar={state.input.previewChar}
               isHidden={isSpeaking}
               speakClearProgress={speakClearProgress}
+              hasText={state.text.length > 0}
             />
             {/* ヘルプ */}
             <p className="text-gray-400 text-xs text-center mt-2" style={{ opacity: isSpeaking ? 0 : 1, transition: 'opacity 0.3s' }}>
