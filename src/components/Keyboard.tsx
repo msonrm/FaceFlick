@@ -18,6 +18,9 @@ interface KeyboardProps {
   speakClearProgress?: number | null; // 0-1: 発声&クリアの進捗（「や」キー上で笑顔/眉上げ時）
   hasText?: boolean; // テキストエリアに文字があるか（「や」キーのアイコン表示用）
   modifierJustUsed?: boolean; // 変換キーが使用された直後か
+  lastChar?: string | null; // テキストエリアの最後の文字（変換キーの表示制御用）
+  modifierProgress?: number | null; // 0-1: 変換キーの保持進捗
+  conversionPreview?: string | null; // 変換プレビュー（「か→が」の形式）
 }
 
 export function Keyboard({
@@ -30,6 +33,9 @@ export function Keyboard({
   speakClearProgress = null,
   hasText = false,
   modifierJustUsed = false,
+  lastChar = null,
+  modifierProgress = null,
+  conversionPreview = null,
 }: KeyboardProps) {
   const layout = useMemo(() => getLayout(layoutId), [layoutId]);
 
@@ -52,6 +58,9 @@ export function Keyboard({
           speakClearProgress={speakClearProgress}
           hasText={hasText}
           modifierJustUsed={modifierJustUsed}
+          lastChar={lastChar}
+          modifierProgress={modifierProgress}
+          conversionPreview={conversionPreview}
         />
       </div>
     );
@@ -81,6 +90,9 @@ interface FlickKeyboardProps {
   speakClearProgress: number | null;
   hasText: boolean;
   modifierJustUsed: boolean;
+  lastChar: string | null;
+  modifierProgress: number | null;
+  conversionPreview: string | null;
 }
 
 function FlickKeyboard({
@@ -92,6 +104,9 @@ function FlickKeyboard({
   speakClearProgress,
   hasText,
   modifierJustUsed,
+  lastChar,
+  modifierProgress,
+  conversionPreview,
 }: FlickKeyboardProps) {
   return (
     <div className="grid grid-rows-4 gap-1 w-full max-w-sm mx-auto aspect-[3/4]">
@@ -117,6 +132,9 @@ function FlickKeyboard({
                 speakClearProgress={isYaKey ? speakClearProgress : null}
                 hasText={hasText}
                 modifierJustUsed={isModifierKey && modifierJustUsed}
+                lastChar={isModifierKey ? lastChar : null}
+                modifierProgress={isModifierKey ? modifierProgress : null}
+                conversionPreview={isModifierKey ? conversionPreview : null}
               />
             );
           })}
@@ -135,6 +153,9 @@ interface FlickKeyCellProps {
   speakClearProgress: number | null;
   hasText: boolean;
   modifierJustUsed: boolean;
+  lastChar: string | null; // 変換キー: 最後の文字
+  modifierProgress: number | null; // 変換キー: 保持進捗
+  conversionPreview: string | null; // 変換キー: プレビュー
 }
 
 function FlickKeyCell({
@@ -146,21 +167,35 @@ function FlickKeyCell({
   speakClearProgress,
   hasText,
   modifierJustUsed,
+  lastChar,
+  modifierProgress,
+  conversionPreview,
 }: FlickKeyCellProps) {
   const isTriggering = inputPhase === 'triggering';
   const isSelecting = inputPhase === 'selecting' || inputPhase === 'flicking';
   const isSpeakClearHolding = speakClearProgress !== null && speakClearProgress > 0;
+  const isModifierHolding = modifierProgress !== null && modifierProgress > 0;
+
+  // 変換キー: 変換非対応の場合はグレーアウト
+  const isModifierDisabled = keyData.isModifier && !lastChar;
 
   // ベースのスタイル（通常時はほぼ透明、後ろのアバターが見える）
   let bgClass = 'bg-gray-800/10';
   let borderClass = 'border-gray-500/20';
-  let textOpacity = 'opacity-40';
+  let textOpacity = isModifierDisabled ? 'opacity-20' : 'opacity-40';
   let scaleClass = '';
   let customBgStyle: React.CSSProperties | undefined;
 
   // 発声&クリアホールド中（オレンジ背景、不透明度が進捗に応じて増加）
   if (isSpeakClearHolding) {
     const alpha = 0.2 + speakClearProgress * 0.6; // 0.2 → 0.8
+    customBgStyle = { backgroundColor: `rgba(255, 140, 0, ${alpha})` };
+    borderClass = 'border-orange-400';
+    textOpacity = 'opacity-100';
+    scaleClass = 'scale-105';
+  } else if (isModifierHolding) {
+    // 変換キー保持中（オレンジ背景、不透明度が進捗に応じて増加）
+    const alpha = 0.2 + modifierProgress * 0.6; // 0.2 → 0.8
     customBgStyle = { backgroundColor: `rgba(255, 140, 0, ${alpha})` };
     borderClass = 'border-orange-400';
     textOpacity = 'opacity-100';
@@ -182,13 +217,13 @@ function FlickKeyCell({
       // トリガー検出中：背景のみ変更（文字色はホバーと同じ）
       bgClass = 'bg-blue-600/40';
       borderClass = 'border-blue-300/60';
-      textOpacity = 'opacity-70';
+      textOpacity = isModifierDisabled ? 'opacity-20' : 'opacity-70';
       scaleClass = 'scale-102';
     } else {
       // ホバー中：少し見える程度
       bgClass = 'bg-gray-700/30';
       borderClass = 'border-white/40';
-      textOpacity = 'opacity-70';
+      textOpacity = isModifierDisabled ? 'opacity-20' : 'opacity-70';
     }
   }
 
@@ -276,6 +311,13 @@ function FlickKeyCell({
           {isSelected && isSelecting && previewChar && (
             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-gray-900 px-3 py-1 rounded-lg text-2xl font-bold shadow-lg">
               {previewChar}
+            </div>
+          )}
+
+          {/* 変換キー用のプレビュー表示（保持中に「か→が」形式で表示） */}
+          {isModifierHolding && conversionPreview && (
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-orange-400 text-gray-900 px-3 py-1 rounded-lg text-xl font-bold shadow-lg whitespace-nowrap">
+              {conversionPreview}
             </div>
           )}
 
