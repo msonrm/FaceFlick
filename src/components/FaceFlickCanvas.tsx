@@ -60,8 +60,10 @@ export function FaceFlickCanvas() {
   // 読み上げフィードバック用状態
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakClearProgress, setSpeakClearProgress] = useState<number | null>(null);
+  const [modifierJustUsed, setModifierJustUsed] = useState(false);
   const jawOpenOverrideRef = useRef<number | null>(null);
   const mouthAnimationRef = useRef<number | null>(null);
+  const modifierTimeoutRef = useRef<number | null>(null);
 
   // 入力状態管理用refs
   const triggerStartTimeRef = useRef<number | null>(null);
@@ -407,6 +409,14 @@ export function FaceFlickCanvas() {
             if (isModifier) {
               actions.toggleModifier();
               lastInputTimeRef.current = now; // クールダウン開始
+              // 変換キーのフィードバック（0.3秒間オレンジ表示）
+              if (modifierTimeoutRef.current) {
+                clearTimeout(modifierTimeoutRef.current);
+              }
+              setModifierJustUsed(true);
+              modifierTimeoutRef.current = window.setTimeout(() => {
+                setModifierJustUsed(false);
+              }, 300);
             } else if (char) {
               actions.charInput(char);
               lastInputTimeRef.current = now; // クールダウン開始
@@ -611,6 +621,7 @@ export function FaceFlickCanvas() {
               isHidden={isSpeaking}
               speakClearProgress={speakClearProgress}
               hasText={state.text.length > 0}
+              modifierJustUsed={modifierJustUsed}
             />
             {/* ヘルプ */}
             <div
