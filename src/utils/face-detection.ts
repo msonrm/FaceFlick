@@ -61,7 +61,7 @@ export function analyzeFace(
 
   // mouthPucker優先の排他処理
   // 口すぼめが一定以上の場合はjawOpenを無視する（口すぼめ時に顎も微妙に開くため）
-  const PUCKER_PRIORITY_THRESHOLD = 0.25;
+  const PUCKER_PRIORITY_THRESHOLD = 0.45;
   const triggerValue = mouthPucker >= PUCKER_PRIORITY_THRESHOLD
     ? mouthPucker
     : Math.max(jawOpen, mouthPucker);
