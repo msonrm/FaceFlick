@@ -160,6 +160,7 @@ export const CONFIRM_COOLDOWN_MS = 300;     // 文字確定後のクールダウ
 export const FACE_LOST_TIMEOUT_MS = 300;    // 顔認識ロスト判定時間
 export const SMILE_HOLD_MS = 1500;          // 笑顔ホールド時間
 export const BROW_HOLD_MS = 1500;           // 眉上げホールド時間
+export const INPUT_COOLDOWN_MS = 500;       // 文字入力後のクールダウン
 export const CALIBRATION_MIN_MS = 2000;     // キャリブレーション最低時間
 export const CALIBRATION_MAX_MS = 5000;     // キャリブレーション最大時間
 export const CALIBRATION_STABILITY_THRESHOLD = 2; // 安定判定の標準偏差閾値（度）

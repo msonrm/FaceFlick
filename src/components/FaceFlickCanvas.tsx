@@ -12,7 +12,8 @@ import { analyzeFace, PrevFaceState, isSmiling, isBrowRaised } from '../utils/fa
 import { getSelectedKeyPosition, getFlickDirection, getCharFromPosition } from '../utils/input-logic';
 import { detectGesture } from '../utils/gesture-detection';
 import { applyMediaPipeToGLB, CalibrationOffset, BlendshapeOverride } from '../utils/glb/applyMediaPipeToGLB';
-import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS } from '../utils/keyboard-layout';
+import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS, INPUT_COOLDOWN_MS } from '../utils/keyboard-layout';
+import { canToggleCharacter } from '../utils/character-utils';
 
 // Components
 import { Keyboard } from './Keyboard';
@@ -68,6 +69,7 @@ export function FaceFlickCanvas() {
   const headRotationHistoryRef = useRef<HeadRotationSample[]>([]);
   const smileStartTimeRef = useRef<number | null>(null);
   const lastBackspaceTimeRef = useRef<number>(0); // 首振り（削除）のクールダウン用
+  const lastInputTimeRef = useRef<number>(0); // 文字入力後のクールダウン用
   const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number } | null>(null); // ホバー平滑化用
   const wasRecognizedRef = useRef<boolean>(false); // 顔認識状態追跡用
 
@@ -349,7 +351,15 @@ export function FaceFlickCanvas() {
         }
 
         // トリガー検出 → 即座にtriggering状態へ（背景色変更）
-        if (isTriggered) {
+        // ただし、以下の場合はトリガーを無効化:
+        // 1. 文字入力後のクールダウン中（0.5秒）
+        // 2. モディファイアキー（左下）上で、最後の文字が変換不可の場合
+        const isInCooldown = now - lastInputTimeRef.current < INPUT_COOLDOWN_MS;
+        const isOnModifierKey = keyPosition.row === 3 && keyPosition.col === 0;
+        const lastChar = state.text.length > 0 ? [...state.text][state.text.length - 1] : null;
+        const isModifierDisabled = isOnModifierKey && (!lastChar || !canToggleCharacter(lastChar));
+
+        if (isTriggered && !isInCooldown && !isModifierDisabled) {
           triggerStartTimeRef.current = now;
           // ホールド位置は平滑化された値を使用（フリック検出と基準を合わせる）
           holdPositionRef.current = {
@@ -396,8 +406,10 @@ export function FaceFlickCanvas() {
 
             if (isModifier) {
               actions.toggleModifier();
+              lastInputTimeRef.current = now; // クールダウン開始
             } else if (char) {
               actions.charInput(char);
+              lastInputTimeRef.current = now; // クールダウン開始
             }
           }
           actions.triggerEnd();
