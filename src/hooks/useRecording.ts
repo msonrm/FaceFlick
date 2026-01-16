@@ -41,19 +41,74 @@ function getSupportedMimeType(): { mimeType: string; extension: string } {
   return { mimeType: 'video/webm', extension: 'webm' };
 }
 
+export type RecordingStatus = 'idle' | 'requesting' | 'recording' | 'stopping';
+
 export function useRecording() {
-  const [isRecording, setIsRecording] = useState(false);
+  const [status, setStatus] = useState<RecordingStatus>('idle');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recordingFormatRef = useRef<{ mimeType: string; extension: string } | null>(null);
+  const displayStreamRef = useRef<MediaStream | null>(null);
 
-  const startRecording = useCallback((canvas: HTMLCanvasElement) => {
+  // Canvas映像 + タブ音声を録画開始
+  const startRecording = useCallback(async (canvas: HTMLCanvasElement) => {
+    if (status !== 'idle') return;
+
+    setStatus('requesting');
+
     try {
-      const stream = canvas.captureStream(30); // 30 fps
+      // Canvas映像ストリームを取得
+      const canvasStream = canvas.captureStream(30); // 30 fps
+
+      // タブ音声をキャプチャするために getDisplayMedia を使用
+      // preferCurrentTab: true でダイアログをスキップ（サポートされている場合）
+      let displayStream: MediaStream | null = null;
+      let audioTrack: MediaStreamTrack | null = null;
+
+      try {
+        displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            displaySurface: 'browser',
+          },
+          audio: true,
+          preferCurrentTab: true,
+          selfBrowserSurface: 'include',
+          systemAudio: 'include',
+        } as DisplayMediaStreamOptions);
+
+        displayStreamRef.current = displayStream;
+
+        // 音声トラックを取得
+        const audioTracks = displayStream.getAudioTracks();
+        if (audioTracks.length > 0) {
+          audioTrack = audioTracks[0];
+          console.log('Audio track captured:', audioTrack.label);
+        }
+
+        // ビデオトラックは不要なので停止（Canvas映像を使用するため）
+        displayStream.getVideoTracks().forEach((track) => track.stop());
+      } catch (err) {
+        console.warn('Could not capture tab audio, recording without audio:', err);
+        // 音声キャプチャに失敗しても、映像のみで続行
+      }
+
+      // 最終的なストリームを構築
+      const combinedStream = new MediaStream();
+
+      // Canvas映像トラックを追加
+      canvasStream.getVideoTracks().forEach((track) => {
+        combinedStream.addTrack(track);
+      });
+
+      // 音声トラックがあれば追加
+      if (audioTrack) {
+        combinedStream.addTrack(audioTrack);
+      }
+
       const format = getSupportedMimeType();
       recordingFormatRef.current = format;
 
-      const mediaRecorder = new MediaRecorder(stream, {
+      const mediaRecorder = new MediaRecorder(combinedStream, {
         mimeType: format.mimeType,
       });
 
@@ -66,6 +121,12 @@ export function useRecording() {
       };
 
       mediaRecorder.onstop = () => {
+        // 音声ストリームのクリーンアップ
+        if (displayStreamRef.current) {
+          displayStreamRef.current.getTracks().forEach((track) => track.stop());
+          displayStreamRef.current = null;
+        }
+
         const format = recordingFormatRef.current || { mimeType: 'video/webm', extension: 'webm' };
         const blob = new Blob(chunksRef.current, { type: format.mimeType });
         const url = URL.createObjectURL(blob);
@@ -74,23 +135,33 @@ export function useRecording() {
         a.download = `faceflick-${Date.now()}.${format.extension}`;
         a.click();
         URL.revokeObjectURL(url);
+
+        setStatus('idle');
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event);
+        setStatus('idle');
       };
 
       mediaRecorder.start();
       mediaRecorderRef.current = mediaRecorder;
-      setIsRecording(true);
+      setStatus('recording');
     } catch (err) {
       console.error('Failed to start recording:', err);
+      setStatus('idle');
     }
-  }, []);
+  }, [status]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && status === 'recording') {
+      setStatus('stopping');
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current = null;
-      setIsRecording(false);
     }
-  }, [isRecording]);
+  }, [status]);
 
-  return { isRecording, startRecording, stopRecording };
+  const isRecording = status === 'recording';
+
+  return { status, isRecording, startRecording, stopRecording };
 }
