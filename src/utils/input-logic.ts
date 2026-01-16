@@ -3,6 +3,9 @@ import { getLayout, getKeyAt, getCharacter, isFlickKey } from './keyboard-layout
 
 /**
  * 顔の向きからキー位置を計算
+ * 角度配分に重み付けあり：
+ * - 横方向：30%, 40%, 30%
+ * - 縦方向：10%, 40%, 40%, 10%
  */
 export function getSelectedKeyPosition(
   headRotation: { yaw: number; pitch: number },
@@ -25,10 +28,41 @@ export function getSelectedKeyPosition(
   const pitchClamped = Math.max(0, Math.min(1, pitchNorm));
 
   // 鏡像反転: 顔を左に振る → 右列を選択
-  const col = Math.min(cols - 1, Math.floor((1 - yawClamped) * cols));
-  const row = Math.min(rows - 1, Math.floor(pitchClamped * rows));
+  const yawFlipped = 1 - yawClamped;
+
+  // 重み付き角度配分
+  // 横方向（3列）：30%, 40%, 30%
+  const colWeights = [0.30, 0.40, 0.30];
+  const col = getWeightedIndex(yawFlipped, colWeights, cols);
+
+  // 縦方向（4行）：10%, 40%, 40%, 10%
+  const rowWeights = [0.10, 0.40, 0.40, 0.10];
+  const row = getWeightedIndex(pitchClamped, rowWeights, rows);
 
   return { row, col };
+}
+
+/**
+ * 重み付きインデックスを計算
+ * @param normalizedPos 正規化された位置 (0-1)
+ * @param weights 各インデックスの重み配列
+ * @param count インデックスの総数
+ */
+function getWeightedIndex(normalizedPos: number, weights: number[], count: number): number {
+  // 重みの合計
+  const totalWeight = weights.slice(0, count).reduce((sum, w) => sum + w, 0);
+
+  // 累積境界を計算
+  let cumulative = 0;
+  for (let i = 0; i < count; i++) {
+    const weight = weights[i] ?? 1;
+    cumulative += weight / totalWeight;
+    if (normalizedPos < cumulative) {
+      return i;
+    }
+  }
+
+  return count - 1;
 }
 
 /**

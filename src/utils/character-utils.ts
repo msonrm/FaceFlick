@@ -35,6 +35,23 @@ const REVERSE_SMALL: Record<string, string> = Object.fromEntries(
 );
 
 /**
+ * 文字が濁点・半濁点・小文字で変換可能かを判定
+ */
+export function canToggleCharacter(char: string): boolean {
+  // つ系は変換可能
+  if (char === 'つ' || char === 'っ' || char === 'づ') return true;
+
+  // 濁点/半濁点対応文字
+  if (DAKUTEN_MAP[char] || REVERSE_DAKUTEN[char]) return true;
+  if (HANDAKUTEN_MAP[char] || REVERSE_HANDAKUTEN[char]) return true;
+
+  // 小文字対応文字
+  if (SMALL_MAP[char] || REVERSE_SMALL[char]) return true;
+
+  return false;
+}
+
+/**
  * 文字を濁点・半濁点・小文字でトグルする
  *
  * サイクル:

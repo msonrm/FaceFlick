@@ -12,7 +12,8 @@ import { analyzeFace, PrevFaceState, isSmiling, isBrowRaised } from '../utils/fa
 import { getSelectedKeyPosition, getFlickDirection, getCharFromPosition } from '../utils/input-logic';
 import { detectGesture } from '../utils/gesture-detection';
 import { applyMediaPipeToGLB, CalibrationOffset, BlendshapeOverride } from '../utils/glb/applyMediaPipeToGLB';
-import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS } from '../utils/keyboard-layout';
+import { getLayout, DETECTION_INTERVAL_MS, HOLD_DELAY_MS, SMILE_HOLD_MS, INPUT_COOLDOWN_MS } from '../utils/keyboard-layout';
+import { canToggleCharacter } from '../utils/character-utils';
 
 // Components
 import { Keyboard } from './Keyboard';
@@ -59,8 +60,10 @@ export function FaceFlickCanvas() {
   // 読み上げフィードバック用状態
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakClearProgress, setSpeakClearProgress] = useState<number | null>(null);
+  const [modifierJustUsed, setModifierJustUsed] = useState(false);
   const jawOpenOverrideRef = useRef<number | null>(null);
   const mouthAnimationRef = useRef<number | null>(null);
+  const modifierTimeoutRef = useRef<number | null>(null);
 
   // 入力状態管理用refs
   const triggerStartTimeRef = useRef<number | null>(null);
@@ -68,6 +71,7 @@ export function FaceFlickCanvas() {
   const headRotationHistoryRef = useRef<HeadRotationSample[]>([]);
   const smileStartTimeRef = useRef<number | null>(null);
   const lastBackspaceTimeRef = useRef<number>(0); // 首振り（削除）のクールダウン用
+  const lastInputTimeRef = useRef<number>(0); // 文字入力後のクールダウン用
   const smoothedHeadRotationRef = useRef<{ yaw: number; pitch: number } | null>(null); // ホバー平滑化用
   const wasRecognizedRef = useRef<boolean>(false); // 顔認識状態追跡用
 
@@ -265,25 +269,39 @@ export function FaceFlickCanvas() {
 
       // 入力状態に応じた処理
       if (state.input.phase === 'idle') {
-        // ホバー更新
-        actions.keyHover(keyPosition);
+        // 笑顔/眉上げ検出中は「や」キーのフォーカスを固定
+        const isSmileHolding = smileStartTimeRef.current !== null;
+        const yaKeyPosition = { row: 2, col: 1 };
+
+        // ホバー更新（笑顔/眉上げホールド中は「や」キーに固定）
+        if (isSmileHolding) {
+          actions.keyHover(yaKeyPosition);
+        } else {
+          actions.keyHover(keyPosition);
+        }
 
         // トリガーなしの場合のみジェスチャー検出
         if (!isTriggered) {
           // 【優先度2】首振りジェスチャー検出（バックスペース）
-          const BACKSPACE_COOLDOWN_MS = 1000; // 1秒のクールダウン
-          const gesture = detectGesture(headRotationHistoryRef.current);
-          if (gesture === 'head_shake' && now - lastBackspaceTimeRef.current >= BACKSPACE_COOLDOWN_MS) {
-            actions.backspace();
-            headRotationHistoryRef.current = []; // 履歴クリア
-            lastBackspaceTimeRef.current = now;
-            smileStartTimeRef.current = null; // 他のジェスチャータイマーもリセット
-            return;
+          // ※笑顔/眉上げホールド中は首振り検出をスキップ
+          if (!isSmileHolding) {
+            const BACKSPACE_COOLDOWN_MS = 1000; // 1秒のクールダウン
+            const gesture = detectGesture(headRotationHistoryRef.current);
+            if (gesture === 'head_shake' && now - lastBackspaceTimeRef.current >= BACKSPACE_COOLDOWN_MS) {
+              actions.backspace();
+              headRotationHistoryRef.current = []; // 履歴クリア
+              lastBackspaceTimeRef.current = now;
+              smileStartTimeRef.current = null; // 他のジェスチャータイマーもリセット
+              return;
+            }
           }
 
           // 【優先度3】笑顔/眉上げジェスチャー検出（「や」キー上で）
+          // ホールド中は継続判定、それ以外は「や」キー上でのみ開始
           const isOnYaKey = keyPosition.row === 2 && keyPosition.col === 1;
-          if (isOnYaKey && state.text.length > 0) { // 文字がある時のみ
+          const shouldCheckSmile = isSmileHolding || (isOnYaKey && state.text.length > 0);
+
+          if (shouldCheckSmile && state.text.length > 0) {
             const smiling = isSmiling(blendshapes, state.calibration.smileThreshold);
             const browRaised = isBrowRaised(
               blendshapes,
@@ -327,14 +345,23 @@ export function FaceFlickCanvas() {
               smileStartTimeRef.current = null;
               setSpeakClearProgress(null);
             }
-          } else {
+          } else if (!isSmileHolding) {
+            // ホールド中でなく、「や」キー上でもない場合のみリセット
             smileStartTimeRef.current = null;
             setSpeakClearProgress(null);
           }
         }
 
         // トリガー検出 → 即座にtriggering状態へ（背景色変更）
-        if (isTriggered) {
+        // ただし、以下の場合はトリガーを無効化:
+        // 1. 文字入力後のクールダウン中（0.5秒）
+        // 2. モディファイアキー（左下）上で、最後の文字が変換不可の場合
+        const isInCooldown = now - lastInputTimeRef.current < INPUT_COOLDOWN_MS;
+        const isOnModifierKey = keyPosition.row === 3 && keyPosition.col === 0;
+        const lastChar = state.text.length > 0 ? [...state.text][state.text.length - 1] : null;
+        const isModifierDisabled = isOnModifierKey && (!lastChar || !canToggleCharacter(lastChar));
+
+        if (isTriggered && !isInCooldown && !isModifierDisabled) {
           triggerStartTimeRef.current = now;
           // ホールド位置は平滑化された値を使用（フリック検出と基準を合わせる）
           holdPositionRef.current = {
@@ -381,8 +408,18 @@ export function FaceFlickCanvas() {
 
             if (isModifier) {
               actions.toggleModifier();
+              lastInputTimeRef.current = now; // クールダウン開始
+              // 変換キーのフィードバック（0.3秒間オレンジ表示）
+              if (modifierTimeoutRef.current) {
+                clearTimeout(modifierTimeoutRef.current);
+              }
+              setModifierJustUsed(true);
+              modifierTimeoutRef.current = window.setTimeout(() => {
+                setModifierJustUsed(false);
+              }, 300);
             } else if (char) {
               actions.charInput(char);
+              lastInputTimeRef.current = now; // クールダウン開始
             }
           }
           actions.triggerEnd();
@@ -583,11 +620,20 @@ export function FaceFlickCanvas() {
               previewChar={state.input.previewChar}
               isHidden={isSpeaking}
               speakClearProgress={speakClearProgress}
+              hasText={state.text.length > 0}
+              modifierJustUsed={modifierJustUsed}
             />
             {/* ヘルプ */}
-            <p className="text-gray-400 text-xs text-center mt-2" style={{ opacity: isSpeaking ? 0 : 1, transition: 'opacity 0.3s' }}>
-              顔を動かしてキー選択 / 口を開けて決定 / 首振りで削除
-            </p>
+            <div
+              className="bg-gray-800/60 backdrop-blur-sm rounded-lg px-4 py-3 mt-2"
+              style={{ opacity: isSpeaking ? 0 : 1, transition: 'opacity 0.3s' }}
+            >
+              <p className="text-gray-300 text-xs text-center leading-relaxed">
+                顔を動かしてキー選択 → 口開け/すぼめでフリック開始 → 顔を動かして文字選択 → 口を戻して決定
+                <br />
+                首振りで1文字削除 / 「や」キー上で笑顔か眉上げで読み上げ
+              </p>
+            </div>
           </div>
         )}
 

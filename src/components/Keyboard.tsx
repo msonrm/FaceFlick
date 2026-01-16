@@ -16,6 +16,8 @@ interface KeyboardProps {
   previewChar: string | null;
   isHidden?: boolean;
   speakClearProgress?: number | null; // 0-1: 発声&クリアの進捗（「や」キー上で笑顔/眉上げ時）
+  hasText?: boolean; // テキストエリアに文字があるか（「や」キーのアイコン表示用）
+  modifierJustUsed?: boolean; // 変換キーが使用された直後か
 }
 
 export function Keyboard({
@@ -26,6 +28,8 @@ export function Keyboard({
   previewChar,
   isHidden = false,
   speakClearProgress = null,
+  hasText = false,
+  modifierJustUsed = false,
 }: KeyboardProps) {
   const layout = useMemo(() => getLayout(layoutId), [layoutId]);
 
@@ -46,6 +50,8 @@ export function Keyboard({
           inputPhase={inputPhase}
           previewChar={previewChar}
           speakClearProgress={speakClearProgress}
+          hasText={hasText}
+          modifierJustUsed={modifierJustUsed}
         />
       </div>
     );
@@ -73,6 +79,8 @@ interface FlickKeyboardProps {
   inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
   previewChar: string | null;
   speakClearProgress: number | null;
+  hasText: boolean;
+  modifierJustUsed: boolean;
 }
 
 function FlickKeyboard({
@@ -82,6 +90,8 @@ function FlickKeyboard({
   inputPhase,
   previewChar,
   speakClearProgress,
+  hasText,
+  modifierJustUsed,
 }: FlickKeyboardProps) {
   return (
     <div className="grid grid-rows-4 gap-1 w-full max-w-sm mx-auto aspect-[3/4]">
@@ -93,6 +103,8 @@ function FlickKeyboard({
             const flickKey = key as FlickKey;
             // 「や」キー（row:2, col:1）の発声&クリア進捗
             const isYaKey = rowIndex === 2 && colIndex === 1;
+            // 変換キー（row:3, col:0）
+            const isModifierKey = rowIndex === 3 && colIndex === 0;
 
             return (
               <FlickKeyCell
@@ -103,6 +115,8 @@ function FlickKeyboard({
                 inputPhase={isSelected ? inputPhase : 'idle'}
                 previewChar={isSelected ? previewChar : null}
                 speakClearProgress={isYaKey ? speakClearProgress : null}
+                hasText={hasText}
+                modifierJustUsed={isModifierKey && modifierJustUsed}
               />
             );
           })}
@@ -119,6 +133,8 @@ interface FlickKeyCellProps {
   inputPhase: 'idle' | 'triggering' | 'selecting' | 'flicking';
   previewChar: string | null;
   speakClearProgress: number | null;
+  hasText: boolean;
+  modifierJustUsed: boolean;
 }
 
 function FlickKeyCell({
@@ -128,6 +144,8 @@ function FlickKeyCell({
   inputPhase,
   previewChar,
   speakClearProgress,
+  hasText,
+  modifierJustUsed,
 }: FlickKeyCellProps) {
   const isTriggering = inputPhase === 'triggering';
   const isSelecting = inputPhase === 'selecting' || inputPhase === 'flicking';
@@ -144,6 +162,12 @@ function FlickKeyCell({
   if (isSpeakClearHolding) {
     const alpha = 0.2 + speakClearProgress * 0.6; // 0.2 → 0.8
     customBgStyle = { backgroundColor: `rgba(255, 140, 0, ${alpha})` };
+    borderClass = 'border-orange-400';
+    textOpacity = 'opacity-100';
+    scaleClass = 'scale-105';
+  } else if (modifierJustUsed) {
+    // 変換キー使用直後（オレンジ背景を0.3秒維持）
+    customBgStyle = { backgroundColor: 'rgba(255, 140, 0, 0.6)' };
     borderClass = 'border-orange-400';
     textOpacity = 'opacity-100';
     scaleClass = 'scale-105';
@@ -170,8 +194,15 @@ function FlickKeyCell({
 
   // フリック方向のハイライト
   const getDirectionHighlight = (dir: 'up' | 'down' | 'left' | 'right') => {
-    if (!isSelecting || flickDirection !== dir) return `text-gray-400 text-xs ${textOpacity}`;
-    return 'text-yellow-300 text-sm font-bold';
+    if (!isSelecting) {
+      // ホバー時・トリガー中は小さく薄く
+      return `text-gray-400 text-xs ${textOpacity}`;
+    }
+    // フリック開始後は全方向を白く大きく、選択中の方向は黄色
+    if (flickDirection === dir) {
+      return 'text-yellow-300 text-xl font-bold';
+    }
+    return 'text-white text-xl font-bold';
   };
 
   return (
@@ -248,8 +279,8 @@ function FlickKeyCell({
             </div>
           )}
 
-          {/* 特殊キー用のアイコン（読み上げトリガー）- フリック中は非表示 */}
-          {keyData.isSpecial && !isSelecting && (
+          {/* 特殊キー用のアイコン（読み上げトリガー）- フリック中/テキストなしは非表示 */}
+          {keyData.isSpecial && !isSelecting && hasText && (
             <span className="absolute top-0.5 right-0.5 material-symbols-outlined text-green-400 text-sm">
               volume_up
             </span>
