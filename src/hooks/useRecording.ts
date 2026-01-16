@@ -52,27 +52,28 @@ export function useRecording() {
 
   // タブ全体（映像 + 音声）を録画開始
   const startRecording = useCallback(async () => {
-    if (status !== 'idle') return;
+    if (status !== 'idle') {
+      console.log('Recording already in progress, status:', status);
+      return;
+    }
 
     setStatus('requesting');
+    console.log('Requesting screen capture...');
 
     try {
       // getDisplayMedia でタブ全体をキャプチャ（映像 + 音声）
+      // 基本的なオプションのみ使用（互換性のため）
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          displaySurface: 'browser',
-          frameRate: 30,
-        },
+        video: true,
         audio: true,
-        preferCurrentTab: true,
-        selfBrowserSurface: 'include',
-        systemAudio: 'include',
-      } as DisplayMediaStreamOptions);
+      });
 
+      console.log('Screen capture granted');
       displayStreamRef.current = displayStream;
 
       // ストリームが途中で停止された場合（ユーザーが共有を停止）
       displayStream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        console.log('Screen sharing ended by user');
         if (mediaRecorderRef.current?.state === 'recording') {
           mediaRecorderRef.current.stop();
           mediaRecorderRef.current = null;
@@ -95,6 +96,7 @@ export function useRecording() {
       };
 
       mediaRecorder.onstop = () => {
+        console.log('Recording stopped, saving file...');
         // ストリームのクリーンアップ
         if (displayStreamRef.current) {
           displayStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -121,6 +123,7 @@ export function useRecording() {
       mediaRecorder.start();
       mediaRecorderRef.current = mediaRecorder;
       setStatus('recording');
+      console.log('Recording started');
     } catch (err) {
       console.error('Failed to start recording:', err);
       setStatus('idle');
@@ -129,6 +132,7 @@ export function useRecording() {
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && status === 'recording') {
+      console.log('Stopping recording...');
       setStatus('stopping');
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current = null;
