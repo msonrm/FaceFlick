@@ -4,8 +4,8 @@ import { getLayout, getKeyAt, getCharacter, isFlickKey } from './keyboard-layout
 /**
  * 顔の向きからキー位置を計算
  * 角度配分に重み付けあり：
- * - 横方向：左列 2/3、中央列 1、右列 2/3
- * - 縦方向：1行目 2/3、2-3行目 1、4行目 2/3
+ * - 横方向：30%, 40%, 30%
+ * - 縦方向：15%, 35%, 35%, 15%
  */
 export function getSelectedKeyPosition(
   headRotation: { yaw: number; pitch: number },
@@ -31,12 +31,12 @@ export function getSelectedKeyPosition(
   const yawFlipped = 1 - yawClamped;
 
   // 重み付き角度配分
-  // 横方向（3列）：左列 2/3、中央列 1、右列 2/3
-  const colWeights = [2/3, 1, 2/3];
+  // 横方向（3列）：30%, 40%, 30%
+  const colWeights = [0.30, 0.40, 0.30];
   const col = getWeightedIndex(yawFlipped, colWeights, cols);
 
-  // 縦方向（4行）：1行目 2/3、2行目 1、3行目 1、4行目 2/3
-  const rowWeights = [2/3, 1, 1, 2/3];
+  // 縦方向（4行）：15%, 35%, 35%, 15%
+  const rowWeights = [0.15, 0.35, 0.35, 0.15];
   const row = getWeightedIndex(pitchClamped, rowWeights, rows);
 
   return { row, col };
