@@ -18,7 +18,6 @@ export function Toolbar({
   onStopRecording,
 }: ToolbarProps) {
   const isRecording = recordingStatus === 'recording';
-  const isRequesting = recordingStatus === 'requesting';
   const isStopping = recordingStatus === 'stopping';
 
   return (
@@ -34,7 +33,7 @@ export function Toolbar({
       </div>
       <div className="flex gap-2">
         {/* 録画ボタン */}
-        {isRecording ? (
+        {isRecording || isStopping ? (
           <button
             onClick={onStopRecording}
             disabled={isStopping}
@@ -45,10 +44,9 @@ export function Toolbar({
         ) : (
           <button
             onClick={onStartRecording}
-            disabled={isRequesting}
-            className="px-3 py-1 rounded text-xs bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors disabled:opacity-50"
+            className="px-3 py-1 rounded text-xs bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
           >
-            {isRequesting ? '準備中...' : '録画'}
+            録画
           </button>
         )}
         <button
