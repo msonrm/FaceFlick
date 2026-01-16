@@ -280,7 +280,7 @@ function FlickKeyCell({
               text-xl font-bold transition-opacity duration-150
               ${isSelected && isSelecting && flickDirection === 'center'
                 ? 'text-yellow-300'
-                : isSelected
+                : isSelected && !isModifierDisabled
                 ? 'text-white'
                 : `text-gray-200 ${textOpacity}`
               }
