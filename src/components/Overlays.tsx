@@ -54,7 +54,7 @@ export function LoadingOverlay({
 // キャリブレーションオーバーレイ
 // ============================================
 
-type CalibrationStep = 'neutral' | 'transition' | 'range' | 'complete';
+type CalibrationStep = 'range_intro' | 'range' | 'neutral_intro' | 'neutral' | 'complete';
 
 // Blendshapeサンプルの型（jawOpen, mouthPucker, browInnerUpを含む）
 export interface BlendshapeSample {
@@ -69,16 +69,17 @@ interface CalibrationOverlayProps {
   onComplete: (settings: CalibrationSettings) => void;
 }
 
-const NEUTRAL_DURATION_MS = 2000;    // 正面測定
-const TRANSITION_DURATION_MS = 1500; // ステップ間インターバル
-const RANGE_DURATION_MS = 3000;      // 可動域測定
+const RANGE_INTRO_DURATION_MS = 2000;   // 可動域測定前のメッセージ
+const RANGE_DURATION_MS = 5000;          // 可動域測定
+const NEUTRAL_INTRO_DURATION_MS = 2000;  // 正面測定前のメッセージ
+const NEUTRAL_DURATION_MS = 3000;        // 正面測定
 
 export function CalibrationOverlay({
   samples,
   blendshapeSamples,
   onComplete,
 }: CalibrationOverlayProps) {
-  const [step, setStep] = useState<CalibrationStep>('neutral');
+  const [step, setStep] = useState<CalibrationStep>('range_intro');
   const [stepStartTime, setStepStartTime] = useState(() => Date.now());
   const [progress, setProgress] = useState(0);
 
@@ -89,11 +90,12 @@ export function CalibrationOverlay({
   const completedRef = useRef(false);
 
   // ステップの説明
-  const stepInfo: Record<CalibrationStep, { title: string; instruction: string; duration: number }> = {
-    neutral: { title: '1/2', instruction: '正面を向いてリラックス', duration: NEUTRAL_DURATION_MS },
-    transition: { title: '', instruction: '次のステップへ...', duration: TRANSITION_DURATION_MS },
-    range: { title: '2/2', instruction: '顔を上下左右にゆっくり動かす', duration: RANGE_DURATION_MS },
-    complete: { title: '完了', instruction: '設定を保存しています...', duration: 0 },
+  const stepInfo: Record<CalibrationStep, { title: string; instruction: string; duration: number; isMessage: boolean }> = {
+    range_intro: { title: '1/2', instruction: '顔を上下左右に動かしてください', duration: RANGE_INTRO_DURATION_MS, isMessage: true },
+    range: { title: '1/2', instruction: '顔を上下左右にゆっくり動かす', duration: RANGE_DURATION_MS, isMessage: false },
+    neutral_intro: { title: '2/2', instruction: '顔を画面にまっすぐ向けてください', duration: NEUTRAL_INTRO_DURATION_MS, isMessage: true },
+    neutral: { title: '2/2', instruction: '正面を向いてリラックス', duration: NEUTRAL_DURATION_MS, isMessage: false },
+    complete: { title: '完了', instruction: '設定を保存しています...', duration: 0, isMessage: false },
   };
 
   useEffect(() => {
@@ -104,8 +106,13 @@ export function CalibrationOverlay({
     const progressPercent = duration > 0 ? Math.min(100, (elapsed / duration) * 100) : 0;
     setProgress(progressPercent);
 
-    // 現在のステップにサンプルを追加
-    if (step === 'neutral') {
+    // 現在のステップにサンプルを追加（測定ステップのみ）
+    if (step === 'range') {
+      if (samples.length > 0) {
+        const latestSamples = samples.slice(-5);
+        rangeSamplesRef.current.push(...latestSamples);
+      }
+    } else if (step === 'neutral') {
       if (samples.length > 0) {
         const latestSamples = samples.slice(-5);
         neutralSamplesRef.current.push(...latestSamples);
@@ -114,24 +121,23 @@ export function CalibrationOverlay({
         const latestBlendshapes = blendshapeSamples.slice(-5);
         neutralBlendshapesRef.current.push(...latestBlendshapes);
       }
-    } else if (step === 'range') {
-      if (samples.length > 0) {
-        const latestSamples = samples.slice(-5);
-        rangeSamplesRef.current.push(...latestSamples);
-      }
     }
 
     // ステップ完了判定
     if (elapsed >= duration) {
-      if (step === 'neutral') {
-        setStep('transition');
-        setStepStartTime(Date.now());
-        setProgress(0);
-      } else if (step === 'transition') {
+      if (step === 'range_intro') {
         setStep('range');
         setStepStartTime(Date.now());
         setProgress(0);
       } else if (step === 'range') {
+        setStep('neutral_intro');
+        setStepStartTime(Date.now());
+        setProgress(0);
+      } else if (step === 'neutral_intro') {
+        setStep('neutral');
+        setStepStartTime(Date.now());
+        setProgress(0);
+      } else if (step === 'neutral') {
         setStep('complete');
         completedRef.current = true;
 
@@ -162,8 +168,8 @@ export function CalibrationOverlay({
           {info.instruction}
         </p>
 
-        {/* 進捗バー（transitionステップでは非表示） */}
-        {step !== 'transition' && (
+        {/* 進捗バー（メッセージステップでは非表示） */}
+        {!info.isMessage && step !== 'complete' && (
           <div className="mb-4">
             <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
               <div
@@ -176,8 +182,8 @@ export function CalibrationOverlay({
 
         {/* ステップインジケーター */}
         <div className="flex justify-center gap-2 mt-4">
-          {['neutral', 'range'].map((s) => {
-            const stepOrder = ['neutral', 'transition', 'range', 'complete'];
+          {['range', 'neutral'].map((s) => {
+            const stepOrder = ['range_intro', 'range', 'neutral_intro', 'neutral', 'complete'];
             const currentIndex = stepOrder.indexOf(step);
             const targetIndex = stepOrder.indexOf(s);
 
@@ -185,7 +191,7 @@ export function CalibrationOverlay({
               <div
                 key={s}
                 className={`w-3 h-3 rounded-full ${
-                  step === s
+                  step === s || (s === 'range' && step === 'range_intro') || (s === 'neutral' && step === 'neutral_intro')
                     ? 'bg-blue-500'
                     : currentIndex > targetIndex
                     ? 'bg-green-500'
