@@ -380,8 +380,9 @@ export function FaceFlickCanvas() {
         const canConvert = lastChar && canToggleCharacter(lastChar);
         const isModifierDisabled = isOnModifierKey && !canConvert;
 
-        // 変換キー上でのトリガー検出 → 保持処理（「や」キーの笑顔検出と同様）
-        if (isOnModifierKey && canConvert && !isInCooldown) {
+        // 変換キー上でのトリガー検出 → 通常キーと同様の操作（ホールド→リリースで確定）
+        // ホールド中は顔を動かしても変換キーに固定
+        if ((isOnModifierKey || isModifierHolding) && canConvert && !isInCooldown) {
           if (isTriggered) {
             if (!modifierStartTimeRef.current) {
               modifierStartTimeRef.current = now;
@@ -390,26 +391,23 @@ export function FaceFlickCanvas() {
               const elapsed = now - modifierStartTimeRef.current;
               const progress = Math.min(elapsed / MODIFIER_HOLD_MS, 1);
               setModifierProgress(progress);
-
-              if (elapsed >= MODIFIER_HOLD_MS) {
-                // 変換実行
-                actions.toggleModifier();
-                lastInputTimeRef.current = now; // クールダウン開始
-                // 変換キーのフィードバック（0.3秒間オレンジ表示）
-                if (modifierTimeoutRef.current) {
-                  clearTimeout(modifierTimeoutRef.current);
-                }
-                setModifierJustUsed(true);
-                modifierTimeoutRef.current = window.setTimeout(() => {
-                  setModifierJustUsed(false);
-                }, 300);
-                // リセット
-                modifierStartTimeRef.current = null;
-                setModifierProgress(null);
-              }
+              // ホールド時間経過してもまだ変換しない（リリースで確定）
             }
           } else {
-            // トリガー解除 → 保持キャンセル
+            // トリガー解除 → selecting状態（progress=1）なら変換実行
+            if (modifierProgress !== null && modifierProgress >= 1) {
+              actions.toggleModifier();
+              lastInputTimeRef.current = now; // クールダウン開始
+              // 変換キーのフィードバック（0.3秒間緑表示）
+              if (modifierTimeoutRef.current) {
+                clearTimeout(modifierTimeoutRef.current);
+              }
+              setModifierJustUsed(true);
+              modifierTimeoutRef.current = window.setTimeout(() => {
+                setModifierJustUsed(false);
+              }, 300);
+            }
+            // リセット
             modifierStartTimeRef.current = null;
             setModifierProgress(null);
           }

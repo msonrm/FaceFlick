@@ -174,7 +174,8 @@ function FlickKeyCell({
   const isTriggering = inputPhase === 'triggering';
   const isSelecting = inputPhase === 'selecting' || inputPhase === 'flicking';
   const isSpeakClearHolding = speakClearProgress !== null && speakClearProgress > 0;
-  const isModifierHolding = modifierProgress !== null && modifierProgress > 0;
+  const isModifierTriggering = modifierProgress !== null && modifierProgress > 0 && modifierProgress < 1;
+  const isModifierSelecting = modifierProgress !== null && modifierProgress >= 1;
 
   // 変換キー: 変換非対応の場合はグレーアウト
   const isModifierDisabled = keyData.isModifier && !lastChar;
@@ -193,17 +194,23 @@ function FlickKeyCell({
     borderClass = 'border-orange-400';
     textOpacity = 'opacity-100';
     scaleClass = 'scale-105';
-  } else if (isModifierHolding) {
-    // 変換キー保持中（オレンジ背景、不透明度が進捗に応じて増加）
-    const alpha = 0.2 + modifierProgress * 0.6; // 0.2 → 0.8
-    customBgStyle = { backgroundColor: `rgba(255, 140, 0, ${alpha})` };
+  } else if (isModifierSelecting) {
+    // 変換キー selecting状態（濃いオレンジ、口を離すと確定）
+    customBgStyle = { backgroundColor: 'rgba(255, 140, 0, 0.8)' };
     borderClass = 'border-orange-400';
     textOpacity = 'opacity-100';
     scaleClass = 'scale-105';
+  } else if (isModifierTriggering) {
+    // 変換キー triggering状態（薄いオレンジ、ホールド中）
+    const alpha = 0.2 + modifierProgress! * 0.4; // 0.2 → 0.6
+    customBgStyle = { backgroundColor: `rgba(255, 140, 0, ${alpha})` };
+    borderClass = 'border-orange-300/60';
+    textOpacity = 'opacity-70';
+    scaleClass = 'scale-102';
   } else if (modifierJustUsed) {
-    // 変換キー使用直後（オレンジ背景を0.3秒維持）
-    customBgStyle = { backgroundColor: 'rgba(255, 140, 0, 0.6)' };
-    borderClass = 'border-orange-400';
+    // 変換キー使用直後（緑フラッシュで成功を表示）
+    customBgStyle = { backgroundColor: 'rgba(34, 197, 94, 0.6)' };
+    borderClass = 'border-green-400';
     textOpacity = 'opacity-100';
     scaleClass = 'scale-105';
   } else if (isSelected) {
@@ -314,8 +321,8 @@ function FlickKeyCell({
             </div>
           )}
 
-          {/* 変換キー用のプレビュー表示（保持中に「か→が」形式で表示） */}
-          {isModifierHolding && conversionPreview && (
+          {/* 変換キー用のプレビュー表示（selecting状態で「か→が」形式で表示） */}
+          {isModifierSelecting && conversionPreview && (
             <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-orange-400 text-gray-900 px-3 py-1 rounded-lg text-xl font-bold shadow-lg whitespace-nowrap">
               {conversionPreview}
             </div>
